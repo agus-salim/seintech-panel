@@ -1,0 +1,40 @@
+[
+  {
+    "id": "dom_app_prod_01",
+    "user_id": "usr_client_01",
+    "domain_name": "clientstore.com",
+    "aliases": ["www.clientstore.com"],
+    "document_root": "/var/www/john_doe/clientstore.com/public_html",
+    "webserver_type": "nginx",
+    "php_version": "8.3",
+    "php_socket": "/run/php/php8.3-fpm-john_doe.sock",
+    "ssl_enabled": true,
+    "ssl_provider": "letsencrypt",
+    "ssl_cert_path": "/var/lib/seintech/ssl/clientstore.com/fullchain.pem",
+    "ssl_key_path": "/var/lib/seintech/ssl/clientstore.com/privkey.pem",
+    "ssl_expiry": "2027-01-12T00:00:00Z",
+    "is_reverse_proxy": false,
+    "proxy_target": "",
+    "is_static": false,
+    "status": "active",
+    "created_at": "2026-10-14T09:00:00Z",
+    "updated_at": "2026-10-14T09:00:00Z"
+  },
+  {
+    "id": "dom_api_node_02",
+    "user_id": "usr_client_01",
+    "domain_name": "api.clientstore.com",
+    "document_root": "/var/www/john_doe/api.clientstore.com",
+    "webserver_type": "caddy",
+    "php_version": "",
+    "php_socket": "",
+    "ssl_enabled": true,
+    "ssl_provider": "letsencrypt",
+    "is_reverse_proxy": true,
+    "proxy_target": "http://127.0.0.1:4000",
+    "is_static": false,
+    "status": "active",
+    "created_at": "2026-10-14T09:30:00Z",
+    "updated_at": "2026-10-14T09:30:00Z"
+  }
+]

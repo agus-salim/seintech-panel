@@ -1,0 +1,25 @@
+[Unit]
+Description=Seintech Modern Web Hosting Control Panel
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/var/lib/seintech
+ExecStart=/usr/local/bin/seintech -port 8443 -addr 0.0.0.0
+Restart=always
+RestartSec=5s
+
+# Process and resource limits
+LimitNOFILE=65535
+LimitNPROC=32768
+
+# Standard security isolation flags
+ProtectSystem=strict
+ReadWritePaths=/var/lib/seintech /var/www /etc/nginx /etc/apache2 /usr/local/lsws/conf /etc/caddy /etc/php /run/php /var/log
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

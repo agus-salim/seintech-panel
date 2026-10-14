@@ -1,0 +1,201 @@
+{{ define "content" }}
+<div class="space-y-4" x-data="{ 
+    currentPath: '{{ .CurrentPath }}',
+    editorOpen: false,
+    editingFile: '',
+    fileContent: '',
+    newFileModal: false,
+    newDirModal: false,
+    chmodModal: false,
+    chmodTarget: '',
+    chmodVal: '0755',
+    renameModal: false,
+    renameOld: '',
+    renameNew: '',
+    openEditor(path) {
+        this.editingFile = path;
+        fetch('/filemanager/read?path=' + encodeURIComponent(path))
+            .then(res => res.text())
+            .then(data => {
+                this.fileContent = data;
+                this.editorOpen = true;
+            });
+    },
+    saveFile() {
+        fetch('/filemanager/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'path=' + encodeURIComponent(this.editingFile) + '&content=' + encodeURIComponent(this.fileContent)
+        }).then(res => {
+            if (res.ok) {
+                alert('File saved successfully!');
+            } else {
+                alert('Failed to save file.');
+            }
+        });
+    }
+}">
+
+    <!-- File Manager Action Bar -->
+    <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <!-- Breadcrumbs -->
+        <div class="flex items-center space-x-1.5 text-xs font-mono text-slate-600 overflow-x-auto py-1">
+            <span class="text-slate-400 font-sans font-semibold text-[11px] uppercase mr-1">Root:</span>
+            <a href="/filemanager?path=/" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded text-slate-700">/</a>
+            {{ range .Breadcrumbs }}
+            <span class="text-slate-300">/</span>
+            <a href="/filemanager?path={{ .Path }}" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded text-slate-700 truncate max-w-xs">{{ .Name }}</a>
+            {{ end }}
+        </div>
+
+        <!-- Buttons Toolbar -->
+        <div class="flex items-center space-x-2">
+            <button @click="newFileModal = true" class="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors inline-flex items-center">
+                <svg class="w-3.5 h-3.5 mr-1 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                New File
+            </button>
+            <button @click="newDirModal = true" class="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors inline-flex items-center">
+                <svg class="w-3.5 h-3.5 mr-1 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"></path></svg>
+                New Folder
+            </button>
+            <!-- Upload form -->
+            <form action="/filemanager/upload" method="POST" enctype="multipart/form-data" class="inline">
+                <input type="hidden" name="path" value="{{ .CurrentPath }}">
+                <label class="cursor-pointer px-3.5 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors inline-flex items-center shadow-sm">
+                    <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                    Upload File
+                    <input type="file" name="file" class="hidden" onchange="this.form.submit()">
+                </label>
+            </form>
+        </div>
+    </div>
+
+    <!-- Files Table -->
+    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead class="bg-slate-50 border-b border-slate-200/60">
+                    <tr class="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                        <th class="py-3 px-6">Name</th>
+                        <th class="py-3 px-6">Size</th>
+                        <th class="py-3 px-6">Permissions</th>
+                        <th class="py-3 px-6">Last Modified</th>
+                        <th class="py-3 px-6 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {{ if ne .CurrentPath "/" }}
+                    <tr class="hover:bg-slate-50/70 transition-colors">
+                        <td colspan="5" class="py-3 px-6">
+                            <a href="/filemanager?path={{ .ParentPath }}" class="inline-flex items-center text-xs font-semibold text-slate-500 hover:text-indigo-600">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 17l-5-5m0 0l5-5m-5 5h12"></path></svg>
+                                .. (Parent Directory)
+                            </a>
+                        </td>
+                    </tr>
+                    {{ end }}
+
+                    {{ range .Files }}
+                    <tr class="hover:bg-slate-50/70 transition-colors group">
+                        <td class="py-3 px-6">
+                            <div class="flex items-center space-x-2.5">
+                                {{ if .IsDir }}
+                                <svg class="w-5 h-5 text-amber-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"></path></svg>
+                                <a href="/filemanager?path={{ .Path }}" class="font-semibold text-slate-800 hover:text-indigo-600 truncate max-w-sm">{{ .Name }}</a>
+                                {{ else }}
+                                <svg class="w-5 h-5 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                <span class="font-mono text-xs text-slate-700 truncate max-w-sm">{{ .Name }}</span>
+                                {{ end }}
+                            </div>
+                        </td>
+                        <td class="py-3 px-6 font-mono text-xs text-slate-500">{{ .HumanSize }}</td>
+                        <td class="py-3 px-6">
+                            <button @click="chmodTarget = '{{ .Path }}'; chmodModal = true" class="font-mono text-xs text-slate-600 hover:underline hover:text-indigo-600">
+                                {{ .Mode }}
+                            </button>
+                        </td>
+                        <td class="py-3 px-6 text-xs text-slate-400">{{ .ModTime.Format "2006-01-02 15:04:05" }}</td>
+                        <td class="py-3 px-6 text-right space-x-2">
+                            {{ if .IsEditable }}
+                            <button @click="openEditor('{{ .Path }}')" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800">Edit</button>
+                            {{ end }}
+                            {{ if not .IsDir }}
+                            <a href="/filemanager/download?path={{ .Path }}" class="text-xs font-semibold text-slate-600 hover:text-slate-800">Download</a>
+                            {{ end }}
+                            <button @click="renameOld = '{{ .Path }}'; renameNew = '{{ .Name }}'; renameModal = true" class="text-xs font-semibold text-slate-600 hover:text-slate-800">Rename</button>
+                            <form action="/filemanager/delete" method="POST" class="inline" onsubmit="return confirm('Delete permanently?');">
+                                <input type="hidden" name="path" value="{{ .Path }}">
+                                <button type="submit" class="text-xs font-semibold text-rose-600 hover:text-rose-800">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {{ else }}
+                    <tr>
+                        <td colspan="5" class="py-12 text-center text-slate-400">
+                            This directory is empty.
+                        </td>
+                    </tr>
+                    {{ end }}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Code Editor Modal (JetBrains Mono) -->
+    <div x-show="editorOpen" x-cloak class="fixed inset-0 z-50 overflow-hidden" style="display: none;">
+        <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" @click="editorOpen = false"></div>
+        <div class="fixed inset-4 md:inset-10 bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 z-10">
+            <!-- Editor Header -->
+            <div class="h-14 px-6 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+                <div class="flex items-center space-x-3">
+                    <span class="text-xs font-semibold uppercase text-slate-400">File Editor</span>
+                    <span class="font-mono text-xs font-medium text-slate-800" x-text="editingFile"></span>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <button @click="saveFile()" class="px-4 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors shadow-sm inline-flex items-center">
+                        <svg class="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+                        Save Changes
+                    </button>
+                    <button @click="editorOpen = false" class="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+            </div>
+            <!-- Code Textarea -->
+            <div class="flex-1 p-4 bg-slate-900 overflow-auto">
+                <textarea x-model="fileContent" class="w-full h-full bg-transparent font-mono text-sm text-slate-100 outline-none resize-none leading-relaxed" spellcheck="false"></textarea>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals for New File, New Folder, Chmod, Rename -->
+    <div x-show="newFileModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" style="display: none;">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-md border border-slate-200">
+            <h3 class="text-sm font-bold text-slate-900 mb-3">Create New File</h3>
+            <form action="/filemanager/create-file" method="POST">
+                <input type="hidden" name="path" value="{{ .CurrentPath }}">
+                <input type="text" name="filename" required placeholder="index.php" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none mb-4">
+                <div class="flex justify-end space-x-2">
+                    <button type="button" @click="newFileModal = false" class="px-3 py-1.5 text-xs text-slate-600">Cancel</button>
+                    <button type="submit" class="px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 rounded-xl">Create</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div x-show="newDirModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" style="display: none;">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-md border border-slate-200">
+            <h3 class="text-sm font-bold text-slate-900 mb-3">Create New Directory</h3>
+            <form action="/filemanager/create-dir" method="POST">
+                <input type="hidden" name="path" value="{{ .CurrentPath }}">
+                <input type="text" name="dirname" required placeholder="assets" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none mb-4">
+                <div class="flex justify-end space-x-2">
+                    <button type="button" @click="newDirModal = false" class="px-3 py-1.5 text-xs text-slate-600">Cancel</button>
+                    <button type="submit" class="px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 rounded-xl">Create</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+</div>
+{{ end }}

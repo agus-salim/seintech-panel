@@ -1,0 +1,28 @@
+{
+  "usr_client_01": {
+    "user_id": "usr_client_01",
+    "max_disk_mb": 10240,
+    "used_disk_mb": 1420,
+    "max_bandwidth_mb": 102400,
+    "used_bandwidth_mb": 8450,
+    "max_domains": 5,
+    "used_domains": 2,
+    "max_databases": 3,
+    "used_databases": 1,
+    "max_ftp_accounts": 2,
+    "used_ftp_accounts": 1
+  },
+  "usr_reseller_alpha": {
+    "user_id": "usr_reseller_alpha",
+    "max_disk_mb": 102400,
+    "used_disk_mb": 15400,
+    "max_bandwidth_mb": 1048576,
+    "used_bandwidth_mb": 85000,
+    "max_domains": 50,
+    "used_domains": 12,
+    "max_databases": 50,
+    "used_databases": 10,
+    "max_ftp_accounts": 20,
+    "used_ftp_accounts": 4
+  }
+}

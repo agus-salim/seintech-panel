@@ -1,0 +1,17 @@
+# Data runtime directories
+/data/
+/vhosts/
+/ssl/
+/acme-challenge/
+
+# Temporary files & locks
+*.tmp
+*.lock
+*.log
+
+# OS & Editor metadata
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

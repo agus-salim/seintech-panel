@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="id" class="h-full bg-slate-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ .Title }} | Seintech Hosting Panel</title>
+    <meta name="description" content="Seintech Hosting Panel - Modern, Lightweight, and Modular Web Hosting Control Panel">
+    
+    <!-- Google Fonts: Fira Sans & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS with custom fonts -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Fira Sans"', 'system-ui', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'monospace'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- HTMX & Alpine.js -->
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.14.0/dist/cdn.min.js"></script>
+    
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="h-full font-sans text-slate-800 antialiased flex flex-col md:flex-row bg-slate-50" x-data="{ sidebarOpen: false }">
+
+    <!-- Mobile Nav Bar -->
+    <div class="md:hidden flex items-center justify-between bg-white border-b border-slate-200 px-4 py-3">
+        <div class="flex items-center space-x-2">
+            <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold text-lg shadow-sm">
+                S
+            </div>
+            <span class="font-bold text-slate-900 tracking-tight text-lg">Seintech<span class="text-indigo-600">Panel</span></span>
+        </div>
+        <button @click="sidebarOpen = !sidebarOpen" class="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md focus:outline-none">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+            </svg>
+        </button>
+    </div>
+
+    <!-- Sidebar Navigation -->
+    <aside :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'" class="fixed md:static inset-y-0 left-0 z-40 w-64 bg-white border-r border-slate-200/80 flex flex-col justify-between transition-transform duration-200 ease-in-out md:translate-x-0">
+        <div>
+            <!-- Brand Logo -->
+            <div class="h-16 flex items-center px-6 border-b border-slate-100">
+                <a href="/" class="flex items-center space-x-3">
+                    <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-500 flex items-center justify-center text-white font-bold text-xl shadow-sm shadow-indigo-200">
+                        S
+                    </div>
+                    <div>
+                        <span class="font-bold text-slate-900 tracking-tight text-lg block leading-none">Seintech<span class="text-indigo-600">.</span></span>
+                        <span class="text-[10px] uppercase font-semibold text-slate-400 tracking-widest mt-1 block">Systems Panel</span>
+                    </div>
+                </a>
+            </div>
+
+            <!-- Server Quick Status Badge -->
+            <div class="mx-4 my-3 p-2.5 bg-slate-50 border border-slate-200/60 rounded-xl">
+                <div class="flex items-center justify-between text-xs mb-1">
+                    <span class="text-slate-500 font-medium">Node Host</span>
+                    <span class="inline-flex items-center font-mono font-medium text-emerald-600 text-[11px]">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 pulse-indicator"></span> Online
+                    </span>
+                </div>
+                <div class="text-xs font-mono font-medium text-slate-700 truncate">
+                    {{ .Hostname }}
+                </div>
+            </div>
+
+            <!-- Navigation Links -->
+            <nav class="px-3 py-2 space-y-1">
+                <a href="/" class="flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "dashboard" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}">
+                    <svg class="w-5 h-5 mr-3 {{ if eq .ActiveNav "dashboard" }}text-indigo-600{{ else }}text-slate-400{{ end }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+                    Dashboard
+                </a>
+
+                <a href="/domains" class="flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "domains" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}">
+                    <svg class="w-5 h-5 mr-3 {{ if eq .ActiveNav "domains" }}text-indigo-600{{ else }}text-slate-400{{ end }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg>
+                    Virtual Hosts & Web
+                </a>
+
+                <a href="/filemanager" class="flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "filemanager" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}">
+                    <svg class="w-5 h-5 mr-3 {{ if eq .ActiveNav "filemanager" }}text-indigo-600{{ else }}text-slate-400{{ end }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                    Web File Manager
+                </a>
+
+                <a href="/php" class="flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "php" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}">
+                    <svg class="w-5 h-5 mr-3 {{ if eq .ActiveNav "php" }}text-indigo-600{{ else }}text-slate-400{{ end }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+                    PHP Engines
+                </a>
+
+                <a href="/databases" class="flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "databases" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}">
+                    <svg class="w-5 h-5 mr-3 {{ if eq .ActiveNav "databases" }}text-indigo-600{{ else }}text-slate-400{{ end }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
+                    Databases
+                </a>
+
+                <a href="/ssl" class="flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "ssl" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}">
+                    <svg class="w-5 h-5 mr-3 {{ if eq .ActiveNav "ssl" }}text-indigo-600{{ else }}text-slate-400{{ end }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                    SSL & Certificates
+                </a>
+
+                <a href="/users" class="flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "users" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}">
+                    <svg class="w-5 h-5 mr-3 {{ if eq .ActiveNav "users" }}text-indigo-600{{ else }}text-slate-400{{ end }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                    Users & Quotas
+                </a>
+
+                {{ if eq .UserRole "admin" }}
+                <div class="pt-4 pb-1">
+                    <span class="px-3 text-[11px] font-semibold tracking-wider text-slate-400 uppercase">System Admin</span>
+                </div>
+
+                <a href="/settings" class="flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "settings" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}">
+                    <svg class="w-5 h-5 mr-3 {{ if eq .ActiveNav "settings" }}text-indigo-600{{ else }}text-slate-400{{ end }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    Panel Settings
+                </a>
+                {{ end }}
+            </nav>
+        </div>
+
+        <!-- User Profile & Logout -->
+        <div class="p-3 border-t border-slate-200/80 bg-slate-50/50">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-2.5 min-w-0">
+                    <div class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs ring-2 ring-white">
+                        {{ .UsernameInitial }}
+                    </div>
+                    <div class="truncate">
+                        <span class="text-xs font-semibold text-slate-800 block truncate">{{ .Username }}</span>
+                        <span class="inline-block px-1.5 py-0.2 bg-slate-200 text-slate-600 rounded text-[10px] font-medium capitalize">{{ .UserRole }}</span>
+                    </div>
+                </div>
+                <form action="/logout" method="POST">
+                    <button type="submit" title="Logout" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 flex flex-col min-w-0 overflow-y-auto">
+        <!-- Top App Bar -->
+        <header class="h-16 bg-white border-b border-slate-200/80 px-6 flex items-center justify-between sticky top-0 z-30">
+            <div>
+                <h1 class="text-lg font-bold text-slate-900 tracking-tight">{{ .PageTitle }}</h1>
+            </div>
+            <div class="flex items-center space-x-4">
+                <div class="hidden sm:flex items-center text-xs font-mono text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200/60">
+                    <span class="text-slate-400 mr-2">Core:</span> Go 1.27 • Single Binary
+                </div>
+                <a href="https://github.com/seintech/panel" target="_blank" class="text-slate-400 hover:text-slate-600">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"></path></svg>
+                </a>
+            </div>
+        </header>
+
+        <!-- Flash Alert Message Container -->
+        {{ if .FlashMessage }}
+        <div class="px-6 pt-4">
+            <div class="p-4 rounded-xl border {{ if eq .FlashType "error" }}bg-rose-50 border-rose-200 text-rose-800{{ else if eq .FlashType "success" }}bg-emerald-50 border-emerald-200 text-emerald-800{{ else }}bg-blue-50 border-blue-200 text-blue-800{{ end }} text-sm flex items-center justify-between shadow-sm">
+                <span>{{ .FlashMessage }}</span>
+            </div>
+        </div>
+        {{ end }}
+
+        <!-- Dynamic Body Slot -->
+        <div class="p-6">
+            {{ template "content" . }}
+        </div>
+    </main>
+</body>
+</html>

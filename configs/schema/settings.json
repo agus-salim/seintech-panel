@@ -1,0 +1,14 @@
+{
+  "hostname": "panel.seintech.io",
+  "port": 8443,
+  "listen_addr": "0.0.0.0",
+  "default_webserver": "nginx",
+  "default_php_version": "8.3",
+  "session_timeout_minutes": 120,
+  "security_headers_enabled": true,
+  "ssl_enabled": true,
+  "ssl_cert_path": "/var/lib/seintech/ssl/panel/cert.pem",
+  "ssl_key_path": "/var/lib/seintech/ssl/panel/key.pem",
+  "auto_renew_ssl": true,
+  "allowed_ips": []
+}

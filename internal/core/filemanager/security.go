@@ -58,6 +58,10 @@ func (s *SecuritySanitizer) ResolvePath(subpath string) (string, error) {
 		}
 	}
 
+	if rel, err := filepath.Rel(s.jailRoot, cleanSub); err == nil && !strings.HasPrefix(rel, "..") && rel != ".." {
+		cleanSub = rel
+	}
+
 	// Disallow absolute drive letters or rooted paths in subpath
 	cleanSub = strings.TrimPrefix(cleanSub, "/")
 	cleanSub = strings.TrimPrefix(cleanSub, "\\")
@@ -103,14 +107,16 @@ func (s *SecuritySanitizer) ResolvePath(subpath string) (string, error) {
 	return target, nil
 }
 
-// GetRelativePath converts an absolute system path inside jail into a clean relative path for UI.
-func (s *SecuritySanitizer) GetRelativePath(absPath string) string {
-	cleanAbs := filepath.Clean(filepath.ToSlash(absPath))
-	cleanJail := filepath.Clean(filepath.ToSlash(s.jailRoot))
+// GetRelativePath converts an absolute system path or jail-relative subpath into a clean relative path for UI.
+func (s *SecuritySanitizer) GetRelativePath(inputPath string) string {
+	cleanInput := filepath.Clean(filepath.ToSlash(inputPath))
+	if cleanInput == "." || cleanInput == "/" || cleanInput == "" {
+		return "/"
+	}
 
-	if strings.HasPrefix(cleanAbs, cleanJail) {
-		rel, err := filepath.Rel(cleanJail, cleanAbs)
-		if err == nil && !strings.HasPrefix(rel, "..") {
+	// Try checking if inputPath is an absolute path inside jailRoot
+	if evalPath, err := filepath.EvalSymlinks(cleanInput); err == nil {
+		if rel, err := filepath.Rel(s.jailRoot, evalPath); err == nil && !strings.HasPrefix(rel, "..") && rel != ".." {
 			if rel == "." {
 				return "/"
 			}
@@ -118,10 +124,36 @@ func (s *SecuritySanitizer) GetRelativePath(absPath string) string {
 		}
 	}
 
-	rel, err := filepath.Rel(s.jailRoot, absPath)
-	if err != nil || strings.HasPrefix(rel, "..") {
+	if rel, err := filepath.Rel(s.jailRoot, cleanInput); err == nil && !strings.HasPrefix(rel, "..") && rel != ".." {
+		if rel == "." {
+			return "/"
+		}
+		return "/" + filepath.ToSlash(rel)
+	}
+
+	cleanJail := filepath.Clean(filepath.ToSlash(s.jailRoot))
+	if strings.HasPrefix(cleanInput, cleanJail) {
+		rel, err := filepath.Rel(cleanJail, cleanInput)
+		if err == nil && !strings.HasPrefix(rel, "..") && rel != ".." {
+			if rel == "." {
+				return "/"
+			}
+			return "/" + filepath.ToSlash(rel)
+		}
+	}
+
+	// Otherwise, inputPath is already a jail-relative subpath (e.g. "/sieko_aguss_my_id_usr" or "sieko_aguss_my_id_usr")
+	trimmed := strings.TrimLeft(cleanInput, "/\\")
+	if trimmed == "" || trimmed == "." {
 		return "/"
 	}
+
+	target := filepath.Join(s.jailRoot, trimmed)
+	rel, err := filepath.Rel(s.jailRoot, target)
+	if err != nil || strings.HasPrefix(rel, "..") || rel == ".." {
+		return "/"
+	}
+
 	if rel == "." {
 		return "/"
 	}

@@ -1,7 +1,10 @@
 package handler
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/seintech/panel/internal/core/php"
 	"github.com/seintech/panel/internal/storage"
@@ -32,4 +35,95 @@ func (h *PHPHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = web.RenderTemplate(w, "php.html", data)
+}
+
+func (h *PHPHandler) GetExtensions(w http.ResponseWriter, r *http.Request) {
+	version := strings.TrimSpace(r.URL.Query().Get("version"))
+	if version == "" {
+		version = "8.3"
+	}
+
+	exts, err := h.phpMgr.GetExtensions(r.Context(), version)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"success":    true,
+		"version":    version,
+		"extensions": exts,
+	})
+}
+
+func (h *PHPHandler) InstallExtension(w http.ResponseWriter, r *http.Request) {
+	_ = r.ParseForm()
+	version := strings.TrimSpace(r.FormValue("version"))
+	ext := strings.TrimSpace(r.FormValue("extension"))
+
+	if version == "" || ext == "" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": false,
+			"error":   "Parameter versi dan ekstensi harus diisi",
+		})
+		return
+	}
+
+	err := h.phpMgr.InstallExtension(r.Context(), version, ext)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"success": true,
+		"message": fmt.Sprintf("Ekstensi php%s-%s berhasil dipasang!", version, ext),
+	})
+}
+
+func (h *PHPHandler) DeleteExtension(w http.ResponseWriter, r *http.Request) {
+	_ = r.ParseForm()
+	version := strings.TrimSpace(r.FormValue("version"))
+	ext := strings.TrimSpace(r.FormValue("extension"))
+
+	if version == "" || ext == "" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": false,
+			"error":   "Parameter versi dan ekstensi harus diisi",
+		})
+		return
+	}
+
+	err := h.phpMgr.DeleteExtension(r.Context(), version, ext)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"success": true,
+		"message": fmt.Sprintf("Ekstensi php%s-%s berhasil dihapus!", version, ext),
+	})
 }

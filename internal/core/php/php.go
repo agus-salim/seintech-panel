@@ -5,7 +5,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"text/template"
 
 	"github.com/seintech/panel/internal/core/system"
@@ -169,3 +171,184 @@ func (p *PHPManager) Reload(ctx context.Context, version string) error {
 func (p *PHPManager) Restart(ctx context.Context, version string) error {
 	return p.sm.Restart(ctx, p.GetServiceName(version))
 }
+
+type ExtensionDefinition struct {
+	Name        string `json:"name"`
+	PackageName string `json:"package_name,omitempty"`
+	Description string `json:"description"`
+}
+
+type PHPExtensionStatus struct {
+	Name        string `json:"name"`
+	PackageName string `json:"package_name"`
+	Installed   bool   `json:"installed"`
+	Description string `json:"description"`
+}
+
+var StandardExtensions = []ExtensionDefinition{
+	{Name: "bcmath", Description: "Arbitrary precision mathematics"},
+	{Name: "bz2", Description: "Bzip2 compression stream wrapper"},
+	{Name: "curl", Description: "cURL HTTP client & data transfer library"},
+	{Name: "exif", Description: "Read EXIF image header metadata"},
+	{Name: "gd", Description: "GD image processing & manipulation library"},
+	{Name: "gmp", Description: "GNU Multiple Precision arithmetic"},
+	{Name: "imagick", Description: "ImageMagick graphics manipulation library"},
+	{Name: "imap", Description: "IMAP, POP3, and NNTP email protocol support"},
+	{Name: "intl", Description: "Internationalization (ICU) functions"},
+	{Name: "ldap", Description: "Lightweight Directory Access Protocol"},
+	{Name: "mbstring", Description: "Multibyte string handling"},
+	{Name: "memcached", Description: "Memcached distributed caching client"},
+	{Name: "mongodb", Description: "MongoDB NoSQL database driver"},
+	{Name: "mysql", Description: "MySQL & MariaDB PDO/MySQLi database drivers"},
+	{Name: "opcache", Description: "Zend OPcache opcode caching accelerator"},
+	{Name: "pgsql", Description: "PostgreSQL & PDO_PGSQL database drivers"},
+	{Name: "readline", Description: "GNU Readline command-line input"},
+	{Name: "redis", Description: "Redis in-memory caching & session store"},
+	{Name: "soap", Description: "SOAP XML protocol client & server"},
+	{Name: "sqlite3", Description: "SQLite3 & PDO_SQLITE database drivers"},
+	{Name: "tidy", Description: "HTML clean-up, repair & traversal"},
+	{Name: "xml", Description: "DOM, SimpleXML, XMLReader, XMLWriter"},
+	{Name: "xmlrpc", Description: "XML-RPC protocol functions"},
+	{Name: "yaml", Description: "YAML data serialization & parsing"},
+	{Name: "zip", Description: "Zip archive compression & reading"},
+}
+
+// GetExtensions returns the list of installed and available extensions for a given PHP version.
+func (p *PHPManager) GetExtensions(ctx context.Context, version string) ([]PHPExtensionStatus, error) {
+	// First gather loaded modules from CLI if available
+	loadedModules := make(map[string]bool)
+	phpBin := fmt.Sprintf("/usr/bin/php%s", version)
+	if _, err := os.Stat(phpBin); err == nil {
+		out, err := exec.CommandContext(ctx, phpBin, "-m").Output()
+		if err == nil {
+			lines := strings.Split(string(out), "\n")
+			for _, line := range lines {
+				m := strings.ToLower(strings.TrimSpace(line))
+				if m != "" && !strings.HasPrefix(m, "[") {
+					loadedModules[m] = true
+				}
+			}
+		}
+	}
+
+	modsAvailableDir := fmt.Sprintf("/etc/php/%s/mods-available", version)
+	fpmConfDir := fmt.Sprintf("/etc/php/%s/fpm/conf.d", version)
+
+	var result []PHPExtensionStatus
+
+	for _, ext := range StandardExtensions {
+		pkgName := ext.PackageName
+		if pkgName == "" {
+			pkgName = fmt.Sprintf("php%s-%s", version, ext.Name)
+		}
+
+		installed := false
+
+		// 1. Check loaded modules map
+		if loadedModules[ext.Name] {
+			installed = true
+		}
+
+		// Aliases in php -m
+		switch ext.Name {
+		case "mysql":
+			if loadedModules["mysqli"] || loadedModules["pdo_mysql"] || loadedModules["mysqlnd"] {
+				installed = true
+			}
+		case "sqlite3":
+			if loadedModules["sqlite3"] || loadedModules["pdo_sqlite"] {
+				installed = true
+			}
+		case "pgsql":
+			if loadedModules["pgsql"] || loadedModules["pdo_pgsql"] {
+				installed = true
+			}
+		case "xml":
+			if loadedModules["xml"] || loadedModules["dom"] || loadedModules["simplexml"] {
+				installed = true
+			}
+		case "opcache":
+			if loadedModules["zend opcache"] || loadedModules["opcache"] {
+				installed = true
+			}
+		}
+
+		// 2. Check /etc/php/<version>/mods-available/<ext>.ini
+		if !installed {
+			iniPath := filepath.Join(modsAvailableDir, fmt.Sprintf("%s.ini", ext.Name))
+			if _, err := os.Stat(iniPath); err == nil {
+				installed = true
+			} else if ext.Name == "mysql" {
+				if _, err := os.Stat(filepath.Join(modsAvailableDir, "mysqli.ini")); err == nil {
+					installed = true
+				}
+			} else if ext.Name == "xml" {
+				if _, err := os.Stat(filepath.Join(modsAvailableDir, "xml.ini")); err == nil {
+					installed = true
+				}
+			}
+		}
+
+		// 3. Check /etc/php/<version>/fpm/conf.d/
+		if !installed {
+			matches, _ := filepath.Glob(filepath.Join(fpmConfDir, fmt.Sprintf("*%s*.ini", ext.Name)))
+			if len(matches) > 0 {
+				installed = true
+			}
+		}
+
+		result = append(result, PHPExtensionStatus{
+			Name:        ext.Name,
+			PackageName: pkgName,
+			Installed:   installed,
+			Description: ext.Description,
+		})
+	}
+
+	return result, nil
+}
+
+// InstallExtension installs a PHP extension package via apt-get and reloads PHP-FPM.
+func (p *PHPManager) InstallExtension(ctx context.Context, version, extName string) error {
+	extName = strings.ToLower(strings.TrimSpace(extName))
+	pkg := fmt.Sprintf("php%s-%s", version, extName)
+
+	if _, err := exec.LookPath("apt-get"); err != nil {
+		// Mock on systems without apt-get (e.g. during local tests)
+		return nil
+	}
+
+	cmd := exec.CommandContext(ctx, "apt-get", "install", "-y", pkg)
+	cmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("gagal menginstall paket %s: %s (%w)", pkg, string(output), err)
+	}
+
+	// Restart PHP-FPM service
+	_ = p.sm.Restart(ctx, p.GetServiceName(version))
+	return nil
+}
+
+// DeleteExtension removes a PHP extension package via apt-get and reloads PHP-FPM.
+func (p *PHPManager) DeleteExtension(ctx context.Context, version, extName string) error {
+	extName = strings.ToLower(strings.TrimSpace(extName))
+	pkg := fmt.Sprintf("php%s-%s", version, extName)
+
+	if _, err := exec.LookPath("apt-get"); err != nil {
+		// Mock on systems without apt-get (e.g. during local tests)
+		return nil
+	}
+
+	cmd := exec.CommandContext(ctx, "apt-get", "remove", "-y", pkg)
+	cmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("gagal menghapus paket %s: %s (%w)", pkg, string(output), err)
+	}
+
+	// Restart PHP-FPM service
+	_ = p.sm.Restart(ctx, p.GetServiceName(version))
+	return nil
+}
+

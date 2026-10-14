@@ -1,9 +1,11 @@
 {{ define "content" }}
 <div class="space-y-6">
 
-    <div>
-        <h2 class="text-base font-bold text-slate-900">PHP Version Engines & Pools</h2>
-        <p class="text-xs text-slate-500 mt-0.5">Control PHP-FPM daemons (7.4 to 8.5) and per-domain execution parameters</p>
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h2 class="text-base font-bold text-slate-900">PHP Version Engines & Pools</h2>
+            <p class="text-xs text-slate-500 mt-0.5">Control PHP-FPM daemons (7.4 to 8.5) and per-domain execution parameters</p>
+        </div>
     </div>
 
     <!-- Supported PHP Engines Grid -->
@@ -32,17 +34,300 @@
                     <div class="truncate">Pools: {{ .PoolDir }}</div>
                 </div>
             </div>
-            <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                <form action="/services/restart" method="POST" class="w-full">
+
+            <!-- Action Buttons: Restart & Extension (Extension only for active PHP) -->
+            <div class="mt-4 pt-3 border-t border-slate-100 flex items-center gap-2">
+                <form action="/services/restart" method="POST" class="flex-1">
                     <input type="hidden" name="service" value="php{{ .Version }}-fpm">
-                    <button type="submit" class="w-full py-1.5 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors">
-                        Restart Service
+                    <button type="submit" class="w-full py-1.5 px-3 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors shadow-sm">
+                        Restart
                     </button>
                 </form>
+
+                {{ if .Active }}
+                <button type="button" 
+                        onclick="openExtensionsModal('{{ .Version }}')" 
+                        class="flex-1 py-1.5 px-3 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 active:scale-95 border border-indigo-200 rounded-xl transition-all shadow-sm inline-flex items-center justify-center gap-1.5"
+                        title="Kelola ekstensi PHP {{ .Version }}">
+                    <svg class="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                    <span>Extension</span>
+                </button>
+                {{ end }}
             </div>
         </div>
         {{ end }}
     </div>
 
 </div>
+
+<!-- ==================== PHP EXTENSIONS MODAL ==================== -->
+<div id="extensionModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 transition-opacity">
+    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+        
+        <!-- Modal Header -->
+        <div class="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-sm">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                </div>
+                <div>
+                    <h3 class="font-bold text-slate-900 text-sm">PHP <span id="modalPhpVersion" class="font-mono text-indigo-600"></span> Extensions Manager</h3>
+                    <p class="text-xs text-slate-500">Pasang atau hapus ekstensi dan pustaka modul PHP</p>
+                </div>
+            </div>
+            <button type="button" onclick="closeExtensionsModal()" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+
+        <!-- Filter & Search Toolbar -->
+        <div class="p-4 border-b border-slate-100 bg-white flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div class="relative w-full sm:w-64">
+                <svg class="w-4 h-4 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                <input type="text" id="extSearch" oninput="filterExtensions()" placeholder="Cari nama ekstensi..." class="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+            </div>
+
+            <!-- Tab Filter Buttons -->
+            <div class="flex items-center gap-1.5 bg-slate-100/80 p-1 rounded-xl w-full sm:w-auto text-xs font-semibold">
+                <button type="button" onclick="setExtFilter('all')" id="tabAll" class="flex-1 sm:flex-none px-3 py-1 rounded-lg transition-colors bg-white text-indigo-600 shadow-sm">
+                    Semua (<span id="countAll">0</span>)
+                </button>
+                <button type="button" onclick="setExtFilter('installed')" id="tabInstalled" class="flex-1 sm:flex-none px-3 py-1 rounded-lg transition-colors text-slate-600 hover:text-slate-900">
+                    Terpasang (<span id="countInstalled">0</span>)
+                </button>
+                <button type="button" onclick="setExtFilter('uninstalled')" id="tabUninstalled" class="flex-1 sm:flex-none px-3 py-1 rounded-lg transition-colors text-slate-600 hover:text-slate-900">
+                    Belum Terpasang (<span id="countUninstalled">0</span>)
+                </button>
+            </div>
+        </div>
+
+        <!-- Extensions List Container -->
+        <div class="flex-1 overflow-y-auto p-4 space-y-2 min-h-[320px] max-h-[500px]" id="extListContainer">
+            <!-- Loading indicator -->
+            <div id="extLoading" class="flex flex-col items-center justify-center py-16 text-slate-400 space-y-2">
+                <svg class="animate-spin w-6 h-6 text-indigo-600" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span class="text-xs">Memuat daftar ekstensi PHP...</span>
+            </div>
+
+            <!-- Dynamic Extension Rows injected here -->
+            <div id="extItemsList" class="space-y-2 hidden"></div>
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="p-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+            <span class="text-[11px]">Mengubah ekstensi otomatis me-restart PHP-FPM service terkait.</span>
+            <button type="button" onclick="closeExtensionsModal()" class="px-4 py-1.5 font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
+                Tutup
+            </button>
+        </div>
+
+    </div>
+</div>
+
+<script>
+let currentPhpVersion = '';
+let allExtensions = [];
+let currentFilter = 'all';
+
+function openExtensionsModal(version) {
+    currentPhpVersion = version;
+    document.getElementById('modalPhpVersion').textContent = version;
+    document.getElementById('extensionModal').classList.remove('hidden');
+    document.getElementById('extSearch').value = '';
+    currentFilter = 'all';
+    updateFilterTabStyles();
+    fetchExtensions(version);
+}
+
+function closeExtensionsModal() {
+    document.getElementById('extensionModal').classList.add('hidden');
+}
+
+function fetchExtensions(version) {
+    const loading = document.getElementById('extLoading');
+    const list = document.getElementById('extItemsList');
+    loading.classList.remove('hidden');
+    list.classList.add('hidden');
+
+    fetch(`/php/extensions?version=${encodeURIComponent(version)}`)
+        .then(res => res.json())
+        .then(data => {
+            loading.classList.add('hidden');
+            list.classList.remove('hidden');
+            if (data.success && Array.isArray(data.extensions)) {
+                allExtensions = data.extensions;
+                updateCounts();
+                renderExtensions();
+            } else {
+                list.innerHTML = `<div class="p-8 text-center text-xs text-rose-500">${data.error || 'Gagal memuat ekstensi.'}</div>`;
+            }
+        })
+        .catch(err => {
+            loading.classList.add('hidden');
+            list.classList.remove('hidden');
+            list.innerHTML = `<div class="p-8 text-center text-xs text-rose-500">Koneksi bermasalah saat memuat ekstensi.</div>`;
+        });
+}
+
+function updateCounts() {
+    const total = allExtensions.length;
+    const installed = allExtensions.filter(e => e.installed).length;
+    const uninstalled = total - installed;
+
+    document.getElementById('countAll').textContent = total;
+    document.getElementById('countInstalled').textContent = installed;
+    document.getElementById('countUninstalled').textContent = uninstalled;
+}
+
+function setExtFilter(filter) {
+    currentFilter = filter;
+    updateFilterTabStyles();
+    renderExtensions();
+}
+
+function updateFilterTabStyles() {
+    const tabAll = document.getElementById('tabAll');
+    const tabInst = document.getElementById('tabInstalled');
+    const tabUninst = document.getElementById('tabUninstalled');
+
+    [tabAll, tabInst, tabUninst].forEach(tab => {
+        tab.className = 'flex-1 sm:flex-none px-3 py-1 rounded-lg transition-colors text-slate-600 hover:text-slate-900';
+    });
+
+    const activeClasses = 'flex-1 sm:flex-none px-3 py-1 rounded-lg transition-colors bg-white text-indigo-600 shadow-sm';
+    if (currentFilter === 'all') tabAll.className = activeClasses;
+    if (currentFilter === 'installed') tabInst.className = activeClasses;
+    if (currentFilter === 'uninstalled') tabUninst.className = activeClasses;
+}
+
+function filterExtensions() {
+    renderExtensions();
+}
+
+function renderExtensions() {
+    const list = document.getElementById('extItemsList');
+    const query = (document.getElementById('extSearch').value || '').toLowerCase().trim();
+
+    const filtered = allExtensions.filter(ext => {
+        // Tab filter
+        if (currentFilter === 'installed' && !ext.installed) return false;
+        if (currentFilter === 'uninstalled' && ext.installed) return false;
+
+        // Search query
+        if (query) {
+            const matchName = ext.name.toLowerCase().includes(query);
+            const matchPkg = ext.package_name.toLowerCase().includes(query);
+            const matchDesc = (ext.description || '').toLowerCase().includes(query);
+            if (!matchName && !matchPkg && !matchDesc) return false;
+        }
+
+        return true;
+    });
+
+    if (filtered.length === 0) {
+        list.innerHTML = `<div class="p-8 text-center text-xs text-slate-400">Tidak ada ekstensi yang cocok dengan kriteria.</div>`;
+        return;
+    }
+
+    list.innerHTML = filtered.map(ext => {
+        const actionBtn = ext.installed
+            ? `
+            <button type="button" 
+                    onclick="handleExtAction('delete', '${currentPhpVersion}', '${ext.name}', this)" 
+                    class="p-2 text-rose-600 hover:text-white hover:bg-rose-600 border border-rose-200 hover:border-rose-600 rounded-lg transition-all shadow-sm active:scale-90" 
+                    title="Hapus / Uninstall Ekstensi ${ext.name}">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            </button>
+            `
+            : `
+            <button type="button" 
+                    onclick="handleExtAction('install', '${currentPhpVersion}', '${ext.name}', this)" 
+                    class="p-2 text-indigo-600 hover:text-white hover:bg-indigo-600 border border-indigo-200 hover:border-indigo-600 rounded-lg transition-all shadow-sm active:scale-90" 
+                    title="Pasang / Install Ekstensi ${ext.name}">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            </button>
+            `;
+
+        const statusBadge = ext.installed
+            ? `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">Terpasang</span>`
+            : `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600">Belum Terpasang</span>`;
+
+        return `
+        <div class="p-3 bg-white hover:bg-slate-50/80 border border-slate-200/70 rounded-xl flex items-center justify-between gap-3 transition-colors shadow-xs">
+            <div class="flex items-center gap-3 min-w-0">
+                <div class="w-8 h-8 rounded-lg ${ext.installed ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-slate-100 text-slate-500'} flex items-center justify-center flex-shrink-0">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                </div>
+                <div class="min-w-0">
+                    <div class="flex items-center gap-2">
+                        <span class="font-bold font-mono text-xs text-slate-900">${ext.name}</span>
+                        <span class="font-mono text-[10px] text-slate-400">(${ext.package_name})</span>
+                    </div>
+                    <p class="text-[11px] text-slate-500 truncate">${ext.description || ''}</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3 flex-shrink-0">
+                ${statusBadge}
+                ${actionBtn}
+            </div>
+        </div>
+        `;
+    }).join('');
+}
+
+function handleExtAction(action, version, extName, btnEl) {
+    if (!confirm(`Yakin ingin ${action === 'install' ? 'memasang' : 'menghapus'} ekstensi ${extName} untuk PHP ${version}?`)) {
+        return;
+    }
+
+    const originalHTML = btnEl.innerHTML;
+    btnEl.disabled = true;
+    btnEl.innerHTML = `
+        <svg class="animate-spin w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+    `;
+
+    const endpoint = action === 'install' ? '/php/extension/install' : '/php/extension/delete';
+    const params = new URLSearchParams();
+    params.append('version', version);
+    params.append('extension', extName);
+
+    fetch(endpoint, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: params.toString()
+    })
+    .then(async res => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) {
+            throw new Error(data.error || `Gagal ${action} ekstensi ${extName}`);
+        }
+        return data;
+    })
+    .then(data => {
+        if (typeof showToast === 'function') {
+            showToast(data.message || `Ekstensi ${extName} berhasil diproses.`, 'success');
+        }
+        fetchExtensions(version);
+    })
+    .catch(err => {
+        btnEl.disabled = false;
+        btnEl.innerHTML = originalHTML;
+        if (typeof showToast === 'function') {
+            showToast(err.message, 'error');
+        } else {
+            alert(err.message);
+        }
+    });
+}
+</script>
 {{ end }}

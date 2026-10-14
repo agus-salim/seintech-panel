@@ -44,8 +44,13 @@ type SSLManager struct {
 }
 
 func NewSSLManager(repo *storage.Repository, registry *webserver.Registry, certBase, acmeRoot string) *SSLManager {
-	_ = os.MkdirAll(certBase, 0700)
+	_ = os.MkdirAll(certBase, 0755)
+	_ = os.Chmod(certBase, 0755)
 	_ = os.MkdirAll(acmeRoot, 0755)
+	_ = os.Chmod(acmeRoot, 0755)
+	if parent := filepath.Dir(acmeRoot); parent != "" && parent != "/" {
+		_ = os.Chmod(parent, 0755)
+	}
 
 	return &SSLManager{
 		repo:     repo,
@@ -377,17 +382,25 @@ func (s *SSLManager) provisionNativeACME(ctx context.Context, domain *model.Doma
 			return fmt.Errorf("gagal membuat respon HTTP-01: %w", err)
 		}
 
-		// Write token to ACME challenge roots
+		// Write token to ACME challenge roots with explicit 0644 / 0755 permissions
 		wellKnownDir := filepath.Join(s.acmeRoot, ".well-known", "acme-challenge")
 		_ = os.MkdirAll(wellKnownDir, 0755)
+		_ = os.Chmod(s.acmeRoot, 0755)
+		_ = os.Chmod(filepath.Join(s.acmeRoot, ".well-known"), 0755)
+		_ = os.Chmod(wellKnownDir, 0755)
 
 		_ = os.WriteFile(filepath.Join(s.acmeRoot, httpChal.Token), []byte(keyAuth), 0644)
+		_ = os.Chmod(filepath.Join(s.acmeRoot, httpChal.Token), 0644)
 		_ = os.WriteFile(filepath.Join(wellKnownDir, httpChal.Token), []byte(keyAuth), 0644)
+		_ = os.Chmod(filepath.Join(wellKnownDir, httpChal.Token), 0644)
 
 		if domain.DocumentRoot != "" {
 			docWellKnown := filepath.Join(domain.DocumentRoot, ".well-known", "acme-challenge")
 			_ = os.MkdirAll(docWellKnown, 0755)
+			_ = os.Chmod(filepath.Join(domain.DocumentRoot, ".well-known"), 0755)
+			_ = os.Chmod(docWellKnown, 0755)
 			_ = os.WriteFile(filepath.Join(docWellKnown, httpChal.Token), []byte(keyAuth), 0644)
+			_ = os.Chmod(filepath.Join(docWellKnown, httpChal.Token), 0644)
 		}
 
 		// Accept challenge
@@ -456,18 +469,37 @@ func (s *SSLManager) ProvisionLetsEncrypt(ctx context.Context, domain *model.Dom
 	// Pre-flight check: verify domain DNS resolution
 	ips, err := net.LookupHost(domain.DomainName)
 	if err != nil || len(ips) == 0 {
+		// Fallback to public DNS (8.8.8.8) in case local systemd-resolved has lookup latency
+		r := &net.Resolver{
+			PreferGo: true,
+			Dial: func(dialCtx context.Context, network, address string) (net.Conn, error) {
+				d := net.Dialer{Timeout: 5 * time.Second}
+				return d.DialContext(dialCtx, "udp", "8.8.8.8:53")
+			},
+		}
+		ips, err = r.LookupHost(ctx, domain.DomainName)
+	}
+	if err != nil || len(ips) == 0 {
 		return fmt.Errorf("domain '%s' belum dapat di-resolve oleh DNS publik. Pastikan DNS A record sudah terpasang dan mengarah ke IP publik server ini", domain.DomainName)
 	}
 
 	domainDir := filepath.Join(s.certBase, domain.DomainName)
 	_ = os.MkdirAll(domainDir, 0755)
+	_ = os.Chmod(domainDir, 0755)
 
 	certPath := filepath.Join(domainDir, "fullchain.pem")
 	keyPath := filepath.Join(domainDir, "privkey.pem")
 
-	// Ensure challenge directories exist
+	// Ensure challenge directories exist with proper 0755 permissions
 	_ = os.MkdirAll(s.acmeRoot, 0755)
-	_ = os.MkdirAll(filepath.Join(s.acmeRoot, ".well-known", "acme-challenge"), 0755)
+	_ = os.Chmod(s.acmeRoot, 0755)
+	wellKnownDir := filepath.Join(s.acmeRoot, ".well-known", "acme-challenge")
+	_ = os.MkdirAll(wellKnownDir, 0755)
+	_ = os.Chmod(filepath.Join(s.acmeRoot, ".well-known"), 0755)
+	_ = os.Chmod(wellKnownDir, 0755)
+	if parent := filepath.Dir(s.acmeRoot); parent != "" && parent != "/" {
+		_ = os.Chmod(parent, 0755)
+	}
 
 	// Step 1: Try Certbot if available
 	err = s.tryCertbot(ctx, domain, certPath, keyPath)
@@ -509,7 +541,8 @@ func (s *SSLManager) ProvisionLetsEncrypt(ctx context.Context, domain *model.Dom
 	}
 
 	if err := ws.Reload(ctx); err != nil {
-		return fmt.Errorf("gagal mereload webserver: %w", err)
+		// Fallback to restart if reload fails
+		_ = ws.Restart(ctx)
 	}
 
 	return nil

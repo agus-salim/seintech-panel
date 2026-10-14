@@ -3,6 +3,7 @@ package storage
 import (
 	"errors"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/seintech/panel/internal/model"
@@ -141,13 +142,28 @@ func (r *Repository) GetDomainsByUser(userID string) ([]model.Domain, error) {
 	return res, nil
 }
 
+func (r *Repository) GetDomainByID(id string) (*model.Domain, error) {
+	all, err := r.GetDomains()
+	if err != nil {
+		return nil, err
+	}
+	cleanID := strings.TrimSpace(id)
+	for _, d := range all {
+		if d.ID == cleanID {
+			return &d, nil
+		}
+	}
+	return nil, ErrNotFound
+}
+
 func (r *Repository) GetDomainByName(name string) (*model.Domain, error) {
 	all, err := r.GetDomains()
 	if err != nil {
 		return nil, err
 	}
+	cleanName := strings.TrimSpace(name)
 	for _, d := range all {
-		if d.DomainName == name {
+		if strings.EqualFold(strings.TrimSpace(d.DomainName), cleanName) {
 			return &d, nil
 		}
 	}
@@ -157,8 +173,15 @@ func (r *Repository) GetDomainByName(name string) (*model.Domain, error) {
 func (r *Repository) UpsertDomain(domain model.Domain) error {
 	domains, _ := r.GetDomains()
 	found := false
+	domain.DomainName = strings.TrimSpace(domain.DomainName)
+	domain.ID = strings.TrimSpace(domain.ID)
+
 	for i, d := range domains {
-		if d.ID == domain.ID {
+		if (domain.ID != "" && d.ID == domain.ID) ||
+			(domain.DomainName != "" && strings.EqualFold(strings.TrimSpace(d.DomainName), domain.DomainName)) {
+			if domain.ID == "" && d.ID != "" {
+				domain.ID = d.ID
+			}
 			domains[i] = domain
 			found = true
 			break
@@ -173,8 +196,9 @@ func (r *Repository) UpsertDomain(domain model.Domain) error {
 func (r *Repository) DeleteDomain(id string) error {
 	domains, _ := r.GetDomains()
 	var updated []model.Domain
+	cleanID := strings.TrimSpace(id)
 	for _, d := range domains {
-		if d.ID != id {
+		if d.ID != cleanID && !strings.EqualFold(strings.TrimSpace(d.DomainName), cleanID) {
 			updated = append(updated, d)
 		}
 	}

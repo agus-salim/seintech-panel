@@ -374,7 +374,9 @@
     let _sslOriginalBtn = null;
 
     function activateLetsEncrypt(domainID, domainName, btnEl, isRenew = false) {
-        if (!domainID) return;
+        domainID = (domainID || '').trim();
+        domainName = (domainName || '').trim();
+        if (!domainID && !domainName) return;
 
         // Save original button state
         _sslOriginalBtn = {
@@ -441,17 +443,18 @@
             });
         }
 
-        const formData = new FormData();
-        formData.append('domain_id', domainID);
-        formData.append('domain_name', domainName);
+        const params = new URLSearchParams();
+        if (domainID) params.append('domain_id', domainID);
+        if (domainName) params.append('domain_name', domainName);
 
         fetch('/ssl/issue', {
             method: 'POST',
             headers: {
                 'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/x-www-form-urlencoded'
             },
-            body: formData
+            body: params.toString()
         })
         .then(async res => {
             const data = await res.json().catch(() => ({}));

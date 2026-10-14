@@ -1,11 +1,13 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/seintech/panel/internal/core/ssl"
 	"github.com/seintech/panel/internal/model"
@@ -45,18 +47,37 @@ func (h *SSLHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *SSLHandler) Issue(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		h.respond(w, r, false, "Invalid request form data")
-		return
+	if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
+		_ = r.ParseMultipartForm(10 << 20)
+	}
+	_ = r.ParseForm()
+
+	domainID := strings.TrimSpace(r.FormValue("domain_id"))
+	domainName := strings.TrimSpace(r.FormValue("domain_name"))
+
+	if domainID == "" {
+		domainID = strings.TrimSpace(r.URL.Query().Get("domain_id"))
+	}
+	if domainName == "" {
+		domainName = strings.TrimSpace(r.URL.Query().Get("domain_name"))
 	}
 
-	domainID := r.FormValue("domain_id")
-	domainName := r.FormValue("domain_name")
+	if domainID == "" && domainName == "" && strings.Contains(r.Header.Get("Content-Type"), "application/json") {
+		var req struct {
+			DomainID   string `json:"domain_id"`
+			DomainName string `json:"domain_name"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
+			domainID = strings.TrimSpace(req.DomainID)
+			domainName = strings.TrimSpace(req.DomainName)
+		}
+	}
 
 	domains, _ := h.repo.GetDomains()
 	var targetDomain *model.Domain
 	for i := range domains {
-		if domains[i].ID == domainID || (domainName != "" && domains[i].DomainName == domainName) {
+		if (domainID != "" && domains[i].ID == domainID) ||
+			(domainName != "" && strings.EqualFold(strings.TrimSpace(domains[i].DomainName), domainName)) {
 			targetDomain = &domains[i]
 			break
 		}
@@ -67,7 +88,10 @@ func (h *SSLHandler) Issue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.sslMgr.ProvisionLetsEncrypt(r.Context(), targetDomain)
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Minute)
+	defer cancel()
+
+	err := h.sslMgr.ProvisionLetsEncrypt(ctx, targetDomain)
 	if err != nil {
 		h.respond(w, r, false, "Gagal mengaktifkan Let's Encrypt: "+err.Error())
 		return

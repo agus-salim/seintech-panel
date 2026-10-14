@@ -195,6 +195,7 @@ var StandardExtensions = []ExtensionDefinition{
 	{Name: "imagick", Description: "ImageMagick graphics manipulation library"},
 	{Name: "imap", Description: "IMAP, POP3, and NNTP email protocol support"},
 	{Name: "intl", Description: "Internationalization (ICU) functions"},
+	{Name: "ioncube", PackageName: "ioncube-loader", Description: "ionCube Loader for running encoded and secured PHP files"},
 	{Name: "ldap", Description: "Lightweight Directory Access Protocol"},
 	{Name: "mbstring", Description: "Multibyte string handling"},
 	{Name: "memcached", Description: "Memcached distributed caching client"},
@@ -226,6 +227,9 @@ func (p *PHPManager) GetExtensions(ctx context.Context, version string) ([]PHPEx
 				m := strings.ToLower(strings.TrimSpace(line))
 				if m != "" && !strings.HasPrefix(m, "[") {
 					loadedModules[m] = true
+					if strings.Contains(m, "ioncube") {
+						loadedModules["ioncube"] = true
+					}
 				}
 			}
 		}
@@ -251,6 +255,10 @@ func (p *PHPManager) GetExtensions(ctx context.Context, version string) ([]PHPEx
 
 		// Aliases in php -m
 		switch ext.Name {
+		case "ioncube":
+			if loadedModules["ioncube"] || loadedModules["ioncube loader"] || loadedModules["the ioncube php loader"] {
+				installed = true
+			}
 		case "mysql":
 			if loadedModules["mysqli"] || loadedModules["pdo_mysql"] || loadedModules["mysqlnd"] {
 				installed = true
@@ -308,9 +316,13 @@ func (p *PHPManager) GetExtensions(ctx context.Context, version string) ([]PHPEx
 	return result, nil
 }
 
-// InstallExtension installs a PHP extension package via apt-get and reloads PHP-FPM.
+// InstallExtension installs a PHP extension package via apt-get or custom installer and reloads PHP-FPM.
 func (p *PHPManager) InstallExtension(ctx context.Context, version, extName string) error {
 	extName = strings.ToLower(strings.TrimSpace(extName))
+	if extName == "ioncube" || extName == "ioncube-loader" {
+		return p.InstallIonCube(ctx, version)
+	}
+
 	pkg := fmt.Sprintf("php%s-%s", version, extName)
 
 	if _, err := exec.LookPath("apt-get"); err != nil {
@@ -330,9 +342,13 @@ func (p *PHPManager) InstallExtension(ctx context.Context, version, extName stri
 	return nil
 }
 
-// DeleteExtension removes a PHP extension package via apt-get and reloads PHP-FPM.
+// DeleteExtension removes a PHP extension package via apt-get or custom uninstaller and reloads PHP-FPM.
 func (p *PHPManager) DeleteExtension(ctx context.Context, version, extName string) error {
 	extName = strings.ToLower(strings.TrimSpace(extName))
+	if extName == "ioncube" || extName == "ioncube-loader" {
+		return p.DeleteIonCube(ctx, version)
+	}
+
 	pkg := fmt.Sprintf("php%s-%s", version, extName)
 
 	if _, err := exec.LookPath("apt-get"); err != nil {
@@ -345,6 +361,101 @@ func (p *PHPManager) DeleteExtension(ctx context.Context, version, extName strin
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("gagal menghapus paket %s: %s (%w)", pkg, string(output), err)
+	}
+
+	// Restart PHP-FPM service
+	_ = p.sm.Restart(ctx, p.GetServiceName(version))
+	return nil
+}
+
+// InstallIonCube installs ionCube Loader for a given PHP version.
+func (p *PHPManager) InstallIonCube(ctx context.Context, version string) error {
+	loaderFileName := fmt.Sprintf("ioncube_loader_lin_%s.so", version)
+	destDir := "/usr/local/ioncube"
+	destFile := filepath.Join(destDir, loaderFileName)
+
+	// If destination file doesn't exist, search candidate source locations
+	if _, err := os.Stat(destFile); os.IsNotExist(err) {
+		candidates := []string{
+			filepath.Join("ioncube", loaderFileName),
+			filepath.Join("/root/seintech-panel/ioncube", loaderFileName),
+			filepath.Join("/var/lib/seintech/ioncube", loaderFileName),
+		}
+		if exe, err := os.Executable(); err == nil {
+			candidates = append(candidates,
+				filepath.Join(filepath.Dir(exe), "ioncube", loaderFileName),
+				filepath.Join(filepath.Dir(exe), "..", "ioncube", loaderFileName),
+			)
+		}
+
+		found := false
+		for _, cand := range candidates {
+			if _, err := os.Stat(cand); err == nil {
+				_ = os.MkdirAll(destDir, 0755)
+				if data, err := os.ReadFile(cand); err == nil {
+					if err := os.WriteFile(destFile, data, 0755); err == nil {
+						found = true
+						break
+					}
+				}
+			}
+		}
+
+		if !found {
+			if _, err := os.Stat(destFile); os.IsNotExist(err) {
+				return fmt.Errorf("file %s tidak ditemukan. ionCube Loader hanya mendukung PHP 7.4, 8.1, 8.2, 8.3, 8.4, 8.5", loaderFileName)
+			}
+		}
+	}
+
+	// Prepare ini content with priority 00 so it loads before Zend OPcache
+	iniContent := fmt.Sprintf("; configuration for php ioncube loader\n; priority=00\nzend_extension = %s\n", destFile)
+
+	modsDir := fmt.Sprintf("/etc/php/%s/mods-available", version)
+	fpmConfDir := fmt.Sprintf("/etc/php/%s/fpm/conf.d", version)
+	cliConfDir := fmt.Sprintf("/etc/php/%s/cli/conf.d", version)
+
+	_ = os.MkdirAll(modsDir, 0755)
+	_ = os.MkdirAll(fpmConfDir, 0755)
+	_ = os.MkdirAll(cliConfDir, 0755)
+
+	_ = os.WriteFile(filepath.Join(modsDir, "ioncube.ini"), []byte(iniContent), 0644)
+	_ = os.WriteFile(filepath.Join(fpmConfDir, "00-ioncube.ini"), []byte(iniContent), 0644)
+	_ = os.WriteFile(filepath.Join(cliConfDir, "00-ioncube.ini"), []byte(iniContent), 0644)
+
+	if _, err := exec.LookPath("phpenmod"); err == nil {
+		_ = exec.CommandContext(ctx, "phpenmod", "-v", version, "ioncube").Run()
+	}
+
+	// Restart PHP-FPM service
+	_ = p.sm.Restart(ctx, p.GetServiceName(version))
+	return nil
+}
+
+// DeleteIonCube removes ionCube Loader configuration for a given PHP version.
+func (p *PHPManager) DeleteIonCube(ctx context.Context, version string) error {
+	fpmConfDir := fmt.Sprintf("/etc/php/%s/fpm/conf.d", version)
+	cliConfDir := fmt.Sprintf("/etc/php/%s/cli/conf.d", version)
+	modsDir := fmt.Sprintf("/etc/php/%s/mods-available", version)
+
+	_ = os.Remove(filepath.Join(fpmConfDir, "00-ioncube.ini"))
+	_ = os.Remove(filepath.Join(fpmConfDir, "ioncube.ini"))
+	_ = os.Remove(filepath.Join(cliConfDir, "00-ioncube.ini"))
+	_ = os.Remove(filepath.Join(cliConfDir, "ioncube.ini"))
+	_ = os.Remove(filepath.Join(modsDir, "ioncube.ini"))
+
+	// Glob remove any *ioncube*.ini
+	fpmMatches, _ := filepath.Glob(filepath.Join(fpmConfDir, "*ioncube*.ini"))
+	for _, m := range fpmMatches {
+		_ = os.Remove(m)
+	}
+	cliMatches, _ := filepath.Glob(filepath.Join(cliConfDir, "*ioncube*.ini"))
+	for _, m := range cliMatches {
+		_ = os.Remove(m)
+	}
+
+	if _, err := exec.LookPath("phpdismod"); err == nil {
+		_ = exec.CommandContext(ctx, "phpdismod", "-v", version, "ioncube").Run()
 	}
 
 	// Restart PHP-FPM service

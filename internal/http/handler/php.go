@@ -88,10 +88,15 @@ func (h *PHPHandler) InstallExtension(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	msg := fmt.Sprintf("Ekstensi php%s-%s berhasil dipasang!", version, ext)
+	if ext == "ioncube" || ext == "ioncube-loader" {
+		msg = fmt.Sprintf("Ekstensi ionCube Loader untuk PHP %s berhasil dipasang!", version)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"success": true,
-		"message": fmt.Sprintf("Ekstensi php%s-%s berhasil dipasang!", version, ext),
+		"message": msg,
 	})
 }
 
@@ -121,9 +126,14 @@ func (h *PHPHandler) DeleteExtension(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	msg := fmt.Sprintf("Ekstensi php%s-%s berhasil dihapus!", version, ext)
+	if ext == "ioncube" || ext == "ioncube-loader" {
+		msg = fmt.Sprintf("Ekstensi ionCube Loader untuk PHP %s berhasil dihapus!", version)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"success": true,
-		"message": fmt.Sprintf("Ekstensi php%s-%s berhasil dihapus!", version, ext),
+		"message": msg,
 	})
 }

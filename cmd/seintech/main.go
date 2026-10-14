@@ -64,6 +64,9 @@ func main() {
 	// Self-heal any nested /var/www/var/www artifacts from previous path resolution
 	healNestedWebRoot(cfg.WebRoot)
 
+	// Sync bundled ionCube loaders to /usr/local/ioncube
+	syncIonCubeLoaders()
+
 	// Initialize Storage Repository
 	repo, err := storage.NewRepository(cfg.DataDir)
 	if err != nil {
@@ -247,3 +250,49 @@ func healNestedWebRoot(webRoot string) {
 		log.Printf("[Seintech] Migration of nested web root complete.")
 	}
 }
+
+func syncIonCubeLoaders() {
+	destDir := "/usr/local/ioncube"
+	candidates := []string{
+		"/root/seintech-panel/ioncube",
+		"./ioncube",
+	}
+	if exe, err := os.Executable(); err == nil {
+		candidates = append(candidates,
+			filepath.Join(filepath.Dir(exe), "ioncube"),
+			filepath.Join(filepath.Dir(exe), "..", "ioncube"),
+		)
+	}
+
+	var srcDir string
+	for _, c := range candidates {
+		if fi, err := os.Stat(c); err == nil && fi.IsDir() {
+			srcDir = c
+			break
+		}
+	}
+
+	if srcDir == "" {
+		return
+	}
+
+	entries, err := os.ReadDir(srcDir)
+	if err != nil {
+		return
+	}
+
+	_ = os.MkdirAll(destDir, 0755)
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasPrefix(entry.Name(), "ioncube_loader_lin_") && strings.HasSuffix(entry.Name(), ".so") {
+			srcFile := filepath.Join(srcDir, entry.Name())
+			dstFile := filepath.Join(destDir, entry.Name())
+			if _, err := os.Stat(dstFile); os.IsNotExist(err) {
+				if content, err := os.ReadFile(srcFile); err == nil {
+					_ = os.WriteFile(dstFile, content, 0755)
+					log.Printf("[Seintech] Installed ionCube Loader: %s -> %s", entry.Name(), dstFile)
+				}
+			}
+		}
+	}
+}
+

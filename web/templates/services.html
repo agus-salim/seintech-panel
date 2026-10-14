@@ -4,12 +4,12 @@
     <!-- Header Section -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-            <h2 class="text-base font-bold text-slate-900">Service Manager & Package Installer</h2>
+            <h2 class="text-base font-bold text-slate-900">Service Manager &amp; Package Installer</h2>
             <p class="text-xs text-slate-500 mt-0.5">Install, remove, start, stop, restart, and reload webservers, databases, and PHP engines</p>
         </div>
         <div class="flex items-center space-x-2">
             <span class="inline-flex items-center px-3 py-1 rounded-xl text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
-                Debian 13 Native (APT & Systemd)
+                Debian 13 Native (APT &amp; Systemd)
             </span>
         </div>
     </div>
@@ -21,81 +21,14 @@
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg>
             </div>
             <div>
-                <h3 class="text-sm font-bold text-slate-900">Web Servers (HTTP & Reverse Proxy)</h3>
+                <h3 class="text-sm font-bold text-slate-900">Web Servers (HTTP &amp; Reverse Proxy)</h3>
                 <p class="text-xs text-slate-500">Engines to serve static files, reverse proxy applications, and handle FastCGI routing</p>
             </div>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             {{ range .WebServers }}
-            <div class="p-5 rounded-2xl border border-slate-200/70 bg-slate-50/50 flex flex-col justify-between space-y-4">
-                <div>
-                    <div class="flex items-center justify-between mb-2">
-                        <span class="font-bold text-sm text-slate-900">{{ .DisplayName }}</span>
-                        {{ if eq .Status "running" }}
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-medium bg-emerald-100 text-emerald-800">
-                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 pulse-indicator"></span> Running
-                        </span>
-                        {{ else if eq .Status "stopped" }}
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-medium bg-amber-100 text-amber-800">
-                            <span class="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5"></span> Stopped
-                        </span>
-                        {{ else }}
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-medium bg-slate-200/80 text-slate-600">
-                            Not Installed
-                        </span>
-                        {{ end }}
-                    </div>
-                    <p class="text-xs text-slate-600 leading-relaxed">{{ .Description }}</p>
-                    <div class="mt-2 text-[11px] font-mono text-slate-400">
-                        Package: <span class="text-slate-600">{{ .Packages }}</span>
-                    </div>
-                </div>
-
-                <div class="pt-3 border-t border-slate-200/60 flex items-center justify-between flex-wrap gap-2">
-                    {{ if .Installed }}
-                    <div class="flex items-center space-x-1.5">
-                        {{ if .Active }}
-                        <form action="/services/action" method="POST" class="inline">
-                            <input type="hidden" name="service" value="{{ .Name }}">
-                            <input type="hidden" name="action" value="stop">
-                            <button type="submit" class="px-2.5 py-1.5 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl transition-colors">Stop</button>
-                        </form>
-                        <form action="/services/action" method="POST" class="inline">
-                            <input type="hidden" name="service" value="{{ .Name }}">
-                            <input type="hidden" name="action" value="restart">
-                            <button type="submit" class="px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors">Restart</button>
-                        </form>
-                        <form action="/services/action" method="POST" class="inline">
-                            <input type="hidden" name="service" value="{{ .Name }}">
-                            <input type="hidden" name="action" value="reload">
-                            <button type="submit" class="px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors">Reload</button>
-                        </form>
-                        {{ else }}
-                        <form action="/services/action" method="POST" class="inline">
-                            <input type="hidden" name="service" value="{{ .Name }}">
-                            <input type="hidden" name="action" value="start">
-                            <button type="submit" class="px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-colors shadow-sm">Start Service</button>
-                        </form>
-                        {{ end }}
-                    </div>
-                    <form action="/services/action" method="POST" class="inline" onsubmit="return confirm('Are you sure you want to completely uninstall and purge {{ .DisplayName }}?');">
-                        <input type="hidden" name="service" value="{{ .Name }}">
-                        <input type="hidden" name="action" value="uninstall">
-                        <button type="submit" class="text-xs font-semibold text-rose-600 hover:text-rose-800 hover:bg-rose-50 px-2 py-1 rounded-lg transition-colors">Uninstall</button>
-                    </form>
-                    {{ else }}
-                    <form action="/services/action" method="POST" class="w-full" onsubmit="return confirm('Start automated installation of {{ .DisplayName }} via APT?');">
-                        <input type="hidden" name="service" value="{{ .Name }}">
-                        <input type="hidden" name="action" value="install">
-                        <button type="submit" class="w-full py-2 px-3 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors shadow-sm flex items-center justify-center">
-                            <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                            Install {{ .DisplayName }}
-                        </button>
-                    </form>
-                    {{ end }}
-                </div>
-            </div>
+            {{ template "service-card" . }}
             {{ end }}
         </div>
     </div>
@@ -114,69 +47,7 @@
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             {{ range .Databases }}
-            <div class="p-5 rounded-2xl border border-slate-200/70 bg-slate-50/50 flex flex-col justify-between space-y-4">
-                <div>
-                    <div class="flex items-center justify-between mb-2">
-                        <span class="font-bold text-sm text-slate-900">{{ .DisplayName }}</span>
-                        {{ if eq .Status "running" }}
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-medium bg-emerald-100 text-emerald-800">
-                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 pulse-indicator"></span> Running
-                        </span>
-                        {{ else if eq .Status "stopped" }}
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-medium bg-amber-100 text-amber-800">
-                            <span class="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5"></span> Stopped
-                        </span>
-                        {{ else }}
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-medium bg-slate-200/80 text-slate-600">
-                            Not Installed
-                        </span>
-                        {{ end }}
-                    </div>
-                    <p class="text-xs text-slate-600 leading-relaxed">{{ .Description }}</p>
-                    <div class="mt-2 text-[11px] font-mono text-slate-400">
-                        Package: <span class="text-slate-600">{{ .Packages }}</span>
-                    </div>
-                </div>
-
-                <div class="pt-3 border-t border-slate-200/60 flex items-center justify-between flex-wrap gap-2">
-                    {{ if .Installed }}
-                    <div class="flex items-center space-x-1.5">
-                        {{ if .Active }}
-                        <form action="/services/action" method="POST" class="inline">
-                            <input type="hidden" name="service" value="{{ .Name }}">
-                            <input type="hidden" name="action" value="stop">
-                            <button type="submit" class="px-2.5 py-1.5 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl transition-colors">Stop</button>
-                        </form>
-                        <form action="/services/action" method="POST" class="inline">
-                            <input type="hidden" name="service" value="{{ .Name }}">
-                            <input type="hidden" name="action" value="restart">
-                            <button type="submit" class="px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors">Restart</button>
-                        </form>
-                        {{ else }}
-                        <form action="/services/action" method="POST" class="inline">
-                            <input type="hidden" name="service" value="{{ .Name }}">
-                            <input type="hidden" name="action" value="start">
-                            <button type="submit" class="px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-colors shadow-sm">Start Service</button>
-                        </form>
-                        {{ end }}
-                    </div>
-                    <form action="/services/action" method="POST" class="inline" onsubmit="return confirm('Warning: Uninstalling {{ .DisplayName }} will purge database binaries! Proceed?');">
-                        <input type="hidden" name="service" value="{{ .Name }}">
-                        <input type="hidden" name="action" value="uninstall">
-                        <button type="submit" class="text-xs font-semibold text-rose-600 hover:text-rose-800 hover:bg-rose-50 px-2 py-1 rounded-lg transition-colors">Uninstall</button>
-                    </form>
-                    {{ else }}
-                    <form action="/services/action" method="POST" class="w-full" onsubmit="return confirm('Start automated installation of {{ .DisplayName }} via APT?');">
-                        <input type="hidden" name="service" value="{{ .Name }}">
-                        <input type="hidden" name="action" value="install">
-                        <button type="submit" class="w-full py-2 px-3 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-colors shadow-sm flex items-center justify-center">
-                            <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                            Install {{ .DisplayName }}
-                        </button>
-                    </form>
-                    {{ end }}
-                </div>
-            </div>
+            {{ template "service-card" . }}
             {{ end }}
         </div>
     </div>
@@ -195,68 +66,116 @@
 
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {{ range .PHPEngines }}
-            <div class="p-4 rounded-2xl border border-slate-200/70 bg-slate-50/50 flex flex-col justify-between space-y-3">
-                <div>
-                    <div class="flex items-center justify-between mb-1.5">
-                        <span class="font-bold text-sm text-slate-900">{{ .DisplayName }}</span>
-                        {{ if eq .Status "running" }}
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-800">
-                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 pulse-indicator"></span> Running
-                        </span>
-                        {{ else if eq .Status "stopped" }}
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800">
-                            Stopped
-                        </span>
-                        {{ else }}
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-slate-200/80 text-slate-600">
-                            Not Installed
-                        </span>
-                        {{ end }}
-                    </div>
-                    <p class="text-[11px] text-slate-500 line-clamp-2">{{ .Description }}</p>
-                </div>
-
-                <div class="pt-2.5 border-t border-slate-200/60 flex items-center justify-between flex-wrap gap-1.5">
-                    {{ if .Installed }}
-                    <div class="flex items-center space-x-1">
-                        {{ if .Active }}
-                        <form action="/services/action" method="POST" class="inline">
-                            <input type="hidden" name="service" value="{{ .Name }}">
-                            <input type="hidden" name="action" value="stop">
-                            <button type="submit" class="px-2 py-1 text-[11px] font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg">Stop</button>
-                        </form>
-                        <form action="/services/action" method="POST" class="inline">
-                            <input type="hidden" name="service" value="{{ .Name }}">
-                            <input type="hidden" name="action" value="restart">
-                            <button type="submit" class="px-2 py-1 text-[11px] font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg">Restart</button>
-                        </form>
-                        {{ else }}
-                        <form action="/services/action" method="POST" class="inline">
-                            <input type="hidden" name="service" value="{{ .Name }}">
-                            <input type="hidden" name="action" value="start">
-                            <button type="submit" class="px-2.5 py-1 text-[11px] font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg">Start</button>
-                        </form>
-                        {{ end }}
-                    </div>
-                    <form action="/services/action" method="POST" class="inline" onsubmit="return confirm('Remove {{ .DisplayName }}?');">
-                        <input type="hidden" name="service" value="{{ .Name }}">
-                        <input type="hidden" name="action" value="uninstall">
-                        <button type="submit" class="text-[11px] font-semibold text-rose-600 hover:text-rose-800">Uninstall</button>
-                    </form>
-                    {{ else }}
-                    <form action="/services/action" method="POST" class="w-full" onsubmit="return confirm('Install {{ .DisplayName }} and extensions?');">
-                        <input type="hidden" name="service" value="{{ .Name }}">
-                        <input type="hidden" name="action" value="install">
-                        <button type="submit" class="w-full py-1.5 text-[11px] font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors shadow-sm text-center">
-                            Install {{ .DisplayName }}
-                        </button>
-                    </form>
-                    {{ end }}
-                </div>
-            </div>
+            {{ template "service-card" . }}
             {{ end }}
         </div>
     </div>
 
 </div>
 {{ end }}
+
+{{/* ===== Reusable Service Card Sub-Template ===== */}}
+{{ define "service-card" }}
+<div class="p-5 rounded-2xl border border-slate-200/70 bg-slate-50/50 flex flex-col justify-between space-y-4 transition-shadow hover:shadow-md">
+    <div>
+        <div class="flex items-center justify-between mb-2">
+            <span class="font-bold text-sm text-slate-900">{{ .DisplayName }}</span>
+            {{ if eq .Status "running" }}
+            <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-medium bg-emerald-100 text-emerald-800">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 pulse-indicator"></span> Running
+            </span>
+            {{ else if eq .Status "stopped" }}
+            <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-medium bg-amber-100 text-amber-800">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5"></span> Stopped
+            </span>
+            {{ else }}
+            <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-medium bg-slate-200/80 text-slate-600">
+                Not Installed
+            </span>
+            {{ end }}
+        </div>
+        <p class="text-xs text-slate-600 leading-relaxed">{{ .Description }}</p>
+        <div class="mt-2 text-[11px] font-mono text-slate-400">
+            Package: <span class="text-slate-600">{{ .Packages }}</span>
+        </div>
+    </div>
+
+    <div class="pt-3 border-t border-slate-200/60 flex items-center justify-between flex-wrap gap-2">
+        {{ if .Installed }}
+        <!-- Installed: show service control actions -->
+        <div class="flex items-center space-x-1.5">
+            {{ if .Active }}
+            <!-- Running: show Stop / Restart / Reload -->
+            <form action="/services/action" method="POST" class="inline" onsubmit="showActionFeedback(this, '{{ .DisplayName }}', 'stop')">
+                <input type="hidden" name="service" value="{{ .Name }}">
+                <input type="hidden" name="action" value="stop">
+                <button type="submit"
+                    class="px-2.5 py-1.5 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl transition-colors">
+                    Stop
+                </button>
+            </form>
+            <form action="/services/action" method="POST" class="inline" onsubmit="showActionFeedback(this, '{{ .DisplayName }}', 'restart')">
+                <input type="hidden" name="service" value="{{ .Name }}">
+                <input type="hidden" name="action" value="restart">
+                <button type="submit"
+                    class="px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors">
+                    Restart
+                </button>
+            </form>
+            <form action="/services/action" method="POST" class="inline" onsubmit="showActionFeedback(this, '{{ .DisplayName }}', 'reload')">
+                <input type="hidden" name="service" value="{{ .Name }}">
+                <input type="hidden" name="action" value="reload">
+                <button type="submit"
+                    class="px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors">
+                    Reload
+                </button>
+            </form>
+            {{ else }}
+            <!-- Stopped: show Start -->
+            <form action="/services/action" method="POST" class="inline" onsubmit="showActionFeedback(this, '{{ .DisplayName }}', 'start')">
+                <input type="hidden" name="service" value="{{ .Name }}">
+                <input type="hidden" name="action" value="start">
+                <button type="submit"
+                    class="px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-colors shadow-sm">
+                    Start Service
+                </button>
+            </form>
+            {{ end }}
+        </div>
+
+        <!-- Uninstall: async -->
+        <button type="button"
+            onclick="confirmUninstall('{{ .Name }}', '{{ .DisplayName }}')"
+            class="text-xs font-semibold text-rose-600 hover:text-rose-800 hover:bg-rose-50 px-2 py-1 rounded-lg transition-colors">
+            Uninstall
+        </button>
+
+        {{ else }}
+        <!-- Not installed: Install button (async) -->
+        <button type="button"
+            onclick="startInstallJob('{{ .Name }}', '{{ .DisplayName }}', 'install')"
+            class="w-full py-2 px-3 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors shadow-sm flex items-center justify-center gap-1.5">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+            Install {{ .DisplayName }}
+        </button>
+        {{ end }}
+    </div>
+</div>
+{{ end }}
+
+<script>
+// Confirm then start uninstall job
+function confirmUninstall(service, displayName) {
+    if (!confirm('Warning: Uninstalling ' + displayName + ' will purge its packages from the system. Proceed?')) return;
+    startInstallJob(service, displayName, 'uninstall');
+}
+
+// Show subtle spinner feedback for quick sync actions (start/stop/restart/reload)
+function showActionFeedback(form, displayName, action) {
+    const btn = form.querySelector('button[type="submit"]');
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = action.charAt(0).toUpperCase() + action.slice(1) + 'ing...';
+    }
+}
+</script>

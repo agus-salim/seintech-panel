@@ -91,7 +91,9 @@ func NewRouter(
 		// Services & Package Installer
 		pr.Get("/services", servicesH.List)
 		pr.Post("/services/action", servicesH.ExecuteAction)
-		pr.Post("/services/restart", servicesH.ExecuteAction)
+		pr.Post("/services/install", servicesH.StartInstallJob)
+		pr.Post("/services/uninstall", servicesH.StartUninstallJob)
+		pr.Get("/services/job/{jobID}", servicesH.GetJobStatus)
 
 		// PHP Engines
 		pr.Get("/php", phpH.List)

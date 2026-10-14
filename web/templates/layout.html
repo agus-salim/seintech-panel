@@ -180,19 +180,180 @@
             </div>
         </header>
 
-        <!-- Flash Alert Message Container -->
-        {{ if .FlashMessage }}
-        <div class="px-6 pt-4">
-            <div class="p-4 rounded-xl border {{ if eq .FlashType "error" }}bg-rose-50 border-rose-200 text-rose-800{{ else if eq .FlashType "success" }}bg-emerald-50 border-emerald-200 text-emerald-800{{ else }}bg-blue-50 border-blue-200 text-blue-800{{ end }} text-sm flex items-center justify-between shadow-sm">
-                <span>{{ .FlashMessage }}</span>
-            </div>
-        </div>
-        {{ end }}
-
         <!-- Dynamic Body Slot -->
         <div class="p-6">
             {{ template "content" . }}
         </div>
     </main>
+
+    <!-- ==================== TOAST NOTIFICATION SYSTEM ==================== -->
+    <!-- Fixed toast container in top-right corner -->
+    <div id="toast-container" class="fixed top-5 right-5 z-[9999] flex flex-col gap-3 pointer-events-none" style="min-width:320px;max-width:420px">
+        <!-- Toasts injected here by JS -->
+    </div>
+
+    <!-- ==================== INSTALL PROGRESS MODAL ==================== -->
+    <div id="install-modal" class="hidden fixed inset-0 z-[9990] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 p-8 w-full max-w-md mx-4">
+            <div class="flex items-center space-x-4 mb-5">
+                <div class="relative flex-shrink-0">
+                    <div class="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center">
+                        <svg class="animate-spin w-6 h-6 text-indigo-600" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </div>
+                </div>
+                <div class="min-w-0">
+                    <h3 class="font-bold text-slate-900 text-base" id="install-modal-title">Installing Package...</h3>
+                    <p class="text-xs text-slate-500 mt-0.5">This may take a few minutes. Please do not close this page.</p>
+                </div>
+            </div>
+            <!-- Progress bar -->
+            <div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden mb-4">
+                <div id="install-modal-bar" class="h-full bg-indigo-500 rounded-full animate-progress-indeterminate"></div>
+            </div>
+            <!-- Status message -->
+            <p id="install-modal-msg" class="text-xs text-slate-500 text-center font-mono leading-relaxed">Connecting to APT repository...</p>
+        </div>
+    </div>
+
+    <!-- ==================== GLOBAL SCRIPTS ==================== -->
+    <script>
+    // ---- Toast Notification Engine ----
+    function showToast(message, type) {
+        const container = document.getElementById('toast-container');
+        const id = 'toast-' + Date.now();
+
+        const colors = {
+            success: 'bg-emerald-600 border-emerald-700',
+            error:   'bg-rose-600 border-rose-700',
+            info:    'bg-indigo-600 border-indigo-700',
+            warning: 'bg-amber-500 border-amber-600',
+        };
+        const icons = {
+            success: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>',
+            error:   '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>',
+            info:    '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>',
+            warning: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>',
+        };
+
+        const colorClass = colors[type] || colors.info;
+        const icon = icons[type] || icons.info;
+
+        const el = document.createElement('div');
+        el.id = id;
+        el.className = `pointer-events-auto flex items-start gap-3 p-4 rounded-xl border text-white shadow-lg transform transition-all duration-300 translate-x-8 opacity-0 ${colorClass}`;
+        el.style.maxWidth = '420px';
+        el.innerHTML = `
+            <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">${icon}</svg>
+            <span class="text-sm leading-relaxed flex-1">${message}</span>
+            <button onclick="dismissToast('${id}')" class="flex-shrink-0 opacity-70 hover:opacity-100 transition-opacity">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        `;
+
+        container.appendChild(el);
+        // Animate in
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                el.classList.remove('translate-x-8', 'opacity-0');
+            });
+        });
+        // Auto dismiss
+        setTimeout(() => dismissToast(id), 6000);
+    }
+
+    function dismissToast(id) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.classList.add('translate-x-8', 'opacity-0');
+        setTimeout(() => el.remove(), 300);
+    }
+
+    // ---- Async Install / Uninstall Engine ----
+    let _pollInterval = null;
+
+    function startInstallJob(service, displayName, action) {
+        const endpoint = action === 'install' ? '/services/install' : '/services/uninstall';
+        const title = action === 'install' ? 'Installing ' + displayName + '...' : 'Removing ' + displayName + '...';
+
+        // Show loading modal
+        document.getElementById('install-modal-title').textContent = title;
+        document.getElementById('install-modal-msg').textContent = 'Connecting to APT repository...';
+        document.getElementById('install-modal').classList.remove('hidden');
+
+        const formData = new FormData();
+        formData.append('service', service);
+
+        fetch(endpoint, { method: 'POST', body: formData })
+            .then(r => r.json())
+            .then(data => {
+                if (!data.job_id) throw new Error('No job ID returned');
+                pollJobStatus(data.job_id, displayName);
+            })
+            .catch(err => {
+                hideInstallModal();
+                showToast('Failed to start job: ' + err.message, 'error');
+            });
+    }
+
+    function pollJobStatus(jobID, displayName) {
+        if (_pollInterval) clearInterval(_pollInterval);
+
+        _pollInterval = setInterval(() => {
+            fetch('/services/job/' + jobID)
+                .then(r => r.json())
+                .then(job => {
+                    document.getElementById('install-modal-msg').textContent = job.message || '';
+
+                    if (job.status === 'done') {
+                        clearInterval(_pollInterval);
+                        hideInstallModal();
+                        showToast(job.message || (displayName + ' completed successfully.'), 'success');
+                        // Reload the page after a brief delay so statuses refresh
+                        setTimeout(() => window.location.reload(), 1500);
+                    } else if (job.status === 'failed') {
+                        clearInterval(_pollInterval);
+                        hideInstallModal();
+                        showToast(job.message || ('Operation on ' + displayName + ' failed.'), 'error');
+                    }
+                })
+                .catch(() => {
+                    // Network blip – keep polling
+                });
+        }, 1500);
+    }
+
+    function hideInstallModal() {
+        document.getElementById('install-modal').classList.add('hidden');
+    }
+
+    // Show flash messages from server as toasts on page load
+    (function() {
+        const params = new URLSearchParams(window.location.search);
+        const msg  = params.get('msg');
+        const type = params.get('type') || 'info';
+        if (msg) {
+            // Clean the URL without reloading
+            const clean = window.location.pathname;
+            history.replaceState(null, '', clean);
+            showToast(msg, type);
+        }
+    })();
+    </script>
+
+    <style>
+    @keyframes progress-indeterminate {
+        0%   { transform: translateX(-100%) scaleX(0.5); }
+        50%  { transform: translateX(25%) scaleX(0.8); }
+        100% { transform: translateX(100%) scaleX(0.5); }
+    }
+    .animate-progress-indeterminate {
+        animation: progress-indeterminate 1.8s ease-in-out infinite;
+        transform-origin: left center;
+        width: 60%;
+    }
+    </style>
 </body>
 </html>

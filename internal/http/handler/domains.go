@@ -15,6 +15,7 @@ import (
 	"github.com/seintech/panel/internal/config"
 	"github.com/seintech/panel/internal/core/php"
 	"github.com/seintech/panel/internal/core/ssl"
+	"github.com/seintech/panel/internal/core/system"
 	"github.com/seintech/panel/internal/core/webserver"
 	"github.com/seintech/panel/internal/model"
 	"github.com/seintech/panel/internal/storage"
@@ -88,20 +89,34 @@ func (h *DomainHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 1. FastPanel-style dedicated user & group per virtualhost
+	siteUser := strings.TrimSpace(r.FormValue("site_user"))
+	if siteUser == "" {
+		siteUser = system.GenerateSiteUsername(domainName)
+	}
+	siteGroup := siteUser
+
+	userHome := filepath.Join(h.cfg.WebRoot, siteUser)
+
+	// Automatically create dedicated Linux user & group (FastPanel style)
+	_ = system.CreateSiteUser(r.Context(), siteUser, siteGroup, userHome)
+
+	// 2. Setup user's dedicated directory and site storage inside user's directory:
+	// /var/www/<site_user>/data/www/<domain_name>
+	// 3. Default folder permissions 0755, file permissions 0644
+	_, docRoot, err := system.SetupVHostDirectory(h.cfg.WebRoot, siteUser, domainName)
+	if err != nil {
+		http.Redirect(w, r, "/domains?msg="+url.QueryEscape("Gagal membuat direktori situs: "+err.Error())+"&type=error", http.StatusSeeOther)
+		return
+	}
+
 	idBytes := make([]byte, 8)
 	_, _ = rand.Read(idBytes)
 	domainID := hex.EncodeToString(idBytes)
 
 	sess := GetSession(r)
-	docRoot := filepath.Join(h.cfg.WebRoot, domainName, "public_html")
-	_ = os.MkdirAll(docRoot, 0755)
 
-	// Create default index.php or index.html if empty
-	indexFile := filepath.Join(docRoot, "index.php")
-	if _, err := os.Stat(indexFile); os.IsNotExist(err) {
-		defaultContent := "<?php echo '<h1>Welcome to " + domainName + "</h1><p>Powered by Seintech Hosting Panel</p>'; phpinfo();"
-		_ = os.WriteFile(indexFile, []byte(defaultContent), 0644)
-	}
+	phpSocket := h.phpMgr.GetSocketPath(phpVer)
 
 	domain := model.Domain{
 		ID:             domainID,
@@ -110,7 +125,9 @@ func (h *DomainHandler) Create(w http.ResponseWriter, r *http.Request) {
 		DocumentRoot:   docRoot,
 		WebServerType:  wsType,
 		PHPVersion:     phpVer,
-		PHPSocket:      h.phpMgr.GetSocketPath(phpVer),
+		PHPSocket:      phpSocket,
+		SiteUser:       siteUser,
+		SiteGroup:      siteGroup,
 		SSLEnabled:     false,
 		SSLProvider:    model.SSLProviderNone,
 		IsReverseProxy: mode == "proxy",
@@ -119,6 +136,13 @@ func (h *DomainHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Status:         "active",
 		CreatedAt:      time.Now(),
 		UpdatedAt:      time.Now(),
+	}
+
+	// Create dedicated PHP-FPM pool for this site user if in PHP mode
+	if mode != "proxy" && mode != "static" && phpVer != "" {
+		if customSock, err := h.phpMgr.ConfigureDomainPool(r.Context(), &domain, siteUser, nil); err == nil && customSock != "" {
+			domain.PHPSocket = customSock
+		}
 	}
 
 	// Generate VHost on the chosen WebServer engine
@@ -140,7 +164,7 @@ func (h *DomainHandler) Create(w http.ResponseWriter, r *http.Request) {
 		_ = h.repo.UpsertDomain(domain)
 	}
 
-	http.Redirect(w, r, "/domains?msg=Virtual+host+berhasil+dibuat&type=success", http.StatusSeeOther)
+	http.Redirect(w, r, "/domains?msg=Virtual+host+berhasil+dibuat+(User:+"+siteUser+")&type=success", http.StatusSeeOther)
 }
 
 // UpdateEngine handles quick dropdown change of web server engine
@@ -217,6 +241,14 @@ func (h *DomainHandler) UpdatePHP(w http.ResponseWriter, r *http.Request) {
 
 	domain.PHPVersion = phpVer
 	domain.PHPSocket = h.phpMgr.GetSocketPath(phpVer)
+
+	// Reconfigure isolated PHP pool for site user if configured
+	if domain.SiteUser != "" && !domain.IsReverseProxy && !domain.IsStatic {
+		if customSock, err := h.phpMgr.ConfigureDomainPool(r.Context(), domain, domain.SiteUser, nil); err == nil && customSock != "" {
+			domain.PHPSocket = customSock
+		}
+	}
+
 	domain.UpdatedAt = time.Now()
 
 	// Regenerate VHost on current webserver
@@ -230,6 +262,39 @@ func (h *DomainHandler) UpdatePHP(w http.ResponseWriter, r *http.Request) {
 
 	msg := fmt.Sprintf("Versi PHP untuk %s berhasil diubah ke PHP %s!", domain.DomainName, phpVer)
 	h.respondJSON(w, true, msg)
+}
+
+// FixPermissions restores FastPanel standard permissions (folders 755, files 644) and ownership
+func (h *DomainHandler) FixPermissions(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		h.respondJSON(w, false, "Invalid request form")
+		return
+	}
+
+	id := strings.TrimSpace(r.FormValue("id"))
+	domain, err := h.repo.GetDomainByID(id)
+	if err != nil {
+		domain, err = h.repo.GetDomainByName(id)
+		if err != nil {
+			h.respondJSON(w, false, "Domain tidak ditemukan")
+			return
+		}
+	}
+
+	targetDir := domain.DocumentRoot
+	if domain.SiteUser != "" {
+		userHome := filepath.Join(h.cfg.WebRoot, domain.SiteUser)
+		if fi, err := os.Stat(userHome); err == nil && fi.IsDir() {
+			targetDir = userHome
+		}
+	}
+
+	if err := system.SetVHostPermissions(targetDir, domain.SiteUser, domain.SiteGroup); err != nil {
+		h.respondJSON(w, false, "Gagal mereset izin: "+err.Error())
+		return
+	}
+
+	h.respondJSON(w, true, fmt.Sprintf("Izin folder (755) & file (644) untuk %s berhasil dipulihkan!", domain.DomainName))
 }
 
 // Update handles full edit modal submission

@@ -38,6 +38,8 @@ type Domain struct {
 	ProxyTarget    string        `json:"proxy_target,omitempty"` // e.g. "http://127.0.0.1:3000"
 	IsStatic       bool          `json:"is_static"`
 	CustomHeaders  []string      `json:"custom_headers,omitempty"`
+	SiteUser       string        `json:"site_user,omitempty"`
+	SiteGroup      string        `json:"site_group,omitempty"`
 	Status         string        `json:"status"` // "active", "disabled"
 	CreatedAt      time.Time     `json:"created_at"`
 	UpdatedAt      time.Time     `json:"updated_at"`

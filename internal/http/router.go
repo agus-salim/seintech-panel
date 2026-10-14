@@ -78,6 +78,7 @@ func NewRouter(
 		pr.Post("/domains/update-engine", domainH.UpdateEngine)
 		pr.Post("/domains/update-php", domainH.UpdatePHP)
 		pr.Get("/domains/logs", domainH.GetLogs)
+		pr.Post("/domains/fix-permissions", domainH.FixPermissions)
 		pr.Post("/domains/delete", domainH.Delete)
 
 		// File Manager

@@ -17,9 +17,13 @@ import (
 type FileItem struct {
 	Name       string    `json:"name"`
 	Path       string    `json:"path"`
+	Type       string    `json:"type"`
 	Size       int64     `json:"size"`
 	HumanSize  string    `json:"human_size"`
 	Mode       string    `json:"mode"`
+	Owner      string    `json:"owner"`
+	Group      string    `json:"group"`
+	Access     string    `json:"access"`
 	ModTime    time.Time `json:"mod_time"`
 	IsDir      bool      `json:"is_dir"`
 	Ext        string    `json:"ext"`
@@ -69,12 +73,18 @@ func (fm *FileManager) List(subpath string) ([]FileItem, error) {
 		editable := !entry.IsDir() && isEditableExt(ext)
 		archive := !entry.IsDir() && isArchiveExt(entry.Name())
 
+		owner, group, access, fileType := getFileOwnerGroup(info)
+
 		items = append(items, FileItem{
 			Name:       entry.Name(),
 			Path:       filepath.ToSlash(itemPath),
+			Type:       fileType,
 			Size:       info.Size(),
 			HumanSize:  formatSize(info.Size(), entry.IsDir()),
 			Mode:       info.Mode().String(),
+			Owner:      owner,
+			Group:      group,
+			Access:     access,
 			ModTime:    info.ModTime(),
 			IsDir:      entry.IsDir(),
 			Ext:        ext,

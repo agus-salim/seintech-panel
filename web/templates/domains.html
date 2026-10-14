@@ -1,10 +1,26 @@
 {{ define "content" }}
-<div class="space-y-6" x-data="{ createModal: new URLSearchParams(window.location.search).has('new') }">
+<div class="space-y-6" x-data="{
+    createModal: new URLSearchParams(window.location.search).has('new'),
+    editModal: false,
+    editData: { id: '', domain: '', aliases: '', webserver: 'nginx', php: '8.4', mode: 'php', proxy: '', docroot: '' },
+    logModal: false,
+    logId: '',
+    logDomain: '',
+    logEngine: '',
+    logType: 'access',
+    logContent: 'Memuat catatan log...',
+    logPath: '',
+    logLoading: false,
+    deleteModal: false,
+    deleteId: '',
+    deleteDomain: '',
+    deleteConfirmInput: ''
+}">
 
     <!-- Header Actions -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-            <h2 class="text-base font-bold text-slate-900">Virtual Host & Domain Configurations</h2>
+            <h2 class="text-base font-bold text-slate-900">Virtual Host &amp; Domain Configurations</h2>
             <p class="text-xs text-slate-500 mt-0.5">Manage reverse proxies, PHP-FPM routing, and webserver configurations</p>
         </div>
         <button @click="createModal = true" class="inline-flex items-center justify-center px-4 py-2.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm transition-colors">
@@ -35,19 +51,54 @@
                                 <a href="http://{{ .DomainName }}" target="_blank" class="hover:text-indigo-600 hover:underline">
                                     {{ .DomainName }}
                                 </a>
+                                {{ if .Aliases }}
+                                <span class="block text-[11px] text-slate-400 font-mono">Aliases: {{ range $i, $a := .Aliases }}{{ if $i }}, {{ end }}{{ $a }}{{ end }}</span>
+                                {{ end }}
                                 <span class="block text-xs font-mono font-normal text-slate-400 mt-0.5 truncate max-w-xs">{{ .DocumentRoot }}</span>
                             </div>
                         </td>
+
+                        <!-- Web Engine Dropdown -->
                         <td class="py-4 px-6">
-                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium bg-slate-100 text-slate-700 uppercase">
-                                {{ .WebServerType }}
-                            </span>
+                            <div class="relative inline-block">
+                                <select onchange="updateWebEngine('{{ .ID }}', this.value, this)"
+                                        class="text-xs font-mono font-medium rounded-lg border border-slate-200 bg-white hover:border-indigo-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 py-1.5 pl-2.5 pr-7 outline-none cursor-pointer text-slate-800 shadow-sm transition-all appearance-none">
+                                    <option value="nginx" {{ if eq .WebServerType "nginx" }}selected{{ end }}>NGINX</option>
+                                    <option value="apache2" {{ if eq .WebServerType "apache2" }}selected{{ end }}>APACHE 2.4</option>
+                                    <option value="caddy" {{ if eq .WebServerType "caddy" }}selected{{ end }}>CADDY</option>
+                                    <option value="openlitespeed" {{ if eq .WebServerType "openlitespeed" }}selected{{ end }}>OPENLITESPEED</option>
+                                </select>
+                                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1.5 text-slate-400">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </div>
+                            </div>
                         </td>
+
+                        <!-- PHP Version Dropdown -->
                         <td class="py-4 px-6">
-                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium bg-indigo-50 text-indigo-700">
-                                PHP {{ .PHPVersion }}
+                            {{ if or .IsReverseProxy .IsStatic }}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono text-slate-400 bg-slate-50 border border-slate-100">
+                                N/A
                             </span>
+                            {{ else }}
+                            <div class="relative inline-block">
+                                <select onchange="updatePHPVersion('{{ .ID }}', this.value, this)"
+                                        class="text-xs font-mono font-medium rounded-lg border border-indigo-200 bg-indigo-50/50 hover:bg-indigo-50 hover:border-indigo-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 py-1.5 pl-2.5 pr-7 outline-none cursor-pointer text-indigo-700 shadow-sm transition-all appearance-none">
+                                    <option value="8.5" {{ if eq .PHPVersion "8.5" }}selected{{ end }}>PHP 8.5</option>
+                                    <option value="8.4" {{ if eq .PHPVersion "8.4" }}selected{{ end }}>PHP 8.4</option>
+                                    <option value="8.3" {{ if eq .PHPVersion "8.3" }}selected{{ end }}>PHP 8.3</option>
+                                    <option value="8.2" {{ if eq .PHPVersion "8.2" }}selected{{ end }}>PHP 8.2</option>
+                                    <option value="8.1" {{ if eq .PHPVersion "8.1" }}selected{{ end }}>PHP 8.1</option>
+                                    <option value="8.0" {{ if eq .PHPVersion "8.0" }}selected{{ end }}>PHP 8.0</option>
+                                    <option value="7.4" {{ if eq .PHPVersion "7.4" }}selected{{ end }}>PHP 7.4</option>
+                                </select>
+                                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1.5 text-indigo-500">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </div>
+                            </div>
+                            {{ end }}
                         </td>
+
                         <td class="py-4 px-6">
                             {{ if .IsReverseProxy }}
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-700">
@@ -63,6 +114,7 @@
                             </span>
                             {{ end }}
                         </td>
+
                         <td class="py-4 px-6">
                             {{ if .SSLEnabled }}
                             <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-sm" title="Let's Encrypt Aktif{{ if .SSLExpiry }} • Berlaku hingga {{ .SSLExpiry.Format "02 Jan 2006" }}{{ end }}">
@@ -78,12 +130,41 @@
                             </button>
                             {{ end }}
                         </td>
-                        <td class="py-4 px-6 text-right space-x-3">
-                            <a href="/filemanager?path={{ .DocumentRoot }}" class="text-xs font-semibold text-slate-600 hover:text-indigo-600">Files</a>
-                            <form action="/domains/delete" method="POST" class="inline" onsubmit="return confirm('Are you sure you want to delete this virtual host?');">
-                                <input type="hidden" name="id" value="{{ .ID }}">
-                                <button type="submit" class="text-xs font-semibold text-rose-600 hover:text-rose-800">Delete</button>
-                            </form>
+
+                        <!-- Actions Column: Icon Buttons (Edit, Log, Files, Delete) -->
+                        <td class="py-4 px-6 text-right">
+                            <div class="inline-flex items-center gap-1 justify-end">
+                                <!-- Edit Icon -->
+                                <button type="button" 
+                                        @click="editData = { id: '{{ .ID }}', domain: '{{ .DomainName }}', aliases: '{{ range $i, $a := .Aliases }}{{ if $i }},{{ end }}{{ $a }}{{ end }}', webserver: '{{ .WebServerType }}', php: '{{ .PHPVersion }}', mode: '{{ if .IsReverseProxy }}proxy{{ else if .IsStatic }}static{{ else }}php{{ end }}', proxy: '{{ .ProxyTarget }}', docroot: '{{ .DocumentRoot }}' }; editModal = true"
+                                        title="Edit Virtual Host"
+                                        class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                </button>
+
+                                <!-- Log Icon -->
+                                <button type="button"
+                                        @click="openLogs('{{ .ID }}', '{{ .DomainName }}', '{{ .WebServerType }}')"
+                                        title="Lihat Log Webserver"
+                                        class="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-amber-500/20">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                </button>
+
+                                <!-- Files Icon -->
+                                <a href="/filemanager?path={{ .DocumentRoot }}" 
+                                   title="Buka File Manager"
+                                   class="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500/20">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+                                </a>
+
+                                <!-- Delete Icon -->
+                                <button type="button"
+                                        @click="deleteId = '{{ .ID }}'; deleteDomain = '{{ .DomainName }}'; deleteConfirmInput = ''; deleteModal = true"
+                                        title="Hapus Virtual Host"
+                                        class="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-rose-500/20">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                </button>
+                            </div>
                         </td>
                     </tr>
                     {{ else }}
@@ -170,5 +251,307 @@
         </div>
     </div>
 
+    <!-- Edit Virtual Host Modal -->
+    <div x-show="editModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+        <div class="min-h-screen px-4 text-center flex items-center justify-center">
+            <div class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" @click="editModal = false"></div>
+
+            <div class="inline-block w-full max-w-xl p-6 my-8 text-left align-middle transition-all transform bg-white shadow-xl rounded-2xl border border-slate-200 z-10">
+                <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <div>
+                        <h3 class="text-base font-bold text-slate-900">Edit Virtual Host</h3>
+                        <p class="text-xs text-indigo-600 font-mono mt-0.5" x-text="editData.domain"></p>
+                    </div>
+                    <button @click="editModal = false" class="text-slate-400 hover:text-slate-600">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+
+                <form action="/domains/update" method="POST" class="mt-4 space-y-4">
+                    <input type="hidden" name="id" :value="editData.id">
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Domain Aliases (Pisahkan dengan koma)</label>
+                        <input type="text" name="aliases" x-model="editData.aliases" placeholder="www.example.com, test.example.com" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Webserver Engine</label>
+                            <select name="webserver_type" x-model="editData.webserver" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                                <option value="nginx">Nginx (Port 80 / 443)</option>
+                                <option value="apache2">Apache 2.4 (Port 8080 / 8444)</option>
+                                <option value="caddy">Caddy (Port 2080 / 2443)</option>
+                                <option value="openlitespeed">OpenLiteSpeed (Port 8088 / 7443)</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Application Mode</label>
+                            <select name="mode" x-model="editData.mode" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                                <option value="php">PHP-FPM Application</option>
+                                <option value="proxy">Reverse Proxy (Node/Go/Python)</option>
+                                <option value="static">Static HTML/JS Site</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div x-show="editData.mode === 'php'">
+                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">PHP Version</label>
+                        <select name="php_version" x-model="editData.php" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                            <option value="8.5">PHP 8.5 (Preview)</option>
+                            <option value="8.4">PHP 8.4 (Latest Stable)</option>
+                            <option value="8.3">PHP 8.3 (Default)</option>
+                            <option value="8.2">PHP 8.2</option>
+                            <option value="8.1">PHP 8.1</option>
+                            <option value="8.0">PHP 8.0</option>
+                            <option value="7.4">PHP 7.4 (Legacy)</option>
+                        </select>
+                    </div>
+
+                    <div x-show="editData.mode === 'proxy'">
+                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Reverse Proxy Target URL</label>
+                        <input type="text" name="proxy_target" x-model="editData.proxy" placeholder="http://127.0.0.1:3000" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Document Root</label>
+                        <input type="text" name="document_root" x-model="editData.docroot" class="w-full px-3.5 py-2 text-sm font-mono border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+
+                    <div class="pt-4 border-t border-slate-100 flex justify-end space-x-3">
+                        <button type="button" @click="editModal = false" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">Batal</button>
+                        <button type="submit" class="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm transition-colors">Simpan Perubahan</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Webserver Log Viewer Modal -->
+    <div x-show="logModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+        <div class="min-h-screen px-4 text-center flex items-center justify-center">
+            <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" @click="logModal = false"></div>
+
+            <div class="inline-block w-full max-w-3xl p-6 my-8 text-left align-middle transition-all transform bg-white shadow-2xl rounded-2xl border border-slate-200 z-10">
+                <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+                                <span>Webserver Logs</span>
+                                <span class="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-slate-100 text-slate-700" x-text="logEngine"></span>
+                            </h3>
+                            <p class="text-xs text-indigo-600 font-mono mt-0.5" x-text="logDomain"></p>
+                        </div>
+                    </div>
+                    <button @click="logModal = false" class="text-slate-400 hover:text-slate-600">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+
+                <!-- Log Controls -->
+                <div class="mt-4 flex items-center justify-between flex-wrap gap-2">
+                    <div class="inline-flex p-1 bg-slate-100 rounded-xl space-x-1">
+                        <button type="button" 
+                                @click="switchLogType('access')"
+                                :class="logType === 'access' ? 'bg-white shadow text-slate-900 font-semibold' : 'text-slate-600 hover:text-slate-900'"
+                                class="px-3 py-1 text-xs rounded-lg transition-all">
+                            Access Log
+                        </button>
+                        <button type="button" 
+                                @click="switchLogType('error')"
+                                :class="logType === 'error' ? 'bg-white shadow text-slate-900 font-semibold' : 'text-slate-600 hover:text-slate-900'"
+                                class="px-3 py-1 text-xs rounded-lg transition-all">
+                            Error Log
+                        </button>
+                    </div>
+
+                    <div class="flex items-center space-x-2">
+                        <span class="text-[11px] font-mono text-slate-400 truncate max-w-xs" x-text="logPath"></span>
+                        <button type="button" @click="fetchLogs()" title="Muat Ulang" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors">
+                            <svg class="w-4 h-4" :class="logLoading ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Log Content Box -->
+                <div class="mt-3 bg-slate-950 text-slate-200 rounded-xl p-4 font-mono text-xs overflow-x-auto max-h-96 leading-relaxed select-text border border-slate-800">
+                    <pre class="whitespace-pre-wrap break-all" x-text="logContent"></pre>
+                </div>
+
+                <div class="mt-4 flex justify-end">
+                    <button type="button" @click="logModal = false" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">Tutup</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal with strict 'konfirmasi' requirement -->
+    <div x-show="deleteModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+        <div class="min-h-screen px-4 text-center flex items-center justify-center">
+            <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" @click="deleteModal = false"></div>
+
+            <div class="inline-block w-full max-w-md p-6 my-8 text-left align-middle transition-all transform bg-white shadow-2xl rounded-2xl border border-slate-200 z-10">
+                <div class="flex items-center space-x-3.5 pb-4 border-b border-slate-100">
+                    <div class="w-10 h-10 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-600 flex-shrink-0">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-slate-900">Konfirmasi Hapus Virtual Host</h3>
+                        <p class="text-xs text-slate-500 mt-0.5">Tindakan ini permanen dan tidak dapat dibatalkan</p>
+                    </div>
+                </div>
+
+                <form action="/domains/delete" method="POST" class="mt-4 space-y-4">
+                    <input type="hidden" name="id" :value="deleteId">
+                    
+                    <div class="p-3 bg-rose-50/50 border border-rose-100 rounded-xl text-xs text-rose-800 leading-relaxed">
+                        Virtual host <span class="font-bold text-rose-900 font-mono" x-text="deleteDomain"></span> beserta konfigurasi web server-nya akan dihapus permanen.
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1.5">
+                            Ketik kata <span class="font-mono font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">konfirmasi</span> untuk melanjutkan:
+                        </label>
+                        <input type="text" 
+                               name="confirm" 
+                               x-model="deleteConfirmInput" 
+                               required 
+                               autocomplete="off" 
+                               placeholder="konfirmasi" 
+                               class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-rose-500 focus:border-rose-500 outline-none">
+                    </div>
+
+                    <div class="pt-3 border-t border-slate-100 flex justify-end space-x-2.5">
+                        <button type="button" @click="deleteModal = false" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">Batal</button>
+                        <button type="submit" 
+                                :disabled="deleteConfirmInput.trim().toLowerCase() !== 'konfirmasi'"
+                                :class="deleteConfirmInput.trim().toLowerCase() === 'konfirmasi' ? 'bg-rose-600 hover:bg-rose-700 cursor-pointer shadow-sm' : 'bg-slate-200 text-slate-400 cursor-not-allowed'"
+                                class="px-4 py-2 text-xs font-semibold text-white rounded-xl transition-all">
+                            Hapus Virtual Host
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
 </div>
+
+<script>
+// Quick update web engine via dropdown
+function updateWebEngine(id, newEngine, selectEl) {
+    const originalValue = selectEl.getAttribute('data-original') || selectEl.value;
+    selectEl.disabled = true;
+    showToast('Mengubah web engine ke ' + newEngine.toUpperCase() + '...', 'info');
+
+    const params = new URLSearchParams();
+    params.append('id', id);
+    params.append('webserver_type', newEngine);
+
+    fetch('/domains/update-engine', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: params.toString()
+    })
+    .then(r => r.json())
+    .then(data => {
+        selectEl.disabled = false;
+        if (!data.success) {
+            selectEl.value = originalValue;
+            showToast(data.error || 'Gagal mengubah web engine', 'error');
+            return;
+        }
+        selectEl.setAttribute('data-original', newEngine);
+        showToast(data.message, 'success');
+    })
+    .catch(err => {
+        selectEl.disabled = false;
+        selectEl.value = originalValue;
+        showToast('Gagal menghubungi server: ' + err.message, 'error');
+    });
+}
+
+// Quick update PHP version via dropdown
+function updatePHPVersion(id, newVersion, selectEl) {
+    const originalValue = selectEl.getAttribute('data-original') || selectEl.value;
+    selectEl.disabled = true;
+    showToast('Mengubah versi PHP ke ' + newVersion + '...', 'info');
+
+    const params = new URLSearchParams();
+    params.append('id', id);
+    params.append('php_version', newVersion);
+
+    fetch('/domains/update-php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: params.toString()
+    })
+    .then(r => r.json())
+    .then(data => {
+        selectEl.disabled = false;
+        if (!data.success) {
+            selectEl.value = originalValue;
+            showToast(data.error || 'Gagal mengubah versi PHP', 'error');
+            return;
+        }
+        selectEl.setAttribute('data-original', newVersion);
+        showToast(data.message, 'success');
+    })
+    .catch(err => {
+        selectEl.disabled = false;
+        selectEl.value = originalValue;
+        showToast('Gagal menghubungi server: ' + err.message, 'error');
+    });
+}
+
+// Log viewer helpers
+function openLogs(id, domain, engine) {
+    const root = Alpine.$data(document.querySelector('[x-data]'));
+    if (!root) return;
+    root.logId = id;
+    root.logDomain = domain;
+    root.logEngine = engine;
+    root.logType = 'access';
+    root.logModal = true;
+    fetchLogs();
+}
+
+function switchLogType(type) {
+    const root = Alpine.$data(document.querySelector('[x-data]'));
+    if (!root) return;
+    root.logType = type;
+    fetchLogs();
+}
+
+function fetchLogs() {
+    const root = Alpine.$data(document.querySelector('[x-data]'));
+    if (!root) return;
+    root.logLoading = true;
+    root.logContent = 'Memuat log ' + root.logType.toUpperCase() + '...';
+
+    fetch('/domains/logs?id=' + encodeURIComponent(root.logId) + '&type=' + encodeURIComponent(root.logType))
+        .then(r => r.json())
+        .then(data => {
+            root.logLoading = false;
+            root.logContent = data.logs || 'Belum ada log.';
+            root.logPath = data.path || '';
+        })
+        .catch(err => {
+            root.logLoading = false;
+            root.logContent = 'Gagal memuat log: ' + err.message;
+        });
+}
+</script>
 {{ end }}

@@ -74,6 +74,10 @@ func NewRouter(
 		// Domains & VHosts
 		pr.Get("/domains", domainH.List)
 		pr.Post("/domains/create", domainH.Create)
+		pr.Post("/domains/update", domainH.Update)
+		pr.Post("/domains/update-engine", domainH.UpdateEngine)
+		pr.Post("/domains/update-php", domainH.UpdatePHP)
+		pr.Get("/domains/logs", domainH.GetLogs)
 		pr.Post("/domains/delete", domainH.Delete)
 
 		// File Manager

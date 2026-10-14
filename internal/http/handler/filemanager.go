@@ -1,8 +1,9 @@
 package handler
 
 import (
+	"encoding/json"
 	"fmt"
-	"io"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -155,28 +156,88 @@ func (h *FileManagerHandler) Download(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *FileManagerHandler) Upload(w http.ResponseWriter, r *http.Request) {
+	isAjax := r.Header.Get("X-Requested-With") == "XMLHttpRequest" || strings.Contains(r.Header.Get("Accept"), "application/json")
+
 	fm, err := h.getFMForUser(r)
 	if err != nil {
+		if isAjax {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": err.Error()})
+			return
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	destPath := r.FormValue("path")
-	file, header, err := r.FormFile("file")
-	if err != nil {
+	// Support up to 1GB upload
+	if err := r.ParseMultipartForm(1024 << 20); err != nil {
+		if isAjax {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": "Gagal membaca form data: " + err.Error()})
+			return
+		}
 		http.Error(w, "Failed reading uploaded file", http.StatusBadRequest)
 		return
 	}
-	defer file.Close()
 
-	data, err := io.ReadAll(file)
-	if err != nil {
-		http.Error(w, "Failed reading file contents", http.StatusInternalServerError)
+	destPath := r.FormValue("path")
+	if destPath == "" {
+		destPath = "/"
+	}
+
+	var files []*multipart.FileHeader
+	if r.MultipartForm != nil {
+		if fList, ok := r.MultipartForm.File["file"]; ok && len(fList) > 0 {
+			files = append(files, fList...)
+		} else if fList, ok := r.MultipartForm.File["files"]; ok {
+			files = append(files, fList...)
+		}
+	}
+
+	if len(files) == 0 {
+		if isAjax {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": "Tidak ada file yang diunggah"})
+			return
+		}
+		http.Error(w, "No file uploaded", http.StatusBadRequest)
 		return
 	}
 
-	target := filepath.Join(destPath, header.Filename)
-	_ = fm.WriteFile(target, data)
+	var uploaded []string
+	for _, header := range files {
+		file, err := header.Open()
+		if err != nil {
+			continue
+		}
+		target := filepath.Join(destPath, header.Filename)
+		err = fm.WriteStream(target, file)
+		file.Close()
+		if err != nil {
+			if isAjax {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusInternalServerError)
+				_ = json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": fmt.Sprintf("Gagal menulis file %s: %v", header.Filename, err)})
+				return
+			}
+			http.Error(w, fmt.Sprintf("Failed writing file %s: %v", header.Filename, err), http.StatusInternalServerError)
+			return
+		}
+		uploaded = append(uploaded, header.Filename)
+	}
+
+	if isAjax {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"message": fmt.Sprintf("Berhasil mengunggah %d file", len(uploaded)),
+			"files":   uploaded,
+		})
+		return
+	}
 
 	http.Redirect(w, r, "/filemanager?path="+destPath, http.StatusSeeOther)
 }

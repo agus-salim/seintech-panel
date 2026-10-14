@@ -3,6 +3,7 @@ package filemanager
 import (
 	"archive/tar"
 	"archive/zip"
+	"bytes"
 	"compress/gzip"
 	"errors"
 	"fmt"
@@ -103,8 +104,8 @@ func (fm *FileManager) ReadFile(subpath string) (string, error) {
 	return string(data), nil
 }
 
-// WriteFile writes text or binary content into the specified file inside jail.
-func (fm *FileManager) WriteFile(subpath string, content []byte) error {
+// WriteStream writes data from reader into the specified file inside jail using streaming.
+func (fm *FileManager) WriteStream(subpath string, src io.Reader) error {
 	realPath, err := fm.sanitizer.ResolvePath(subpath)
 	if err != nil {
 		return err
@@ -115,12 +116,26 @@ func (fm *FileManager) WriteFile(subpath string, content []byte) error {
 		return err
 	}
 
-	// Atomic write
+	// Atomic write via temp file
 	tmpFile := realPath + ".tmp"
-	if err := os.WriteFile(tmpFile, content, 0644); err != nil {
+	f, err := os.OpenFile(tmpFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
 		return err
 	}
+
+	if _, err := io.Copy(f, src); err != nil {
+		f.Close()
+		_ = os.Remove(tmpFile)
+		return err
+	}
+	f.Close()
+
 	return os.Rename(tmpFile, realPath)
+}
+
+// WriteFile writes text or binary content into the specified file inside jail.
+func (fm *FileManager) WriteFile(subpath string, content []byte) error {
+	return fm.WriteStream(subpath, bytes.NewReader(content))
 }
 
 // CreateDir creates a new directory inside jail.

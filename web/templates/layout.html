@@ -218,6 +218,46 @@
         </div>
     </div>
 
+    <!-- ==================== SSL LET'S ENCRYPT ACTIVATION MODAL ==================== -->
+    <div id="ssl-modal" class="hidden fixed inset-0 z-[9990] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm transition-opacity duration-200">
+        <div class="bg-white rounded-2xl shadow-2xl border border-slate-200/90 p-8 w-full max-w-md mx-4 transform transition-all duration-300 scale-95" id="ssl-modal-card">
+            <!-- Header Icon & State -->
+            <div class="flex items-center space-x-4 mb-5">
+                <div class="relative flex-shrink-0" id="ssl-modal-icon-container">
+                    <div id="ssl-modal-spinner" class="w-12 h-12 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-sm">
+                        <svg class="animate-spin w-6 h-6" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </div>
+                    <div id="ssl-modal-success-icon" class="hidden w-12 h-12 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shadow-sm">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                    </div>
+                </div>
+                <div class="min-w-0 flex-1">
+                    <h3 class="font-bold text-slate-900 text-base flex items-center gap-1.5" id="ssl-modal-title">
+                        Mengaktifkan SSL Let's Encrypt
+                    </h3>
+                    <p class="text-xs text-indigo-600 font-mono font-medium truncate mt-0.5" id="ssl-modal-domain">domain.com</p>
+                </div>
+            </div>
+
+            <!-- Animated Progress Bar -->
+            <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden mb-4 relative">
+                <div id="ssl-modal-bar" class="h-full bg-gradient-to-r from-indigo-500 via-indigo-600 to-indigo-400 rounded-full animate-progress-indeterminate"></div>
+            </div>
+
+            <!-- Dynamic Step / Status Message -->
+            <div class="bg-slate-50 border border-slate-100 rounded-xl p-3.5 mb-2">
+                <div class="flex items-center gap-2.5">
+                    <span class="w-2 h-2 rounded-full bg-indigo-500 animate-ping" id="ssl-modal-dot"></span>
+                    <p id="ssl-modal-msg" class="text-xs text-slate-700 font-medium leading-relaxed">1. Memeriksa konfigurasi DNS & resolusi domain...</p>
+                </div>
+            </div>
+            <p class="text-[11px] text-slate-400 text-center">Memvalidasi sertifikat otomatis melalui Let's Encrypt ACME. Mohon tunggu sejenak.</p>
+        </div>
+    </div>
+
     <!-- ==================== GLOBAL SCRIPTS ==================== -->
     <script>
     // ---- Toast Notification Engine ----
@@ -327,6 +367,126 @@
 
     function hideInstallModal() {
         document.getElementById('install-modal').classList.add('hidden');
+    }
+
+    // ---- SSL Let's Encrypt Activation Engine ----
+    let _sslStepTimer = null;
+    let _sslOriginalBtn = null;
+
+    function activateLetsEncrypt(domainID, domainName, btnEl, isRenew = false) {
+        if (!domainID) return;
+
+        // Save original button state
+        _sslOriginalBtn = {
+            el: btnEl,
+            html: btnEl ? btnEl.innerHTML : '',
+            disabled: btnEl ? btnEl.disabled : false
+        };
+
+        if (btnEl) {
+            btnEl.disabled = true;
+            btnEl.innerHTML = `
+                <svg class="animate-spin w-3.5 h-3.5 mr-1 inline-block" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>${isRenew ? 'Memperbarui...' : 'Memproses...'}</span>
+            `;
+        }
+
+        // Setup modal
+        const modal = document.getElementById('ssl-modal');
+        const card = document.getElementById('ssl-modal-card');
+        const title = document.getElementById('ssl-modal-title');
+        const domainEl = document.getElementById('ssl-modal-domain');
+        const msgEl = document.getElementById('ssl-modal-msg');
+        const spinner = document.getElementById('ssl-modal-spinner');
+        const successIcon = document.getElementById('ssl-modal-success-icon');
+        const bar = document.getElementById('ssl-modal-bar');
+
+        if (title) title.textContent = isRenew ? 'Memperbarui SSL Let\'s Encrypt' : 'Mengaktifkan SSL Let\'s Encrypt';
+        if (domainEl) domainEl.textContent = domainName;
+        if (spinner) spinner.classList.remove('hidden');
+        if (successIcon) successIcon.classList.add('hidden');
+        if (bar) {
+            bar.className = 'h-full bg-gradient-to-r from-indigo-500 via-indigo-600 to-indigo-400 rounded-full animate-progress-indeterminate';
+            bar.style.width = '';
+        }
+
+        const steps = [
+            '1. Memeriksa konfigurasi DNS & resolusi domain...',
+            '2. Menyiapkan direktori tantangan ACME HTTP-01...',
+            '3. Menghubungi Certificate Authority (Let\'s Encrypt)...',
+            '4. Memvalidasi tantangan otentikasi domain...',
+            '5. Menerbitkan sertifikat SSL & reload web server...'
+        ];
+        let stepIdx = 0;
+        if (msgEl) msgEl.textContent = steps[0];
+
+        if (_sslStepTimer) clearInterval(_sslStepTimer);
+        _sslStepTimer = setInterval(() => {
+            stepIdx++;
+            if (stepIdx < steps.length && msgEl) {
+                msgEl.textContent = steps[stepIdx];
+            }
+        }, 3000);
+
+        if (modal) {
+            modal.classList.remove('hidden');
+            requestAnimationFrame(() => {
+                if (card) {
+                    card.classList.remove('scale-95');
+                    card.classList.add('scale-100');
+                }
+            });
+        }
+
+        const formData = new FormData();
+        formData.append('domain_id', domainID);
+        formData.append('domain_name', domainName);
+
+        fetch('/ssl/issue', {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: formData
+        })
+        .then(async res => {
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.success) {
+                throw new Error(data.error || 'Terjadi kesalahan saat memproses sertifikat SSL.');
+            }
+            return data;
+        })
+        .then(data => {
+            clearInterval(_sslStepTimer);
+            if (spinner) spinner.classList.add('hidden');
+            if (successIcon) successIcon.classList.remove('hidden');
+            if (title) title.textContent = 'SSL Berhasil Diaktifkan! 🎉';
+            if (msgEl) msgEl.textContent = 'Sertifikat Let\'s Encrypt berhasil terbit dan terpasang aktif.';
+            if (bar) {
+                bar.classList.remove('animate-progress-indeterminate');
+                bar.className = 'h-full bg-emerald-500 rounded-full transition-all duration-500';
+                bar.style.width = '100%';
+            }
+
+            showToast(data.message || `Sertifikat SSL Let's Encrypt untuk ${domainName} aktif!`, 'success');
+
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        })
+        .catch(err => {
+            clearInterval(_sslStepTimer);
+            if (modal) modal.classList.add('hidden');
+            if (_sslOriginalBtn && _sslOriginalBtn.el) {
+                _sslOriginalBtn.el.disabled = _sslOriginalBtn.disabled;
+                _sslOriginalBtn.el.innerHTML = _sslOriginalBtn.html;
+            }
+            showToast(err.message, 'error');
+        });
     }
 
     // Show flash messages from server as toasts on page load

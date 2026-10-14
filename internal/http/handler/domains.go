@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"time"
@@ -44,6 +45,11 @@ func (h *DomainHandler) List(w http.ResponseWriter, r *http.Request) {
 	domains, _ := h.repo.GetDomains()
 	settings, _ := h.repo.GetSettings()
 
+	// Authentically verify each domain's SSL certificate on disk
+	for i := range domains {
+		_ = h.sslMgr.SyncDomainSSLStatus(&domains[i])
+	}
+
 	data := DomainsPageData{
 		BasePageData: NewBaseData(r, "Virtual Hosts", "Virtual Hosts & Web Routing", "domains", settings.Hostname),
 		Domains:      domains,
@@ -66,7 +72,7 @@ func (h *DomainHandler) Create(w http.ResponseWriter, r *http.Request) {
 	sslEnable := r.FormValue("ssl_enable") == "true"
 
 	if domainName == "" {
-		http.Redirect(w, r, "/domains?error=domain_required", http.StatusSeeOther)
+		http.Redirect(w, r, "/domains?msg=Nama+domain+wajib+diisi&type=error", http.StatusSeeOther)
 		return
 	}
 
@@ -112,12 +118,17 @@ func (h *DomainHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	// If SSL requested, issue certificate
 	if sslEnable {
-		_ = h.sslMgr.ProvisionLetsEncrypt(r.Context(), &domain)
+		err := h.sslMgr.ProvisionLetsEncrypt(r.Context(), &domain)
+		if err != nil {
+			_ = h.repo.UpsertDomain(domain)
+			http.Redirect(w, r, "/domains?msg=Virtual+host+dibuat,+namun+Let's+Encrypt+belum+aktif:+"+url.QueryEscape(err.Error())+"&type=warning", http.StatusSeeOther)
+			return
+		}
 	} else {
 		_ = h.repo.UpsertDomain(domain)
 	}
 
-	http.Redirect(w, r, "/domains?success=created", http.StatusSeeOther)
+	http.Redirect(w, r, "/domains?msg=Virtual+host+berhasil+dibuat&type=success", http.StatusSeeOther)
 }
 
 func (h *DomainHandler) Delete(w http.ResponseWriter, r *http.Request) {

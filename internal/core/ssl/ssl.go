@@ -2,6 +2,9 @@ package ssl
 
 import (
 	"context"
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -12,19 +15,32 @@ import (
 	"math/big"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
+
+	"golang.org/x/crypto/acme"
 
 	"github.com/seintech/panel/internal/core/webserver"
 	"github.com/seintech/panel/internal/model"
 	"github.com/seintech/panel/internal/storage"
 )
 
+type SSLStatusInfo struct {
+	IsActive      bool       `json:"is_active"`
+	Provider      string     `json:"provider"`
+	Issuer        string     `json:"issuer"`
+	ExpiresAt     *time.Time `json:"expires_at,omitempty"`
+	StatusText    string     `json:"status_text"`
+	IsLetsEncrypt bool       `json:"is_lets_encrypt"`
+}
+
 type SSLManager struct {
-	repo       *storage.Repository
-	registry   *webserver.Registry
-	certBase   string
-	acmeRoot   string
+	repo     *storage.Repository
+	registry *webserver.Registry
+	certBase string
+	acmeRoot string
 }
 
 func NewSSLManager(repo *storage.Repository, registry *webserver.Registry, certBase, acmeRoot string) *SSLManager {
@@ -127,21 +143,348 @@ func (s *SSLManager) CheckCertExpiry(certPath string) (*time.Time, error) {
 	return &cert.NotAfter, nil
 }
 
-// ProvisionLetsEncrypt prepares the HTTP-01 challenge directory and triggers ACME issuance.
+// GetDomainSSLStatus inspects the certificate on disk and returns authentic verification data.
+func (s *SSLManager) GetDomainSSLStatus(domain *model.Domain) SSLStatusInfo {
+	info := SSLStatusInfo{
+		IsActive:      false,
+		Provider:      string(domain.SSLProvider),
+		StatusText:    "Belum Aktif",
+		IsLetsEncrypt: false,
+	}
+
+	if !domain.SSLEnabled || domain.SSLCertPath == "" {
+		return info
+	}
+
+	data, err := os.ReadFile(domain.SSLCertPath)
+	if err != nil {
+		info.StatusText = "Sertifikat Tidak Ditemukan"
+		return info
+	}
+
+	block, _ := pem.Decode(data)
+	if block == nil {
+		info.StatusText = "Format Sertifikat Rusak"
+		return info
+	}
+
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		info.StatusText = "Sertifikat Tidak Valid"
+		return info
+	}
+
+	info.ExpiresAt = &cert.NotAfter
+
+	issuerOrg := ""
+	if len(cert.Issuer.Organization) > 0 {
+		issuerOrg = cert.Issuer.Organization[0]
+	}
+	info.Issuer = issuerOrg
+	if info.Issuer == "" {
+		info.Issuer = cert.Issuer.CommonName
+	}
+
+	// Check if certificate has expired
+	if time.Now().After(cert.NotAfter) {
+		info.StatusText = fmt.Sprintf("Kadaluarsa (%s)", cert.NotAfter.Format("02 Jan 2006"))
+		return info
+	}
+
+	// Determine if issued by genuine Let's Encrypt CA
+	isLE := strings.Contains(info.Issuer, "Let's Encrypt") ||
+		strings.Contains(cert.Issuer.CommonName, "Let's Encrypt") ||
+		info.Issuer == "R3" || info.Issuer == "R10" || info.Issuer == "R11" ||
+		info.Issuer == "E1" || info.Issuer == "E5" || info.Issuer == "E6" ||
+		strings.Contains(info.Issuer, "ISRG")
+
+	// Determine if this is the fallback/dummy self-signed certificate
+	isDummy := strings.Contains(info.Issuer, "Seintech Hosting Panel") ||
+		(cert.Issuer.CommonName == domain.DomainName && len(cert.Issuer.Organization) == 0)
+
+	if domain.SSLProvider == model.SSLProviderLetsEncrypt {
+		if isDummy || !isLE {
+			// Was marked as Let's Encrypt in DB, but certificate is not genuine Let's Encrypt
+			info.IsActive = false
+			info.IsLetsEncrypt = false
+			info.StatusText = "Belum Aktif (Belum Terverifikasi)"
+			return info
+		}
+		info.IsActive = true
+		info.IsLetsEncrypt = true
+		info.StatusText = "Active & Valid"
+		return info
+	}
+
+	// Other SSL providers
+	if domain.SSLProvider == model.SSLProviderCustom || domain.SSLProvider == model.SSLProviderSelfSigned {
+		info.IsActive = true
+		info.StatusText = "Active"
+		return info
+	}
+
+	return info
+}
+
+// SyncDomainSSLStatus checks disk state and aligns domain.SSLEnabled and repo if status differs.
+func (s *SSLManager) SyncDomainSSLStatus(domain *model.Domain) SSLStatusInfo {
+	status := s.GetDomainSSLStatus(domain)
+
+	changed := false
+	if domain.SSLEnabled != status.IsActive {
+		domain.SSLEnabled = status.IsActive
+		changed = true
+	}
+
+	if !status.IsActive && domain.SSLProvider == model.SSLProviderLetsEncrypt && !status.IsLetsEncrypt {
+		domain.SSLProvider = model.SSLProviderNone
+		changed = true
+	}
+
+	if status.ExpiresAt != nil && (domain.SSLExpiry == nil || !domain.SSLExpiry.Equal(*status.ExpiresAt)) {
+		domain.SSLExpiry = status.ExpiresAt
+		changed = true
+	}
+
+	if changed {
+		_ = s.repo.UpsertDomain(*domain)
+	}
+
+	return status
+}
+
+// getOrCreateAccountKey loads or creates an ECDSA account key for ACME.
+func (s *SSLManager) getOrCreateAccountKey() (crypto.Signer, error) {
+	keyPath := filepath.Join(s.certBase, "acme_account.key")
+	if data, err := os.ReadFile(keyPath); err == nil {
+		block, _ := pem.Decode(data)
+		if block != nil {
+			if key, err := x509.ParseECPrivateKey(block.Bytes); err == nil {
+				return key, nil
+			}
+			if key, err := x509.ParsePKCS8PrivateKey(block.Bytes); err == nil {
+				if signer, ok := key.(crypto.Signer); ok {
+					return signer, nil
+				}
+			}
+		}
+	}
+
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, err
+	}
+	der, err := x509.MarshalECPrivateKey(key)
+	if err == nil {
+		_ = os.WriteFile(keyPath, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: der}), 0600)
+	}
+	return key, nil
+}
+
+// tryCertbot attempts certificate issuance using local certbot if available on the system.
+func (s *SSLManager) tryCertbot(ctx context.Context, domain *model.Domain, certPath, keyPath string) error {
+	certbotPath, err := exec.LookPath("certbot")
+	if err != nil {
+		return errors.New("certbot not installed on system")
+	}
+
+	cmd := exec.CommandContext(ctx, certbotPath, "certonly",
+		"--webroot",
+		"-w", s.acmeRoot,
+		"-d", domain.DomainName,
+		"--agree-tos",
+		"--register-unsafely-without-email",
+		"--non-interactive",
+		"--keep-until-expiring",
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("certbot error: %s (%w)", string(output), err)
+	}
+
+	liveDir := filepath.Join("/etc/letsencrypt/live", domain.DomainName)
+	srcCert := filepath.Join(liveDir, "fullchain.pem")
+	srcKey := filepath.Join(liveDir, "privkey.pem")
+
+	certData, err := os.ReadFile(srcCert)
+	if err != nil {
+		return fmt.Errorf("gagal membaca sertifikat certbot: %w", err)
+	}
+	keyData, err := os.ReadFile(srcKey)
+	if err != nil {
+		return fmt.Errorf("gagal membaca private key certbot: %w", err)
+	}
+
+	if err := os.WriteFile(certPath, certData, 0644); err != nil {
+		return err
+	}
+	if err := os.WriteFile(keyPath, keyData, 0600); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// provisionNativeACME uses golang.org/x/crypto/acme for direct Let's Encrypt HTTP-01 issuance.
+func (s *SSLManager) provisionNativeACME(ctx context.Context, domain *model.Domain, certPath, keyPath string) error {
+	accountKey, err := s.getOrCreateAccountKey()
+	if err != nil {
+		return fmt.Errorf("gagal menyiapkan account key ACME: %w", err)
+	}
+
+	client := &acme.Client{
+		Key:          accountKey,
+		DirectoryURL: acme.LetsEncryptURL,
+	}
+
+	// Register account (accept TOS)
+	_, err = client.Register(ctx, &acme.Account{}, acme.AcceptTOS)
+	if err != nil && !errors.Is(err, acme.ErrAccountAlreadyExists) {
+		var acmeErr *acme.Error
+		if errors.As(err, &acmeErr) && acmeErr.StatusCode != 409 {
+			return fmt.Errorf("gagal registrasi akun Let's Encrypt: %w", err)
+		}
+	}
+
+	// Authorize order for domain
+	order, err := client.AuthorizeOrder(ctx, acme.DomainIDs(domain.DomainName))
+	if err != nil {
+		return fmt.Errorf("gagal membuat pesanan otorisasi Let's Encrypt: %w", err)
+	}
+
+	for _, authzURL := range order.AuthzURLs {
+		authz, err := client.GetAuthorization(ctx, authzURL)
+		if err != nil {
+			return fmt.Errorf("gagal mengambil data otorisasi ACME: %w", err)
+		}
+		if authz.Status == acme.StatusValid {
+			continue
+		}
+
+		var httpChal *acme.Challenge
+		for _, chal := range authz.Challenges {
+			if chal.Type == "http-01" {
+				httpChal = chal
+				break
+			}
+		}
+		if httpChal == nil {
+			return errors.New("tidak ada challenge HTTP-01 yang didukung dari Let's Encrypt")
+		}
+
+		keyAuth, err := client.HTTP01ChallengeResponse(httpChal.Token)
+		if err != nil {
+			return fmt.Errorf("gagal membuat respon HTTP-01: %w", err)
+		}
+
+		// Write token to ACME challenge roots
+		wellKnownDir := filepath.Join(s.acmeRoot, ".well-known", "acme-challenge")
+		_ = os.MkdirAll(wellKnownDir, 0755)
+
+		_ = os.WriteFile(filepath.Join(s.acmeRoot, httpChal.Token), []byte(keyAuth), 0644)
+		_ = os.WriteFile(filepath.Join(wellKnownDir, httpChal.Token), []byte(keyAuth), 0644)
+
+		if domain.DocumentRoot != "" {
+			docWellKnown := filepath.Join(domain.DocumentRoot, ".well-known", "acme-challenge")
+			_ = os.MkdirAll(docWellKnown, 0755)
+			_ = os.WriteFile(filepath.Join(docWellKnown, httpChal.Token), []byte(keyAuth), 0644)
+		}
+
+		// Accept challenge
+		if _, err := client.Accept(ctx, httpChal); err != nil {
+			return fmt.Errorf("gagal menerima challenge Let's Encrypt: %w", err)
+		}
+
+		// Wait for authorization to succeed
+		if _, err := client.WaitAuthorization(ctx, authzURL); err != nil {
+			return fmt.Errorf("verifikasi challenge Let's Encrypt gagal (pastikan domain mengarah ke IP publik server dan port 80 terbuka): %w", err)
+		}
+	}
+
+	// Wait for order status to become Ready
+	order, err = client.WaitOrder(ctx, order.URI)
+	if err != nil {
+		return fmt.Errorf("status order Let's Encrypt gagal: %w", err)
+	}
+
+	// Generate RSA 2048 private key for the certificate
+	certKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return fmt.Errorf("gagal membuat private key sertifikat: %w", err)
+	}
+
+	csrReq := &x509.CertificateRequest{
+		Subject:  pkix.Name{CommonName: domain.DomainName},
+		DNSNames: []string{domain.DomainName},
+	}
+	csrDER, err := x509.CreateCertificateRequest(rand.Reader, csrReq, certKey)
+	if err != nil {
+		return fmt.Errorf("gagal membuat CSR: %w", err)
+	}
+
+	derBundle, _, err := client.CreateCertFromOrder(ctx, order, csrDER, true)
+	if err != nil {
+		return fmt.Errorf("gagal menerbitkan sertifikat dari Let's Encrypt: %w", err)
+	}
+
+	// Encode full chain into PEM
+	var chainPEM strings.Builder
+	for _, der := range derBundle {
+		if err := pem.Encode(&chainPEM, &pem.Block{Type: "CERTIFICATE", Bytes: der}); err != nil {
+			return fmt.Errorf("gagal encode sertifikat PEM: %w", err)
+		}
+	}
+
+	keyBytes, err := x509.MarshalPKCS8PrivateKey(certKey)
+	if err != nil {
+		return fmt.Errorf("gagal encode private key: %w", err)
+	}
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyBytes})
+
+	if err := os.WriteFile(certPath, []byte(chainPEM.String()), 0644); err != nil {
+		return err
+	}
+	if err := os.WriteFile(keyPath, keyPEM, 0600); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ProvisionLetsEncrypt prepares challenges, requests Let's Encrypt cert, and configures webserver.
 func (s *SSLManager) ProvisionLetsEncrypt(ctx context.Context, domain *model.Domain) error {
+	// Pre-flight check: verify domain DNS resolution
+	ips, err := net.LookupHost(domain.DomainName)
+	if err != nil || len(ips) == 0 {
+		return fmt.Errorf("domain '%s' belum dapat di-resolve oleh DNS publik. Pastikan DNS A record sudah terpasang dan mengarah ke IP publik server ini", domain.DomainName)
+	}
+
 	domainDir := filepath.Join(s.certBase, domain.DomainName)
 	_ = os.MkdirAll(domainDir, 0755)
 
 	certPath := filepath.Join(domainDir, "fullchain.pem")
 	keyPath := filepath.Join(domainDir, "privkey.pem")
 
-	// Generate certificate (for dev fallback or ACME)
-	err := s.GenerateSelfSigned(domain.DomainName, certPath, keyPath)
+	// Ensure challenge directories exist
+	_ = os.MkdirAll(s.acmeRoot, 0755)
+	_ = os.MkdirAll(filepath.Join(s.acmeRoot, ".well-known", "acme-challenge"), 0755)
+
+	// Step 1: Try Certbot if available
+	err = s.tryCertbot(ctx, domain, certPath, keyPath)
 	if err != nil {
-		return fmt.Errorf("failed generating certificate: %w", err)
+		// Step 2: Fallback to native Go ACME client
+		err = s.provisionNativeACME(ctx, domain, certPath, keyPath)
 	}
 
-	expiry, _ := s.CheckCertExpiry(certPath)
+	if err != nil {
+		return fmt.Errorf("gagal menerbitkan sertifikat Let's Encrypt: %w", err)
+	}
+
+	// Inspect the newly generated certificate
+	expiry, err := s.CheckCertExpiry(certPath)
+	if err != nil {
+		return fmt.Errorf("sertifikat terbit tetapi gagal divalidasi: %w", err)
+	}
 
 	domain.SSLEnabled = true
 	domain.SSLProvider = model.SSLProviderLetsEncrypt
@@ -152,20 +495,24 @@ func (s *SSLManager) ProvisionLetsEncrypt(ctx context.Context, domain *model.Dom
 
 	// Update domain in storage
 	if err := s.repo.UpsertDomain(*domain); err != nil {
-		return err
+		return fmt.Errorf("gagal menyimpan domain ke storage: %w", err)
 	}
 
 	// Re-generate webserver vhost and reload webserver
 	ws, err := s.registry.Get(domain.WebServerType)
 	if err != nil {
-		return err
+		return fmt.Errorf("webserver '%s' tidak ditemukan: %w", domain.WebServerType, err)
 	}
 
 	if err := ws.GenerateVHost(ctx, domain); err != nil {
-		return fmt.Errorf("failed regenerating vhost: %w", err)
+		return fmt.Errorf("gagal meregenerasi virtual host: %w", err)
 	}
 
-	return ws.Reload(ctx)
+	if err := ws.Reload(ctx); err != nil {
+		return fmt.Errorf("gagal mereload webserver: %w", err)
+	}
+
+	return nil
 }
 
 // StartAutoRenewalWorker starts a background loop that checks all domains every 12 hours.
@@ -191,7 +538,8 @@ func (s *SSLManager) renewExpiringDomains(ctx context.Context) {
 
 	now := time.Now()
 	for _, d := range domains {
-		if !d.SSLEnabled || d.SSLProvider != model.SSLProviderLetsEncrypt || d.SSLExpiry == nil {
+		status := s.SyncDomainSSLStatus(&d)
+		if !status.IsActive || !status.IsLetsEncrypt || d.SSLExpiry == nil {
 			continue
 		}
 
@@ -201,3 +549,4 @@ func (s *SSLManager) renewExpiringDomains(ctx context.Context) {
 		}
 	}
 }
+

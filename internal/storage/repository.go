@@ -235,8 +235,8 @@ func (r *Repository) GetSettings() (*model.PanelSettings, error) {
 	err := r.settingsStore.Read(&settings)
 	if err != nil {
 		// default settings
-		return &model.PanelSettings{
-			Hostname:               "panel.local",
+		settings = model.PanelSettings{
+			Hostname:               "cp.ppdmalfalah.id",
 			Port:                   8443,
 			ListenAddr:             "0.0.0.0",
 			DefaultWebServer:       "nginx",
@@ -244,7 +244,25 @@ func (r *Repository) GetSettings() (*model.PanelSettings, error) {
 			SessionTimeoutMinutes:  120,
 			SecurityHeadersEnabled: true,
 			AutoRenewSSL:           true,
-		}, nil
+		}
+	}
+	if settings.Hostname == "" {
+		settings.Hostname = "cp.ppdmalfalah.id"
+	}
+	if settings.Port == 0 {
+		settings.Port = 8443
+	}
+	if len(settings.Hosts) == 0 {
+		settings.Hosts = []model.PanelHost{
+			{
+				ID:          "host-primary",
+				Hostname:    settings.Hostname,
+				Port:        settings.Port,
+				SSLEnabled:  settings.SSLEnabled,
+				SSLProvider: "letsencrypt",
+				IsPrimary:   true,
+			},
+		}
 	}
 	return &settings, nil
 }

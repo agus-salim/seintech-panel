@@ -1,18 +1,31 @@
 package model
 
+import "time"
+
+type PanelHost struct {
+	ID          string     `json:"id"`
+	Hostname    string     `json:"hostname"`
+	Port        int        `json:"port"`
+	SSLEnabled  bool       `json:"ssl_enabled"`
+	SSLProvider string     `json:"ssl_provider"` // "letsencrypt", "selfsigned", "none"
+	SSLExpiry   *time.Time `json:"ssl_expiry,omitempty"`
+	IsPrimary   bool       `json:"is_primary"`
+}
+
 type PanelSettings struct {
-	Hostname               string   `json:"hostname"`
-	Port                   int      `json:"port"`
-	ListenAddr             string   `json:"listen_addr"`
-	DefaultWebServer       string   `json:"default_webserver"` // nginx, apache2, openlitespeed, caddy
-	DefaultPHPVersion      string   `json:"default_php_version"`
-	SessionTimeoutMinutes  int      `json:"session_timeout_minutes"`
-	SecurityHeadersEnabled bool     `json:"security_headers_enabled"`
-	SSLEnabled             bool     `json:"ssl_enabled"`
-	SSLCertPath            string   `json:"ssl_cert_path"`
-	SSLKeyPath             string   `json:"ssl_key_path"`
-	AutoRenewSSL           bool     `json:"auto_renew_ssl"`
-	AllowedIPs             []string `json:"allowed_ips,omitempty"`
+	Hostname               string      `json:"hostname"`
+	Port                   int         `json:"port"`
+	ListenAddr             string      `json:"listen_addr"`
+	Hosts                  []PanelHost `json:"hosts,omitempty"`
+	DefaultWebServer       string      `json:"default_webserver"` // nginx, apache2, openlitespeed, caddy
+	DefaultPHPVersion      string      `json:"default_php_version"`
+	SessionTimeoutMinutes  int         `json:"session_timeout_minutes"`
+	SecurityHeadersEnabled bool        `json:"security_headers_enabled"`
+	SSLEnabled             bool        `json:"ssl_enabled"`
+	SSLCertPath            string      `json:"ssl_cert_path"`
+	SSLKeyPath             string      `json:"ssl_key_path"`
+	AutoRenewSSL           bool        `json:"auto_renew_ssl"`
+	AllowedIPs             []string    `json:"allowed_ips,omitempty"`
 }
 
 type PHPConfig struct {

@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -117,6 +118,33 @@ func main() {
 		IdleTimeout:  120 * time.Second,
 		TLSConfig: &tls.Config{
 			MinVersion: tls.VersionTLS12,
+			GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+				if hello != nil && hello.ServerName != "" {
+					cleanName := strings.ToLower(strings.TrimSpace(hello.ServerName))
+					// Check panel-specific host certificate
+					hCert := filepath.Join(cfg.SSLBase, "panel", cleanName, "fullchain.pem")
+					hKey := filepath.Join(cfg.SSLBase, "panel", cleanName, "privkey.pem")
+					if _, err := os.Stat(hCert); err == nil {
+						if kp, err := tls.LoadX509KeyPair(hCert, hKey); err == nil {
+							return &kp, nil
+						}
+					}
+					// Check domain certificate
+					gCert := filepath.Join(cfg.SSLBase, cleanName, "fullchain.pem")
+					gKey := filepath.Join(cfg.SSLBase, cleanName, "privkey.pem")
+					if _, err := os.Stat(gCert); err == nil {
+						if kp, err := tls.LoadX509KeyPair(gCert, gKey); err == nil {
+							return &kp, nil
+						}
+					}
+				}
+				// Default fallback to panel certificate
+				kp, err := tls.LoadX509KeyPair(panelCert, panelKey)
+				if err != nil {
+					return nil, err
+				}
+				return &kp, nil
+			},
 		},
 	}
 

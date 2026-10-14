@@ -57,7 +57,7 @@ func NewRouter(
 	dbH := handler.NewDatabaseHandler(repo, mysqlMgr, pgMgr)
 	sslH := handler.NewSSLHandler(repo, sslMgr)
 	userH := handler.NewUserHandler(repo, cfg)
-	settingsH := handler.NewSettingsHandler(repo, sm)
+	settingsH := handler.NewSettingsHandler(repo, sm, sslMgr)
 	servicesH := handler.NewServicesHandler(repo, sm)
 
 	// Public Routes
@@ -122,6 +122,10 @@ func NewRouter(
 
 			admin.Get("/settings", settingsH.View)
 			admin.Post("/settings/save", settingsH.Save)
+			admin.Post("/settings/hosts/add", settingsH.AddHost)
+			admin.Post("/settings/hosts/update", settingsH.UpdateHost)
+			admin.Post("/settings/hosts/delete", settingsH.DeleteHost)
+			admin.Post("/settings/hosts/ssl", settingsH.IssueSSL)
 		})
 	})
 

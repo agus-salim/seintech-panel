@@ -84,6 +84,45 @@ func (h *SSLHandler) Issue(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if targetDomain == nil {
+		// Check panel host domains from settings
+		settings, _ := h.repo.GetSettings()
+		var targetHost *model.PanelHost
+		for i := range settings.Hosts {
+			if (domainID != "" && settings.Hosts[i].ID == domainID) ||
+				(domainName != "" && strings.EqualFold(strings.TrimSpace(settings.Hosts[i].Hostname), domainName)) {
+				targetHost = &settings.Hosts[i]
+				break
+			}
+		}
+		if targetHost == nil && (strings.EqualFold(settings.Hostname, domainName) || domainID == "host-primary") {
+			if len(settings.Hosts) > 0 {
+				targetHost = &settings.Hosts[0]
+			}
+		}
+
+		if targetHost != nil {
+			ctx, cancel := context.WithTimeout(r.Context(), 3*time.Minute)
+			defer cancel()
+
+			expiry, err := h.sslMgr.ProvisionPanelHostLetsEncrypt(ctx, targetHost.Hostname)
+			if err != nil {
+				h.respond(w, r, false, "Gagal mengaktifkan Let's Encrypt untuk panel: "+err.Error())
+				return
+			}
+
+			targetHost.SSLEnabled = true
+			targetHost.SSLProvider = "letsencrypt"
+			targetHost.SSLExpiry = expiry
+			if targetHost.IsPrimary {
+				settings.SSLEnabled = true
+			}
+			_ = h.repo.SaveSettings(*settings)
+
+			msg := fmt.Sprintf("Sertifikat SSL Let's Encrypt untuk panel (%s) berhasil diaktifkan dan aktif!", targetHost.Hostname)
+			h.respond(w, r, true, msg)
+			return
+		}
+
 		h.respond(w, r, false, "Domain tidak ditemukan")
 		return
 	}

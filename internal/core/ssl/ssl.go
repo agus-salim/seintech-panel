@@ -287,7 +287,7 @@ func (s *SSLManager) getOrCreateAccountKey() (crypto.Signer, error) {
 }
 
 // tryCertbot attempts certificate issuance using local certbot if available on the system.
-func (s *SSLManager) tryCertbot(ctx context.Context, domain *model.Domain, certPath, keyPath string) error {
+func (s *SSLManager) tryCertbot(ctx context.Context, domainName string, certPath, keyPath string) error {
 	certbotPath, err := exec.LookPath("certbot")
 	if err != nil {
 		return errors.New("certbot not installed on system")
@@ -296,7 +296,7 @@ func (s *SSLManager) tryCertbot(ctx context.Context, domain *model.Domain, certP
 	cmd := exec.CommandContext(ctx, certbotPath, "certonly",
 		"--webroot",
 		"-w", s.acmeRoot,
-		"-d", domain.DomainName,
+		"-d", domainName,
 		"--agree-tos",
 		"--register-unsafely-without-email",
 		"--non-interactive",
@@ -307,7 +307,7 @@ func (s *SSLManager) tryCertbot(ctx context.Context, domain *model.Domain, certP
 		return fmt.Errorf("certbot error: %s (%w)", string(output), err)
 	}
 
-	liveDir := filepath.Join("/etc/letsencrypt/live", domain.DomainName)
+	liveDir := filepath.Join("/etc/letsencrypt/live", domainName)
 	srcCert := filepath.Join(liveDir, "fullchain.pem")
 	srcKey := filepath.Join(liveDir, "privkey.pem")
 
@@ -331,7 +331,7 @@ func (s *SSLManager) tryCertbot(ctx context.Context, domain *model.Domain, certP
 }
 
 // provisionNativeACME uses golang.org/x/crypto/acme for direct Let's Encrypt HTTP-01 issuance.
-func (s *SSLManager) provisionNativeACME(ctx context.Context, domain *model.Domain, certPath, keyPath string) error {
+func (s *SSLManager) provisionNativeACME(ctx context.Context, domainName string, certPath, keyPath string) error {
 	accountKey, err := s.getOrCreateAccountKey()
 	if err != nil {
 		return fmt.Errorf("gagal menyiapkan account key ACME: %w", err)
@@ -352,7 +352,7 @@ func (s *SSLManager) provisionNativeACME(ctx context.Context, domain *model.Doma
 	}
 
 	// Authorize order for domain
-	order, err := client.AuthorizeOrder(ctx, acme.DomainIDs(domain.DomainName))
+	order, err := client.AuthorizeOrder(ctx, acme.DomainIDs(domainName))
 	if err != nil {
 		return fmt.Errorf("gagal membuat pesanan otorisasi Let's Encrypt: %w", err)
 	}
@@ -394,13 +394,19 @@ func (s *SSLManager) provisionNativeACME(ctx context.Context, domain *model.Doma
 		_ = os.WriteFile(filepath.Join(wellKnownDir, httpChal.Token), []byte(keyAuth), 0644)
 		_ = os.Chmod(filepath.Join(wellKnownDir, httpChal.Token), 0644)
 
-		if domain.DocumentRoot != "" {
-			docWellKnown := filepath.Join(domain.DocumentRoot, ".well-known", "acme-challenge")
-			_ = os.MkdirAll(docWellKnown, 0755)
-			_ = os.Chmod(filepath.Join(domain.DocumentRoot, ".well-known"), 0755)
-			_ = os.Chmod(docWellKnown, 0755)
-			_ = os.WriteFile(filepath.Join(docWellKnown, httpChal.Token), []byte(keyAuth), 0644)
-			_ = os.Chmod(filepath.Join(docWellKnown, httpChal.Token), 0644)
+		if s.repo != nil {
+			domains, _ := s.repo.GetDomains()
+			for _, d := range domains {
+				if strings.EqualFold(d.DomainName, domainName) && d.DocumentRoot != "" {
+					docWellKnown := filepath.Join(d.DocumentRoot, ".well-known", "acme-challenge")
+					_ = os.MkdirAll(docWellKnown, 0755)
+					_ = os.Chmod(filepath.Join(d.DocumentRoot, ".well-known"), 0755)
+					_ = os.Chmod(docWellKnown, 0755)
+					_ = os.WriteFile(filepath.Join(docWellKnown, httpChal.Token), []byte(keyAuth), 0644)
+					_ = os.Chmod(filepath.Join(docWellKnown, httpChal.Token), 0644)
+					break
+				}
+			}
 		}
 
 		// Accept challenge
@@ -427,8 +433,8 @@ func (s *SSLManager) provisionNativeACME(ctx context.Context, domain *model.Doma
 	}
 
 	csrReq := &x509.CertificateRequest{
-		Subject:  pkix.Name{CommonName: domain.DomainName},
-		DNSNames: []string{domain.DomainName},
+		Subject:  pkix.Name{CommonName: domainName},
+		DNSNames: []string{domainName},
 	}
 	csrDER, err := x509.CreateCertificateRequest(rand.Reader, csrReq, certKey)
 	if err != nil {
@@ -502,10 +508,10 @@ func (s *SSLManager) ProvisionLetsEncrypt(ctx context.Context, domain *model.Dom
 	}
 
 	// Step 1: Try Certbot if available
-	err = s.tryCertbot(ctx, domain, certPath, keyPath)
+	err = s.tryCertbot(ctx, domain.DomainName, certPath, keyPath)
 	if err != nil {
 		// Step 2: Fallback to native Go ACME client
-		err = s.provisionNativeACME(ctx, domain, certPath, keyPath)
+		err = s.provisionNativeACME(ctx, domain.DomainName, certPath, keyPath)
 	}
 
 	if err != nil {
@@ -565,21 +571,217 @@ func (s *SSLManager) StartAutoRenewalWorker(ctx context.Context) {
 
 func (s *SSLManager) renewExpiringDomains(ctx context.Context) {
 	domains, err := s.repo.GetDomains()
+	if err == nil {
+		now := time.Now()
+		for _, d := range domains {
+			status := s.SyncDomainSSLStatus(&d)
+			if !status.IsActive || !status.IsLetsEncrypt || d.SSLExpiry == nil {
+				continue
+			}
+
+			// If expires in less than 30 days, trigger renewal
+			if d.SSLExpiry.Sub(now) < 30*24*time.Hour {
+				_ = s.ProvisionLetsEncrypt(ctx, &d)
+			}
+		}
+	}
+
+	// Also renew expiring panel host certificates
+	if settings, err := s.repo.GetSettings(); err == nil {
+		now := time.Now()
+		for _, h := range settings.Hosts {
+			status := s.GetPanelHostSSLStatus(h.Hostname)
+			if status.IsActive && status.IsLetsEncrypt && status.ExpiresAt != nil {
+				if status.ExpiresAt.Sub(now) < 30*24*time.Hour {
+					_, _ = s.ProvisionPanelHostLetsEncrypt(ctx, h.Hostname)
+				}
+			}
+		}
+	}
+}
+
+// ProvisionPanelHostLetsEncrypt requests and installs a Let's Encrypt certificate for a panel hostname.
+func (s *SSLManager) ProvisionPanelHostLetsEncrypt(ctx context.Context, hostname string) (*time.Time, error) {
+	hostname = strings.ToLower(strings.TrimSpace(hostname))
+	if hostname == "" {
+		return nil, errors.New("nama domain/hostname panel tidak boleh kosong")
+	}
+
+	// Pre-flight check: verify DNS resolution
+	ips, err := net.LookupHost(hostname)
+	if err != nil || len(ips) == 0 {
+		r := &net.Resolver{
+			PreferGo: true,
+			Dial: func(dialCtx context.Context, network, address string) (net.Conn, error) {
+				d := net.Dialer{Timeout: 5 * time.Second}
+				return d.DialContext(dialCtx, "udp", "8.8.8.8:53")
+			},
+		}
+		ips, err = r.LookupHost(ctx, hostname)
+	}
+	if err != nil || len(ips) == 0 {
+		return nil, fmt.Errorf("domain panel '%s' belum dapat di-resolve oleh DNS publik. Pastikan DNS A record sudah terpasang dan mengarah ke IP publik server ini", hostname)
+	}
+
+	// Ensure challenge directory and proper permissions
+	_ = os.MkdirAll(s.acmeRoot, 0755)
+	_ = os.Chmod(s.acmeRoot, 0755)
+	wellKnownDir := filepath.Join(s.acmeRoot, ".well-known", "acme-challenge")
+	_ = os.MkdirAll(wellKnownDir, 0755)
+	_ = os.Chmod(filepath.Join(s.acmeRoot, ".well-known"), 0755)
+	_ = os.Chmod(wellKnownDir, 0755)
+	if parent := filepath.Dir(s.acmeRoot); parent != "" && parent != "/" {
+		_ = os.Chmod(parent, 0755)
+	}
+
+	// Configure Nginx port 80 ACME location for panel host if Nginx is installed
+	nginxPanelConf := "/etc/nginx/sites-available/seintech-panel.conf"
+	nginxPanelEnabled := "/etc/nginx/sites-enabled/seintech-panel.conf"
+	if _, err := os.Stat("/etc/nginx/sites-available"); err == nil {
+		confContent := fmt.Sprintf(`# Auto-generated by Seintech Panel for panel host ACME challenge & HTTP redirect
+server {
+    listen 80;
+    listen [::]:80;
+    server_name %s;
+
+    location /.well-known/acme-challenge/ {
+        root %s;
+        try_files $uri =404;
+    }
+
+    location / {
+        return 301 https://$host:8443$request_uri;
+    }
+}
+`, hostname, s.acmeRoot)
+		_ = os.WriteFile(nginxPanelConf, []byte(confContent), 0644)
+		_ = os.Symlink(nginxPanelConf, nginxPanelEnabled)
+		_ = exec.Command("nginx", "-s", "reload").Run()
+	}
+
+	// Prepare directories for panel certs
+	panelHostDir := filepath.Join(s.certBase, "panel", hostname)
+	_ = os.MkdirAll(panelHostDir, 0755)
+	_ = os.Chmod(panelHostDir, 0755)
+
+	certPath := filepath.Join(panelHostDir, "fullchain.pem")
+	keyPath := filepath.Join(panelHostDir, "privkey.pem")
+
+	// Step 1: Try Certbot if available
+	err = s.tryCertbot(ctx, hostname, certPath, keyPath)
 	if err != nil {
-		return
+		// Step 2: Fallback to native Go ACME client
+		err = s.provisionNativeACME(ctx, hostname, certPath, keyPath)
 	}
 
-	now := time.Now()
-	for _, d := range domains {
-		status := s.SyncDomainSSLStatus(&d)
-		if !status.IsActive || !status.IsLetsEncrypt || d.SSLExpiry == nil {
-			continue
-		}
+	if err != nil {
+		return nil, fmt.Errorf("gagal menerbitkan sertifikat Let's Encrypt: %w", err)
+	}
 
-		// If expires in less than 30 days, trigger renewal
-		if d.SSLExpiry.Sub(now) < 30*24*time.Hour {
-			_ = s.ProvisionLetsEncrypt(ctx, &d)
+	// Inspect the newly generated certificate
+	expiry, err := s.CheckCertExpiry(certPath)
+	if err != nil {
+		return nil, fmt.Errorf("sertifikat terbit tetapi gagal divalidasi: %w", err)
+	}
+
+	// Also mirror to main panel cert.pem & key.pem
+	mainCert := filepath.Join(s.certBase, "panel", "cert.pem")
+	mainKey := filepath.Join(s.certBase, "panel", "key.pem")
+	certBytes, _ := os.ReadFile(certPath)
+	keyBytes, _ := os.ReadFile(keyPath)
+	if len(certBytes) > 0 && len(keyBytes) > 0 {
+		_ = os.WriteFile(mainCert, certBytes, 0644)
+		_ = os.WriteFile(mainKey, keyBytes, 0600)
+	}
+
+	return expiry, nil
+}
+
+// GetPanelHostSSLStatus checks the certificate status on disk for a panel host.
+func (s *SSLManager) GetPanelHostSSLStatus(hostname string) SSLStatusInfo {
+	hostname = strings.ToLower(strings.TrimSpace(hostname))
+	info := SSLStatusInfo{
+		IsActive:   false,
+		Provider:   "none",
+		StatusText: "Belum Aktif (Self-Signed / Insecure)",
+	}
+	if hostname == "" {
+		return info
+	}
+
+	candidates := []string{
+		filepath.Join(s.certBase, "panel", hostname, "fullchain.pem"),
+		filepath.Join(s.certBase, hostname, "fullchain.pem"),
+		filepath.Join(s.certBase, "panel", "cert.pem"),
+	}
+
+	var foundCert string
+	for _, p := range candidates {
+		if _, err := os.Stat(p); err == nil {
+			foundCert = p
+			break
 		}
 	}
+
+	if foundCert == "" {
+		return info
+	}
+
+	data, err := os.ReadFile(foundCert)
+	if err != nil {
+		return info
+	}
+
+	block, _ := pem.Decode(data)
+	if block == nil {
+		return info
+	}
+
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return info
+	}
+
+	info.ExpiresAt = &cert.NotAfter
+	if len(cert.Issuer.Organization) > 0 {
+		info.Issuer = cert.Issuer.Organization[0]
+	} else {
+		info.Issuer = cert.Issuer.CommonName
+	}
+
+	if time.Now().After(cert.NotAfter) {
+		info.StatusText = fmt.Sprintf("Kadaluarsa (%s)", cert.NotAfter.Format("02 Jan 2006"))
+		return info
+	}
+
+	isLE := strings.Contains(info.Issuer, "Let's Encrypt") ||
+		strings.Contains(cert.Issuer.CommonName, "Let's Encrypt") ||
+		info.Issuer == "R3" || info.Issuer == "R10" || info.Issuer == "R11" ||
+		info.Issuer == "E1" || info.Issuer == "E5" || info.Issuer == "E6" ||
+		strings.Contains(info.Issuer, "ISRG")
+
+	isDummy := strings.Contains(info.Issuer, "Seintech Hosting Panel") ||
+		(cert.Issuer.CommonName == "localhost" && len(cert.Issuer.Organization) == 0)
+
+	if isDummy {
+		info.IsActive = false
+		info.IsLetsEncrypt = false
+		info.Provider = "selfsigned"
+		info.StatusText = "Belum Aktif (Self-Signed)"
+		return info
+	}
+
+	if isLE {
+		info.IsActive = true
+		info.IsLetsEncrypt = true
+		info.Provider = "letsencrypt"
+		info.StatusText = "Active & Valid"
+		return info
+	}
+
+	info.IsActive = true
+	info.Provider = "custom"
+	info.StatusText = "Active"
+	return info
 }
 

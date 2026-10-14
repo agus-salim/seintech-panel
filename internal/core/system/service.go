@@ -385,13 +385,37 @@ func (sm *ServiceManager) UninstallService(ctx context.Context, serviceName stri
 }
 
 func (sm *ServiceManager) ensureSuryPHPRepo(ctx context.Context) {
-	if _, err := os.Stat("/etc/apt/sources.list.d/php.list"); err == nil {
-		return
+	// If the keyring and list already exist and are non-empty, check if already configured
+	if stat, err := os.Stat("/etc/apt/sources.list.d/php.list"); err == nil && stat.Size() > 0 {
+		if _, err := os.Stat("/usr/share/keyrings/deb.sury.org-php.gpg"); err == nil {
+			return
+		}
 	}
-	// Run deb.sury.org setup script for Debian/Ubuntu
-	script := "apt-get install -y lsb-release ca-certificates apt-transport-https software-properties-common curl gnupg && " +
-		"curl -sSLo /etc/apt/trusted.gpg.d/php.gpg https://packages.sury.org/php/apt.gpg && " +
-		"echo \"deb https://packages.sury.org/php/ $(lsb_release -sc) main\" > /etc/apt/sources.list.d/php.list"
+
+	// Official Sury debian setup for Debian 12 (Bookworm) and Debian 13 (Trixie)
+	script := `
+		export DEBIAN_FRONTEND=noninteractive
+		apt-get update -y
+		apt-get install -y ca-certificates curl gnupg lsb-release
+		curl -fsSL -o /tmp/debsuryorg-archive-keyring.deb https://packages.sury.org/debsuryorg-archive-keyring.deb
+		dpkg -i /tmp/debsuryorg-archive-keyring.deb || true
+		rm -f /tmp/debsuryorg-archive-keyring.deb
+
+		CODENAME=""
+		if [ -f /etc/os-release ]; then
+			. /etc/os-release
+			CODENAME="$VERSION_CODENAME"
+		fi
+		if [ -z "$CODENAME" ] && command -v lsb_release >/dev/null 2>&1; then
+			CODENAME=$(lsb_release -sc)
+		fi
+		if [ -z "$CODENAME" ]; then
+			CODENAME="trixie"
+		fi
+
+		echo "deb [signed-by=/usr/share/keyrings/deb.sury.org-php.gpg] https://packages.sury.org/php/ $CODENAME main" > /etc/apt/sources.list.d/php.list
+		apt-get update -y
+	`
 
 	cmd := exec.CommandContext(ctx, "bash", "-c", script)
 	cmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")

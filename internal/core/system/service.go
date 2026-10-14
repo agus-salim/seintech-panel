@@ -61,6 +61,7 @@ type ServiceDetail struct {
 	Active      bool   `json:"active"`
 	Status      string `json:"status"` // running, stopped, not_installed
 	Packages    string `json:"packages"`
+	Ports       string `json:"ports,omitempty"`
 }
 
 type ServiceDefinition struct {
@@ -70,6 +71,7 @@ type ServiceDefinition struct {
 	Description string
 	CheckPaths  []string
 	AptPackages []string
+	Ports       string
 }
 
 var Catalog = []ServiceDefinition{
@@ -81,6 +83,7 @@ var Catalog = []ServiceDefinition{
 		Description: "High-performance HTTP server, reverse proxy, and IMAP/POP3 proxy server.",
 		CheckPaths:  []string{"/usr/sbin/nginx", "/etc/nginx"},
 		AptPackages: []string{"nginx"},
+		Ports:       "HTTP :80 • HTTPS :443 (Edge Gateway)",
 	},
 	{
 		Name:        "apache2",
@@ -89,6 +92,7 @@ var Catalog = []ServiceDefinition{
 		Description: "Reliable, open-source HTTP server with modular proxy and rewrite capabilities.",
 		CheckPaths:  []string{"/usr/sbin/apache2", "/etc/apache2"},
 		AptPackages: []string{"apache2", "apache2-utils"},
+		Ports:       "HTTP :8080 • HTTPS :8444",
 	},
 	{
 		Name:        "caddy",
@@ -97,6 +101,7 @@ var Catalog = []ServiceDefinition{
 		Description: "Enterprise-ready open-source web server with automatic HTTPS.",
 		CheckPaths:  []string{"/usr/bin/caddy", "/etc/caddy"},
 		AptPackages: []string{"caddy"},
+		Ports:       "HTTP :2080 • HTTPS :2443",
 	},
 	{
 		Name:        "lsws",
@@ -105,6 +110,7 @@ var Catalog = []ServiceDefinition{
 		Description: "High-performance, lightweight HTTP server with native LSAPI cache.",
 		CheckPaths:  []string{"/usr/local/lsws/bin/lswsctrl", "/usr/local/lsws"},
 		AptPackages: []string{"openlitespeed"},
+		Ports:       "HTTP :8088 • HTTPS :7443 • Admin :7080",
 	},
 
 	// Databases
@@ -244,6 +250,14 @@ func (sm *ServiceManager) GetStatus(ctx context.Context, serviceName string) (Se
 }
 
 func (sm *ServiceManager) Start(ctx context.Context, serviceName string) error {
+	switch serviceName {
+	case "apache2":
+		sm.ensureApachePorts(ctx)
+	case "caddy":
+		sm.ensureCaddyPorts(ctx)
+	case "lsws":
+		sm.ensureOpenLiteSpeedPorts(ctx)
+	}
 	_, err := sm.ExecuteSystemctl(ctx, "start", serviceName)
 	return err
 }
@@ -254,6 +268,14 @@ func (sm *ServiceManager) Stop(ctx context.Context, serviceName string) error {
 }
 
 func (sm *ServiceManager) Restart(ctx context.Context, serviceName string) error {
+	switch serviceName {
+	case "apache2":
+		sm.ensureApachePorts(ctx)
+	case "caddy":
+		sm.ensureCaddyPorts(ctx)
+	case "lsws":
+		sm.ensureOpenLiteSpeedPorts(ctx)
+	}
 	_, err := sm.ExecuteSystemctl(ctx, "restart", serviceName)
 	return err
 }
@@ -291,6 +313,7 @@ func (sm *ServiceManager) GetAllServicesList(ctx context.Context) []ServiceDetai
 			Active:      active,
 			Status:      status,
 			Packages:    strings.Join(def.AptPackages, ", "),
+			Ports:       def.Ports,
 		})
 	}
 
@@ -320,9 +343,15 @@ func (sm *ServiceManager) InstallService(ctx context.Context, serviceName string
 		sm.ensureSuryPHPRepo(ctx)
 	}
 
-	// Special setup for Caddy repository if not present
-	if serviceName == "caddy" {
+	// Web server port pre-configurations before installation starts
+	switch serviceName {
+	case "apache2":
+		sm.ensureApachePorts(ctx)
+	case "caddy":
 		sm.ensureCaddyRepo(ctx)
+		sm.ensureCaddyPorts(ctx)
+	case "lsws":
+		sm.ensureOpenLiteSpeedRepo(ctx)
 	}
 
 	// apt-get update
@@ -330,13 +359,23 @@ func (sm *ServiceManager) InstallService(ctx context.Context, serviceName string
 	updateCmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
 	_ = updateCmd.Run()
 
-	// apt-get install -y <packages>
-	args := append([]string{"install", "-y"}, targetDef.AptPackages...)
+	// apt-get install -y <packages> with force-confold so pre-configured ports aren't overridden
+	args := append([]string{"install", "-y", "-o", "Dpkg::Options::=--force-confold"}, targetDef.AptPackages...)
 	installCmd := exec.CommandContext(ctx, "apt-get", args...)
 	installCmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
 	out, err := installCmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("package installation failed: %w (%s)", err, strings.TrimSpace(string(out)))
+	}
+
+	// Post-install port and configuration enforcement
+	switch serviceName {
+	case "apache2":
+		sm.ensureApachePorts(ctx)
+	case "caddy":
+		sm.ensureCaddyPorts(ctx)
+	case "lsws":
+		sm.ensureOpenLiteSpeedPorts(ctx)
 	}
 
 	// Enable and start the installed service
@@ -431,4 +470,113 @@ func (sm *ServiceManager) ensureCaddyRepo(ctx context.Context) {
 	cmd := exec.CommandContext(ctx, "bash", "-c", script)
 	cmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
 	_ = cmd.Run()
+}
+
+func (sm *ServiceManager) ensureApachePorts(ctx context.Context) {
+	_ = os.MkdirAll("/etc/apache2", 0755)
+	_ = os.MkdirAll("/etc/apache2/sites-available", 0755)
+	_ = os.MkdirAll("/etc/apache2/sites-enabled", 0755)
+
+	portsConf := `# Configured by Seintech Panel to prevent port conflicts with Nginx
+Listen 8080
+
+<IfModule ssl_module>
+	Listen 8444
+</IfModule>
+
+<IfModule mod_gnutls.c>
+	Listen 8444
+</IfModule>
+`
+	_ = os.WriteFile("/etc/apache2/ports.conf", []byte(portsConf), 0644)
+
+	// Update 000-default.conf if it exists so it doesn't bind to 80
+	defaultConfPath := "/etc/apache2/sites-available/000-default.conf"
+	if data, err := os.ReadFile(defaultConfPath); err == nil {
+		updated := strings.ReplaceAll(string(data), "<VirtualHost *:80>", "<VirtualHost *:8080>")
+		_ = os.WriteFile(defaultConfPath, []byte(updated), 0644)
+	}
+
+	// Enable required Apache modules if a2enmod is available
+	if _, err := exec.LookPath("a2enmod"); err == nil {
+		cmd := exec.CommandContext(ctx, "a2enmod", "rewrite", "ssl", "proxy", "proxy_fcgi", "headers")
+		_ = cmd.Run()
+	}
+}
+
+func (sm *ServiceManager) ensureCaddyPorts(ctx context.Context) {
+	_ = os.MkdirAll("/etc/caddy", 0755)
+	_ = os.MkdirAll("/etc/caddy/conf.d", 0755)
+
+	caddyfilePath := "/etc/caddy/Caddyfile"
+	needsWrite := true
+	if data, err := os.ReadFile(caddyfilePath); err == nil {
+		content := string(data)
+		if strings.Contains(content, "http_port 2080") && strings.Contains(content, "import /etc/caddy/conf.d/*.caddy") {
+			needsWrite = false
+		}
+	}
+
+	if needsWrite {
+		caddyContent := `# Configured by Seintech Panel to prevent port conflicts with Nginx
+{
+	http_port 2080
+	https_port 2443
+	admin off
+}
+
+:2080 {
+	respond "Caddy Server running on Seintech Panel (Port 2080)"
+}
+
+import /etc/caddy/conf.d/*.caddy
+`
+		_ = os.WriteFile(caddyfilePath, []byte(caddyContent), 0644)
+	}
+}
+
+func (sm *ServiceManager) ensureOpenLiteSpeedRepo(ctx context.Context) {
+	// If lsws is already installed or repo file exists, skip
+	if _, err := os.Stat("/usr/local/lsws/bin/lswsctrl"); err == nil {
+		return
+	}
+	if _, err := os.Stat("/etc/apt/sources.list.d/lst_debian_repo.list"); err == nil {
+		return
+	}
+
+	script := `
+		export DEBIAN_FRONTEND=noninteractive
+		apt-get update -y
+		apt-get install -y wget curl ca-certificates gnupg
+		wget -qO - https://repo.litespeed.sh | bash || true
+		apt-get update -y
+	`
+	cmd := exec.CommandContext(ctx, "bash", "-c", script)
+	cmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
+	_ = cmd.Run()
+}
+
+func (sm *ServiceManager) ensureOpenLiteSpeedPorts(ctx context.Context) {
+	configPath := "/usr/local/lsws/conf/httpd_config.conf"
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return
+	}
+	content := string(data)
+	changed := false
+
+	// Replace port 80 listener with 8088 if any
+	if strings.Contains(content, "address                 *:80\n") {
+		content = strings.ReplaceAll(content, "address                 *:80\n", "address                 *:8088\n")
+		changed = true
+	}
+	// Replace port 443 listener with 7443 if any
+	if strings.Contains(content, "address                 *:443\n") {
+		content = strings.ReplaceAll(content, "address                 *:443\n", "address                 *:7443\n")
+		changed = true
+	}
+
+	if changed {
+		_ = os.WriteFile(configPath, []byte(content), 0644)
+	}
 }

@@ -107,6 +107,11 @@ func main() {
 		_ = sslMgr.GenerateSelfSigned("localhost", panelCert, panelKey)
 	}
 
+	// Ensure Nginx reverse proxy is configured for panel domains (port 443 / 80)
+	if err := sslMgr.SyncPanelNginxReverseProxy(ctx); err != nil {
+		log.Printf("[Seintech] Notice: Nginx reverse proxy sync: %v", err)
+	}
+
 	listenTarget := fmt.Sprintf("%s:%d", cfg.ListenAddr, cfg.Port)
 
 	// Prepare TLS Server

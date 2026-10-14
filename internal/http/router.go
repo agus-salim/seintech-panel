@@ -126,6 +126,7 @@ func NewRouter(
 			admin.Post("/settings/hosts/update", settingsH.UpdateHost)
 			admin.Post("/settings/hosts/delete", settingsH.DeleteHost)
 			admin.Post("/settings/hosts/ssl", settingsH.IssueSSL)
+			admin.Post("/settings/proxy/sync", settingsH.SyncProxy)
 		})
 	})
 

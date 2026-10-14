@@ -124,6 +124,7 @@ func (h *SettingsHandler) AddHost(w http.ResponseWriter, r *http.Request) {
 
 	settings.Hosts = append(settings.Hosts, newHost)
 	_ = h.repo.SaveSettings(*settings)
+	_ = h.sslMgr.SyncPanelNginxReverseProxy(r.Context())
 
 	http.Redirect(w, r, "/settings?msg=Domain+panel+berhasil+ditambahkan&type=success", http.StatusSeeOther)
 }
@@ -163,6 +164,7 @@ func (h *SettingsHandler) UpdateHost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = h.repo.SaveSettings(*settings)
+	_ = h.sslMgr.SyncPanelNginxReverseProxy(r.Context())
 	http.Redirect(w, r, "/settings?msg=Domain+panel+berhasil+diperbarui&type=success", http.StatusSeeOther)
 }
 
@@ -189,6 +191,7 @@ func (h *SettingsHandler) DeleteHost(w http.ResponseWriter, r *http.Request) {
 
 	settings.Hosts = updated
 	_ = h.repo.SaveSettings(*settings)
+	_ = h.sslMgr.SyncPanelNginxReverseProxy(r.Context())
 	http.Redirect(w, r, "/settings?msg=Domain+panel+berhasil+dihapus&type=success", http.StatusSeeOther)
 }
 
@@ -242,6 +245,7 @@ func (h *SettingsHandler) IssueSSL(w http.ResponseWriter, r *http.Request) {
 		settings.SSLEnabled = true
 	}
 	_ = h.repo.SaveSettings(*settings)
+	_ = h.sslMgr.SyncPanelNginxReverseProxy(ctx)
 
 	msg := fmt.Sprintf("Sertifikat SSL Let's Encrypt untuk %s berhasil diaktifkan!", targetHost.Hostname)
 	if isAJAX {
@@ -250,6 +254,14 @@ func (h *SettingsHandler) IssueSSL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, "/settings?msg="+msg+"&type=success", http.StatusSeeOther)
+}
+
+func (h *SettingsHandler) SyncProxy(w http.ResponseWriter, r *http.Request) {
+	if err := h.sslMgr.SyncPanelNginxReverseProxy(r.Context()); err != nil {
+		http.Redirect(w, r, fmt.Sprintf("/settings?msg=Gagal+sinkronisasi+reverse+proxy:+%s&type=error", err.Error()), http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, "/settings?msg=Reverse+proxy+Nginx+berhasil+disinkronkan+(Port+443)&type=success", http.StatusSeeOther)
 }
 
 func cleanHostname(input string) string {

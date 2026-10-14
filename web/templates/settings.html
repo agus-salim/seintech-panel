@@ -5,31 +5,47 @@
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
             <h2 class="text-base font-bold text-slate-900">Panel & Server Core Settings</h2>
-            <p class="text-xs text-slate-500 mt-0.5">Konfigurasi alamat domain akses panel, sertifikat SSL Let's Encrypt, dan preferensi server</p>
+            <p class="text-xs text-slate-500 mt-0.5">Konfigurasi alamat domain akses panel, reverse proxy port 443, sertifikat SSL Let's Encrypt, dan preferensi server</p>
         </div>
-        <button type="button" 
-                onclick="openAddHostModal()" 
-                class="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-95 rounded-xl shadow-sm transition-all">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-            <span>Tambah Domain Panel</span>
-        </button>
+        <div class="flex items-center gap-2.5">
+            <form action="/settings/proxy/sync" method="POST" class="inline">
+                <button type="submit" 
+                        class="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:text-indigo-600 active:scale-95 rounded-xl shadow-sm transition-all"
+                        title="Perbarui & sinkronkan ulang konfigurasi reverse proxy Nginx">
+                    <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    <span>Sinkronkan Reverse Proxy</span>
+                </button>
+            </form>
+            <button type="button" 
+                    onclick="openAddHostModal()" 
+                    class="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-95 rounded-xl shadow-sm transition-all">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                <span>Tambah Domain Panel</span>
+            </button>
+        </div>
     </div>
 
     <!-- Networking & Panel Access Domains Table -->
     <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
-        <div class="p-5 border-b border-slate-100 flex items-center justify-between">
+        <div class="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div class="flex items-center gap-3">
                 <div class="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg>
                 </div>
                 <div>
                     <h3 class="text-sm font-bold text-slate-900">Networking & Panel Domains</h3>
-                    <p class="text-xs text-slate-500">Kelola satu atau lebih domain/subdomain untuk akses dashboard Seintech Panel</p>
+                    <p class="text-xs text-slate-500">Kelola domain akses panel dengan Reverse Proxy Nginx otomatis (bebas port di URL)</p>
                 </div>
             </div>
-            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
-                Total: {{ len .Settings.Hosts }} Domain
-            </span>
+            <div class="flex items-center gap-2">
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Proxy Port 443 Aktif
+                </span>
+                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
+                    Total: {{ len .Settings.Hosts }} Domain
+                </span>
+            </div>
         </div>
 
         <div class="overflow-x-auto">
@@ -37,7 +53,7 @@
                 <thead class="bg-slate-50/80 border-b border-slate-200/60">
                     <tr class="text-xs font-semibold uppercase tracking-wider text-slate-500">
                         <th class="py-3.5 px-6">Domain / Hostname Akses</th>
-                        <th class="py-3.5 px-6">Port HTTPS</th>
+                        <th class="py-3.5 px-6">Port Akses (HTTPS)</th>
                         <th class="py-3.5 px-6">Status SSL</th>
                         <th class="py-3.5 px-6">Masa Berlaku Sertifikat</th>
                         <th class="py-3.5 px-6 text-right">Aksi</th>
@@ -55,17 +71,21 @@
                                     Primary
                                 </span>
                                 {{ end }}
-                                <a href="https://{{ .Hostname }}:{{ .Port }}" target="_blank" rel="noopener noreferrer" class="text-slate-400 hover:text-indigo-600 transition-colors" title="Buka di tab baru">
+                                <a href="https://{{ .Hostname }}" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:text-indigo-800 transition-colors inline-flex items-center gap-1 text-[11px] font-medium" title="Buka panel langsung tanpa port di URL">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                                    <span>Buka</span>
                                 </a>
                             </div>
                         </td>
 
                         <!-- Port -->
                         <td class="py-4 px-6">
-                            <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200/60">
-                                {{ .Port }}
-                            </span>
+                            <div class="flex items-center gap-1.5">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                                    443 (Tanpa Port)
+                                </span>
+                                <span class="text-[11px] font-mono text-slate-400">(:{{ .Port }})</span>
+                            </div>
                         </td>
 
                         <!-- SSL Status -->
@@ -149,9 +169,15 @@
         <!-- Informative Callout -->
         <div class="p-4 bg-slate-50 border-t border-slate-100 text-xs text-slate-500 flex items-start gap-2.5">
             <svg class="w-4 h-4 text-indigo-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            <div>
-                <span class="font-semibold text-slate-700">Catatan Aktivasi SSL Let's Encrypt:</span>
-                Pastikan DNS <code class="font-mono bg-white px-1 py-0.5 rounded border border-slate-200 text-indigo-600">A Record</code> untuk domain/subdomain yang ditambahkan sudah mengarah ke IP publik server ini. Validasi Let's Encrypt menggunakan tantangan otomatis HTTP-01 pada port 80.
+            <div class="space-y-1">
+                <div>
+                    <span class="font-semibold text-slate-700">Akses Langsung Tanpa Port (Reverse Proxy Port 443):</span>
+                    Domain panel yang memiliki SSL otomatis diarahkan melalui Nginx port 443 langsung ke backend panel. Anda dapat langsung membuka <strong class="text-indigo-600 font-mono">https://{{ .Settings.Hostname }}/</strong> tanpa perlu menyertakan port <code class="font-mono bg-white px-1 py-0.5 rounded border border-slate-200">:8443</code>.
+                </div>
+                <div>
+                    <span class="font-semibold text-slate-700">Aktivasi SSL Let's Encrypt:</span>
+                    Pastikan DNS <code class="font-mono bg-white px-1 py-0.5 rounded border border-slate-200 text-indigo-600">A Record</code> untuk domain/subdomain yang didaftarkan sudah mengarah ke IP publik server ini. Validasi Let's Encrypt menggunakan tantangan otomatis HTTP-01 pada port 80.
+                </div>
             </div>
         </div>
     </div>

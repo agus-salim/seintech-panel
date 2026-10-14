@@ -62,7 +62,12 @@ func (h *FileManagerHandler) List(w http.ResponseWriter, r *http.Request) {
 		path = "/"
 	}
 
-	items, err := fm.List(path)
+	cleanPath := fm.GetRelativePath(path)
+	if cleanPath == "" {
+		cleanPath = "/"
+	}
+
+	items, err := fm.List(cleanPath)
 	if err != nil {
 		items = []filemanager.FileItem{}
 	}
@@ -70,7 +75,6 @@ func (h *FileManagerHandler) List(w http.ResponseWriter, r *http.Request) {
 	settings, _ := h.repo.GetSettings()
 
 	// Build breadcrumbs
-	cleanPath := filepath.ToSlash(filepath.Clean(path))
 	parts := strings.Split(strings.Trim(cleanPath, "/"), "/")
 	var crumbs []Breadcrumb
 	accum := ""

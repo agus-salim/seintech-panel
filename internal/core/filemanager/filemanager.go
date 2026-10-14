@@ -39,6 +39,11 @@ func NewFileManager(jailRoot string) (*FileManager, error) {
 	return &FileManager{sanitizer: sanitizer}, nil
 }
 
+// GetRelativePath converts an absolute path into relative jail path.
+func (fm *FileManager) GetRelativePath(path string) string {
+	return fm.sanitizer.GetRelativePath(path)
+}
+
 // List lists all files in the relative path within jail.
 func (fm *FileManager) List(subpath string) ([]FileItem, error) {
 	realPath, err := fm.sanitizer.ResolvePath(subpath)

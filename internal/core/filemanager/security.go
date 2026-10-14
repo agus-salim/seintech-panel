@@ -46,6 +46,18 @@ func (s *SecuritySanitizer) ResolvePath(subpath string) (string, error) {
 		return s.jailRoot, nil
 	}
 
+	cleanJail := filepath.Clean(filepath.ToSlash(s.jailRoot))
+
+	// If subpath is an absolute path or starts with jailRoot (e.g. /var/www/domain.com/public_html),
+	// strip jailRoot from the beginning so it resolves cleanly within jailRoot!
+	if strings.HasPrefix(cleanSub, cleanJail) {
+		cleanSub = strings.TrimPrefix(cleanSub, cleanJail)
+		cleanSub = filepath.Clean(filepath.ToSlash(cleanSub))
+		if cleanSub == "." || cleanSub == "/" || cleanSub == "" {
+			return s.jailRoot, nil
+		}
+	}
+
 	// Disallow absolute drive letters or rooted paths in subpath
 	cleanSub = strings.TrimPrefix(cleanSub, "/")
 	cleanSub = strings.TrimPrefix(cleanSub, "\\")
@@ -93,6 +105,19 @@ func (s *SecuritySanitizer) ResolvePath(subpath string) (string, error) {
 
 // GetRelativePath converts an absolute system path inside jail into a clean relative path for UI.
 func (s *SecuritySanitizer) GetRelativePath(absPath string) string {
+	cleanAbs := filepath.Clean(filepath.ToSlash(absPath))
+	cleanJail := filepath.Clean(filepath.ToSlash(s.jailRoot))
+
+	if strings.HasPrefix(cleanAbs, cleanJail) {
+		rel, err := filepath.Rel(cleanJail, cleanAbs)
+		if err == nil && !strings.HasPrefix(rel, "..") {
+			if rel == "." {
+				return "/"
+			}
+			return "/" + filepath.ToSlash(rel)
+		}
+	}
+
 	rel, err := filepath.Rel(s.jailRoot, absPath)
 	if err != nil || strings.HasPrefix(rel, "..") {
 		return "/"

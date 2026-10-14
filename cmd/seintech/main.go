@@ -61,6 +61,9 @@ func main() {
 	log.Printf("[Seintech] Data directory: %s", cfg.DataDir)
 	log.Printf("[Seintech] Web root directory: %s", cfg.WebRoot)
 
+	// Self-heal any nested /var/www/var/www artifacts from previous path resolution
+	healNestedWebRoot(cfg.WebRoot)
+
 	// Initialize Storage Repository
 	repo, err := storage.NewRepository(cfg.DataDir)
 	if err != nil {
@@ -214,4 +217,33 @@ func bootstrapAdmin(repo *storage.Repository, cfg *config.Config) {
 	log.Println("  Password: admin123")
 	log.Println("  Please change this password immediately after first login!")
 	log.Println("=================================================================")
+}
+
+func healNestedWebRoot(webRoot string) {
+	nested := filepath.Join(webRoot, "var", "www")
+	if fi, err := os.Stat(nested); err == nil && fi.IsDir() {
+		log.Printf("[Seintech] Found nested web root at %s, migrating files to %s...", nested, webRoot)
+		_ = filepath.Walk(nested, func(path string, info os.FileInfo, err error) error {
+			if err != nil || path == nested {
+				return nil
+			}
+			rel, err := filepath.Rel(nested, path)
+			if err != nil {
+				return nil
+			}
+			dest := filepath.Join(webRoot, rel)
+			if info.IsDir() {
+				_ = os.MkdirAll(dest, 0755)
+			} else {
+				_ = os.MkdirAll(filepath.Dir(dest), 0755)
+				data, err := os.ReadFile(path)
+				if err == nil {
+					_ = os.WriteFile(dest, data, info.Mode())
+				}
+			}
+			return nil
+		})
+		_ = os.RemoveAll(filepath.Join(webRoot, "var"))
+		log.Printf("[Seintech] Migration of nested web root complete.")
+	}
 }

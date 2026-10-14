@@ -460,3 +460,42 @@ func (h *FileManagerHandler) BulkDelete(w http.ResponseWriter, r *http.Request) 
 	http.Redirect(w, r, "/filemanager?path="+currentPath, http.StatusSeeOther)
 }
 
+func (h *FileManagerHandler) FixPermissions(w http.ResponseWriter, r *http.Request) {
+	isAjax := r.Header.Get("X-Requested-With") == "XMLHttpRequest"
+	fm, err := h.getFMForUser(r)
+	if err != nil {
+		if isAjax {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": err.Error()})
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	path := r.FormValue("path")
+	if path == "" {
+		path = "/"
+	}
+
+	if err := fm.FixPermissions(path); err != nil {
+		if isAjax {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": "Gagal mereset izin: " + err.Error()})
+			return
+		}
+		http.Error(w, "Gagal mereset izin: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if isAjax {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"success": true, "message": "Izin folder (755) & file (644) dan kepemilikan user berhasil dipulihkan"})
+		return
+	}
+
+	http.Redirect(w, r, "/filemanager?path="+path, http.StatusSeeOther)
+}
+

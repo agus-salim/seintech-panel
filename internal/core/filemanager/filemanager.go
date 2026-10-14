@@ -148,7 +148,13 @@ func (fm *FileManager) WriteStream(subpath string, src io.Reader) error {
 	}
 	f.Close()
 
-	return os.Rename(tmpFile, realPath)
+	if err := os.Rename(tmpFile, realPath); err != nil {
+		return err
+	}
+
+	_ = os.Chmod(realPath, 0644)
+	_ = inheritParentOwnership(realPath)
+	return nil
 }
 
 // WriteFile writes text or binary content into the specified file inside jail.
@@ -162,7 +168,12 @@ func (fm *FileManager) CreateDir(subpath string) error {
 	if err != nil {
 		return err
 	}
-	return os.MkdirAll(realPath, 0755)
+	if err := os.MkdirAll(realPath, 0755); err != nil {
+		return err
+	}
+	_ = os.Chmod(realPath, 0755)
+	_ = inheritParentOwnership(realPath)
+	return nil
 }
 
 // Delete removes a file or folder recursively inside jail.
@@ -263,6 +274,7 @@ func (fm *FileManager) ExtractZip(zipSubpath, destSubpath string) error {
 		}
 	}
 
+	_ = inheritOwnershipRecursive(destReal)
 	return nil
 }
 
@@ -341,6 +353,7 @@ func (fm *FileManager) ExtractTarGz(tarGzSubpath, destSubpath string) error {
 		}
 	}
 
+	_ = inheritOwnershipRecursive(destReal)
 	return nil
 }
 
@@ -456,7 +469,18 @@ func (fm *FileManager) CompressZip(srcSubpaths []string, destZipSubpath string) 
 		}
 	}
 
+	_ = os.Chmod(destReal, 0644)
+	_ = inheritParentOwnership(destReal)
 	return nil
+}
+
+// FixPermissions recursively restores FastPanel permissions (0755 dirs, 0644 files) and site user ownership.
+func (fm *FileManager) FixPermissions(subpath string) error {
+	realPath, err := fm.sanitizer.ResolvePath(subpath)
+	if err != nil {
+		return err
+	}
+	return inheritOwnershipRecursive(realPath)
 }
 
 func isArchiveExt(name string) bool {

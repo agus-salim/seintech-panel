@@ -33,6 +33,24 @@ func getFileOwnerGroup(info os.FileInfo) (owner string, group string, access str
 	return owner, group, access, fileType
 }
 
+func inheritParentOwnership(targetPath string) error {
+	return nil
+}
+
+func inheritOwnershipRecursive(rootPath string) error {
+	return filepath.Walk(rootPath, func(path string, fi os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if fi.IsDir() {
+			_ = os.Chmod(path, 0755)
+		} else {
+			_ = os.Chmod(path, 0644)
+		}
+		return nil
+	})
+}
+
 func determineFileType(info os.FileInfo) string {
 	if info.IsDir() {
 		return "Folder"

@@ -95,6 +95,7 @@ func NewRouter(
 		pr.Post("/filemanager/create-dir", fmH.CreateDir)
 		pr.Post("/filemanager/rename", fmH.Rename)
 		pr.Post("/filemanager/chmod", fmH.Chmod)
+		pr.Post("/filemanager/fix-permissions", fmH.FixPermissions)
 
 		// Services & Package Installer
 		pr.Get("/services", servicesH.List)

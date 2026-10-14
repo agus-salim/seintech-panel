@@ -43,6 +43,120 @@ func getFileOwnerGroup(info os.FileInfo) (owner string, group string, access str
 	return owner, group, access, fileType
 }
 
+// inheritParentOwnership sets the newly created file or directory's UID and GID
+// to match the parent directory (or the site user under /var/www/<site_user>).
+func inheritParentOwnership(targetPath string) error {
+	dir := filepath.Dir(targetPath)
+	info, err := os.Stat(dir)
+	if err != nil {
+		return err
+	}
+
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return nil
+	}
+
+	uid := int(stat.Uid)
+	gid := int(stat.Gid)
+
+	// If parent dir is owned by root (UID 0), find the site user from path hierarchy
+	if uid == 0 {
+		if siteUid, siteGid, ok := findSiteUserInPath(targetPath); ok {
+			uid = siteUid
+			gid = siteGid
+		}
+	}
+
+	if uid != 0 || gid != 0 {
+		_ = os.Chown(targetPath, uid, gid)
+	}
+	return nil
+}
+
+// inheritOwnershipRecursive walks rootPath and applies parent/site user ownership
+// as well as FastPanel permissions (0755 for dirs, 0644 for files).
+func inheritOwnershipRecursive(rootPath string) error {
+	dir := filepath.Dir(rootPath)
+	info, err := os.Stat(dir)
+	if err != nil {
+		info, err = os.Stat(rootPath)
+		if err != nil {
+			return err
+		}
+	}
+
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return nil
+	}
+
+	uid := int(stat.Uid)
+	gid := int(stat.Gid)
+
+	if uid == 0 {
+		if siteUid, siteGid, ok := findSiteUserInPath(rootPath); ok {
+			uid = siteUid
+			gid = siteGid
+		}
+	}
+
+	if uid == 0 && gid == 0 {
+		return nil
+	}
+
+	return filepath.Walk(rootPath, func(path string, fi os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if fi.IsDir() {
+			_ = os.Chmod(path, 0755)
+		} else {
+			_ = os.Chmod(path, 0644)
+		}
+		_ = os.Chown(path, uid, gid)
+		return nil
+	})
+}
+
+// findSiteUserInPath extracts the site username from the path hierarchy.
+// Supports /var/www/<site_user>/... and usernames ending with _usr.
+func findSiteUserInPath(path string) (int, int, bool) {
+	clean := filepath.ToSlash(filepath.Clean(path))
+	parts := strings.Split(clean, "/")
+
+	// Check path segments
+	for i, part := range parts {
+		if part == "www" && i+1 < len(parts) {
+			candidate := parts[i+1]
+			if candidate != "" && candidate != "html" && candidate != "var" {
+				if u, err := user.Lookup(candidate); err == nil {
+					uid, err1 := strconv.Atoi(u.Uid)
+					gid, err2 := strconv.Atoi(u.Gid)
+					if err1 == nil && err2 == nil {
+						return uid, gid, true
+					}
+				}
+			}
+		}
+	}
+
+	// Check any segment with FastPanel _usr convention
+	for _, part := range parts {
+		if strings.HasSuffix(part, "_usr") {
+			if u, err := user.Lookup(part); err == nil {
+				uid, err1 := strconv.Atoi(u.Uid)
+				gid, err2 := strconv.Atoi(u.Gid)
+				if err1 == nil && err2 == nil {
+					return uid, gid, true
+				}
+			}
+		}
+	}
+
+	return 0, 0, false
+}
+
 func determineFileType(info os.FileInfo) string {
 	if info.IsDir() {
 		return "Folder"

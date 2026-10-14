@@ -101,6 +101,22 @@
             }
         }).catch(err => alert('Error: ' + err));
     },
+    resetCurrentPermissions() {
+        if (!confirm('Pulihkan izin default (Folder 755, File 644) dan kepemilikan user situs untuk direktori ini beserta isinya?')) return;
+        const formData = new FormData();
+        formData.append('path', this.currentPath);
+        fetch('/filemanager/fix-permissions', {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            body: formData
+        }).then(res => res.json()).then(data => {
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert('Gagal: ' + (data.error || 'Terjadi kesalahan'));
+            }
+        }).catch(err => alert('Error: ' + err));
+    },
 
     // Drag & Drop and Upload state
     isDragging: false,
@@ -301,6 +317,12 @@
             <button @click="newDirModal = true" class="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors inline-flex items-center shadow-xs">
                 <svg class="w-3.5 h-3.5 mr-1 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"></path></svg>
                 New Folder
+            </button>
+
+            <!-- Reset Izin (755/644) & Ownership Button -->
+            <button @click="resetCurrentPermissions()" class="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors inline-flex items-center shadow-xs" title="Reset izin folder (755) &amp; file (644) serta kepemilikan user situs">
+                <svg class="w-3.5 h-3.5 mr-1 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                Reset Izin
             </button>
             
             <!-- Upload File Button with AJAX & Progress Animation trigger -->

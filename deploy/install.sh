@@ -22,14 +22,14 @@ mkdir -p /var/www
 chmod 750 /var/lib/seintech/data
 chmod 700 /var/lib/seintech/ssl
 
-# 2. Install Binary
+# 2. Install Binary (Stop existing service first if running to avoid Text file busy error)
 echo "[2/5] Installing binary to /usr/local/bin/seintech..."
+systemctl stop seintech.service 2>/dev/null || true
+
 if [ -f "./bin/seintech" ]; then
-    cp ./bin/seintech /usr/local/bin/seintech
-    chmod 755 /usr/local/bin/seintech
+    install -m 755 ./bin/seintech /usr/local/bin/seintech
 elif [ -f "./seintech" ]; then
-    cp ./seintech /usr/local/bin/seintech
-    chmod 755 /usr/local/bin/seintech
+    install -m 755 ./seintech /usr/local/bin/seintech
 else
     echo "Compiling binary on host..."
     go build -ldflags="-s -w" -o /usr/local/bin/seintech ./cmd/seintech

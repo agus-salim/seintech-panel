@@ -205,6 +205,49 @@ func (r *Repository) DeleteDomain(id string) error {
 	return r.SaveDomains(updated)
 }
 
+// Database methods
+func (r *Repository) GetDatabases() ([]model.Database, error) {
+	var dbs []model.Database
+	err := r.databaseStore.Read(&dbs)
+	if errors.Is(err, ErrNotFound) || (err != nil && err.Error() == "file does not exist") {
+		return []model.Database{}, nil
+	}
+	return dbs, err
+}
+
+func (r *Repository) SaveDatabases(dbs []model.Database) error {
+	return r.databaseStore.Write(dbs)
+}
+
+func (r *Repository) UpsertDatabase(db model.Database) error {
+	dbs, _ := r.GetDatabases()
+	found := false
+	db.Name = strings.TrimSpace(db.Name)
+	for i, d := range dbs {
+		if strings.EqualFold(d.Name, db.Name) {
+			dbs[i] = db
+			found = true
+			break
+		}
+	}
+	if !found {
+		dbs = append(dbs, db)
+	}
+	return r.SaveDatabases(dbs)
+}
+
+func (r *Repository) DeleteDatabase(name string) error {
+	dbs, _ := r.GetDatabases()
+	var updated []model.Database
+	cleanName := strings.TrimSpace(name)
+	for _, d := range dbs {
+		if !strings.EqualFold(d.Name, cleanName) {
+			updated = append(updated, d)
+		}
+	}
+	return r.SaveDatabases(updated)
+}
+
 // Quota methods
 func (r *Repository) GetQuota(userID string) (*model.Quota, error) {
 	var quotas map[string]model.Quota

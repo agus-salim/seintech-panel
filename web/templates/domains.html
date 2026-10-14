@@ -14,7 +14,59 @@
     deleteModal: false,
     deleteId: '',
     deleteDomain: '',
-    deleteConfirmInput: ''
+    deleteConfirmInput: '',
+    dbSetupModal: false,
+    dbSetupId: '',
+    dbSetupDomain: '',
+    dbSetupType: 'mysql',
+    dbSetupName: '',
+    dbSetupUser: '',
+    dbSetupPass: '',
+    showDbPass: false,
+    dbSetupLoading: false,
+    openDBSetup(id, domain) {
+        this.dbSetupId = id;
+        this.dbSetupDomain = domain;
+        const prefix = domain.split('.')[0].replace(/[^a-zA-Z0-9_]/g, '').toLowerCase().substring(0, 10) || 'app';
+        this.dbSetupName = prefix + '_db';
+        this.dbSetupUser = prefix + '_usr';
+        this.generateDBPass();
+        this.dbSetupType = 'mysql';
+        this.dbSetupModal = true;
+    },
+    generateDBPass() {
+        const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%&*';
+        let pass = '';
+        for (let i = 0; i < 16; i++) {
+            pass += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        this.dbSetupPass = pass;
+    },
+    submitDBSetup(e) {
+        this.dbSetupLoading = true;
+        const form = e.target;
+        const formData = new FormData(form);
+
+        fetch('/databases/setup', {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            body: formData
+        })
+        .then(r => r.json())
+        .then(data => {
+            this.dbSetupLoading = false;
+            if (data.success) {
+                this.dbSetupModal = false;
+                showToast(data.message || 'Database berhasil disetup!', 'success');
+            } else {
+                showToast(data.error || 'Gagal setup database', 'error');
+            }
+        })
+        .catch(err => {
+            this.dbSetupLoading = false;
+            showToast('Error: ' + err.message, 'error');
+        });
+    }
 }">
 
     <!-- Header Actions -->
@@ -156,6 +208,14 @@
                                    class="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500/20">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
                                 </a>
+
+                                <!-- Database Setup Icon -->
+                                <button type="button"
+                                        @click="openDBSetup('{{ .ID }}', '{{ .DomainName }}')"
+                                        title="Setup Database Virtual Host"
+                                        class="p-1.5 text-slate-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-purple-500/20">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/></svg>
+                                </button>
 
                                 <!-- Delete Icon -->
                                 <button type="button"
@@ -436,6 +496,75 @@
                     </div>
                 </form>
             </div>
+        </div>
+    </div>
+
+    <!-- Database Setup Modal for Virtual Host -->
+    <div x-show="dbSetupModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" style="display: none;">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-md border border-slate-200 shadow-2xl">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div class="flex items-center space-x-2.5">
+                    <div class="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shadow-xs">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-900">Setup Database Virtual Host</h3>
+                        <p class="text-[11px] text-slate-500 font-mono" x-text="dbSetupDomain"></p>
+                    </div>
+                </div>
+                <button @click="dbSetupModal = false" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+
+            <form action="/databases/setup" method="POST" class="mt-4 space-y-3.5" @submit.prevent="submitDBSetup($event)">
+                <input type="hidden" name="domain_id" x-model="dbSetupId">
+                <input type="hidden" name="domain_name" x-model="dbSetupDomain">
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Database Engine</label>
+                    <select name="type" x-model="dbSetupType" class="w-full px-3.5 py-2 text-xs font-mono border border-slate-200 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none bg-white">
+                        <option value="mysql">MariaDB / MySQL</option>
+                        <option value="postgres">PostgreSQL</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Nama Database</label>
+                    <input type="text" name="name" x-model="dbSetupName" required placeholder="nama_db" class="w-full px-3.5 py-2 text-xs font-mono border border-slate-200 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Database User</label>
+                    <input type="text" name="username" x-model="dbSetupUser" required placeholder="user_db" class="w-full px-3.5 py-2 text-xs font-mono border border-slate-200 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none">
+                </div>
+
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider">Password</label>
+                        <button type="button" @click="generateDBPass()" class="text-[11px] font-semibold text-purple-600 hover:text-purple-700">Generate Password</button>
+                    </div>
+                    <div class="relative">
+                        <input :type="showDbPass ? 'text' : 'password'" name="password" x-model="dbSetupPass" required placeholder="••••••••••••" class="w-full px-3.5 py-2 pr-10 text-xs font-mono border border-slate-200 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none">
+                        <button type="button" @click="showDbPass = !showDbPass" class="absolute inset-y-0 right-0 px-3 flex items-center text-slate-400 hover:text-slate-600">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="pt-2 flex justify-end space-x-2">
+                    <button type="button" @click="dbSetupModal = false" class="px-3.5 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">Batal</button>
+                    <button type="submit" 
+                            :disabled="dbSetupLoading"
+                            class="px-4 py-1.5 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-60 rounded-xl shadow-sm transition-all inline-flex items-center">
+                        <svg x-show="dbSetupLoading" class="animate-spin -ml-1 mr-1.5 h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                        </svg>
+                        <span>Setup Database</span>
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 

@@ -300,3 +300,159 @@ func (h *FileManagerHandler) Rename(w http.ResponseWriter, r *http.Request) {
 
 	http.Redirect(w, r, "/filemanager?path="+parent, http.StatusSeeOther)
 }
+
+func (h *FileManagerHandler) Extract(w http.ResponseWriter, r *http.Request) {
+	isAjax := r.Header.Get("X-Requested-With") == "XMLHttpRequest"
+	fm, err := h.getFMForUser(r)
+	if err != nil {
+		if isAjax {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": err.Error()})
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	path := r.FormValue("path")
+	dest := r.FormValue("dest")
+	if dest == "" {
+		dest = filepath.ToSlash(filepath.Dir(path))
+	}
+
+	if err := fm.ExtractArchive(path, dest); err != nil {
+		if isAjax {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": err.Error()})
+			return
+		}
+		http.Error(w, "Gagal mengekstrak: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if isAjax {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"success": true, "message": "Arsip berhasil diekstrak"})
+		return
+	}
+
+	http.Redirect(w, r, "/filemanager?path="+dest, http.StatusSeeOther)
+}
+
+func (h *FileManagerHandler) Compress(w http.ResponseWriter, r *http.Request) {
+	isAjax := r.Header.Get("X-Requested-With") == "XMLHttpRequest"
+	fm, err := h.getFMForUser(r)
+	if err != nil {
+		if isAjax {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": err.Error()})
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	destDir := r.FormValue("dest_dir")
+	if destDir == "" {
+		destDir = "/"
+	}
+	name := strings.TrimSpace(r.FormValue("name"))
+	if name == "" {
+		name = "archive.zip"
+	}
+	if !strings.HasSuffix(strings.ToLower(name), ".zip") {
+		name += ".zip"
+	}
+	targetZip := filepath.Join(destDir, name)
+
+	var paths []string
+	if err := r.ParseForm(); err == nil {
+		paths = r.Form["paths"]
+		if len(paths) == 0 && r.FormValue("paths_str") != "" {
+			paths = strings.Split(r.FormValue("paths_str"), ",")
+		}
+	}
+
+	if len(paths) == 0 {
+		if isAjax {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": "Tidak ada file yang dipilih"})
+			return
+		}
+		http.Error(w, "Tidak ada file yang dipilih untuk dikompres", http.StatusBadRequest)
+		return
+	}
+
+	if err := fm.CompressZip(paths, targetZip); err != nil {
+		if isAjax {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": err.Error()})
+			return
+		}
+		http.Error(w, "Gagal mengompres: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if isAjax {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"success": true, "message": "File berhasil dikompres ke " + name})
+		return
+	}
+
+	http.Redirect(w, r, "/filemanager?path="+destDir, http.StatusSeeOther)
+}
+
+func (h *FileManagerHandler) BulkDelete(w http.ResponseWriter, r *http.Request) {
+	isAjax := r.Header.Get("X-Requested-With") == "XMLHttpRequest"
+	fm, err := h.getFMForUser(r)
+	if err != nil {
+		if isAjax {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": err.Error()})
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	currentPath := r.FormValue("current_path")
+	if currentPath == "" {
+		currentPath = "/"
+	}
+
+	var paths []string
+	if err := r.ParseForm(); err == nil {
+		paths = r.Form["paths"]
+		if len(paths) == 0 && r.FormValue("paths_str") != "" {
+			paths = strings.Split(r.FormValue("paths_str"), ",")
+		}
+	}
+
+	count := 0
+	for _, p := range paths {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			if err := fm.Delete(p); err == nil {
+				count++
+			}
+		}
+	}
+
+	if isAjax {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"message": fmt.Sprintf("%d item berhasil dihapus", count),
+		})
+		return
+	}
+
+	http.Redirect(w, r, "/filemanager?path="+currentPath, http.StatusSeeOther)
+}
+

@@ -87,6 +87,9 @@ func NewRouter(
 		pr.Get("/filemanager/download", fmH.Download)
 		pr.Post("/filemanager/upload", fmH.Upload)
 		pr.Post("/filemanager/delete", fmH.Delete)
+		pr.Post("/filemanager/bulk-delete", fmH.BulkDelete)
+		pr.Post("/filemanager/extract", fmH.Extract)
+		pr.Post("/filemanager/compress", fmH.Compress)
 		pr.Post("/filemanager/create-file", fmH.CreateFile)
 		pr.Post("/filemanager/create-dir", fmH.CreateDir)
 		pr.Post("/filemanager/rename", fmH.Rename)
@@ -108,8 +111,11 @@ func NewRouter(
 		// Databases
 		pr.Get("/databases", dbH.List)
 		pr.Post("/databases/create", dbH.Create)
+		pr.Post("/databases/setup", dbH.Setup)
 		pr.Post("/databases/create-user", dbH.CreateUser)
 		pr.Post("/databases/delete", dbH.Delete)
+		pr.Get("/databases/export", dbH.Export)
+		pr.Post("/databases/import", dbH.Import)
 
 		// SSL
 		pr.Get("/ssl", sslH.List)

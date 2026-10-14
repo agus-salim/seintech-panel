@@ -15,15 +15,16 @@ import (
 )
 
 type FileItem struct {
-	Name      string    `json:"name"`
-	Path      string    `json:"path"`
-	Size      int64     `json:"size"`
-	HumanSize string    `json:"human_size"`
-	Mode      string    `json:"mode"`
-	ModTime   time.Time `json:"mod_time"`
-	IsDir     bool      `json:"is_dir"`
-	Ext       string    `json:"ext"`
-	IsEditable bool     `json:"is_editable"`
+	Name       string    `json:"name"`
+	Path       string    `json:"path"`
+	Size       int64     `json:"size"`
+	HumanSize  string    `json:"human_size"`
+	Mode       string    `json:"mode"`
+	ModTime    time.Time `json:"mod_time"`
+	IsDir      bool      `json:"is_dir"`
+	Ext        string    `json:"ext"`
+	IsEditable bool      `json:"is_editable"`
+	IsArchive  bool      `json:"is_archive"`
 }
 
 type FileManager struct {
@@ -61,6 +62,7 @@ func (fm *FileManager) List(subpath string) ([]FileItem, error) {
 		ext := strings.ToLower(filepath.Ext(entry.Name()))
 
 		editable := !entry.IsDir() && isEditableExt(ext)
+		archive := !entry.IsDir() && isArchiveExt(entry.Name())
 
 		items = append(items, FileItem{
 			Name:       entry.Name(),
@@ -72,6 +74,7 @@ func (fm *FileManager) List(subpath string) ([]FileItem, error) {
 			IsDir:      entry.IsDir(),
 			Ext:        ext,
 			IsEditable: editable,
+			IsArchive:  archive,
 		})
 	}
 
@@ -240,15 +243,213 @@ func (fm *FileManager) ExtractZip(zipSubpath, destSubpath string) error {
 			return err
 		}
 
-		_, err = io.Copy(outFile, rc)
-		outFile.Close()
-		rc.Close()
-		if err != nil {
+		if _, err := io.Copy(outFile, rc); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+// ExtractTarGz extracts a .tar.gz, .tgz, or .tar file safely inside jail.
+func (fm *FileManager) ExtractTarGz(tarGzSubpath, destSubpath string) error {
+	srcReal, err := fm.sanitizer.ResolvePath(tarGzSubpath)
+	if err != nil {
+		return err
+	}
+	destReal, err := fm.sanitizer.ResolvePath(destSubpath)
+	if err != nil {
+		return err
+	}
+
+	f, err := os.Open(srcReal)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	var tarReader *tar.Reader
+	lowerSrc := strings.ToLower(srcReal)
+	if strings.HasSuffix(lowerSrc, ".tar.gz") || strings.HasSuffix(lowerSrc, ".tgz") {
+		gzr, err := gzip.NewReader(f)
+		if err != nil {
+			return err
+		}
+		defer gzr.Close()
+		tarReader = tar.NewReader(gzr)
+	} else {
+		tarReader = tar.NewReader(f)
+	}
+
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		cleanName := filepath.Clean(header.Name)
+		if strings.HasPrefix(cleanName, "..") || strings.Contains(cleanName, ":") {
+			return fmt.Errorf("illegal path in tar archive: %s", header.Name)
+		}
+
+		target := filepath.Join(destReal, cleanName)
+		rel, err := filepath.Rel(destReal, target)
+		if err != nil || strings.HasPrefix(rel, "..") {
+			return fmt.Errorf("tar path outside target destination: %s", header.Name)
+		}
+
+		switch header.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(target, 0755); err != nil {
+				return err
+			}
+		case tar.TypeReg, tar.TypeRegA:
+			if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+				return err
+			}
+			mode := header.FileInfo().Mode()
+			if mode == 0 {
+				mode = 0644
+			}
+			outFile, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
+			if err != nil {
+				return err
+			}
+			if _, err := io.Copy(outFile, tarReader); err != nil {
+				outFile.Close()
+				return err
+			}
+			outFile.Close()
+		}
+	}
+
+	return nil
+}
+
+// ExtractArchive auto-detects archive format and extracts safely to destSubpath.
+func (fm *FileManager) ExtractArchive(archiveSubpath, destSubpath string) error {
+	lower := strings.ToLower(archiveSubpath)
+	if strings.HasSuffix(lower, ".zip") {
+		return fm.ExtractZip(archiveSubpath, destSubpath)
+	}
+	if strings.HasSuffix(lower, ".tar.gz") || strings.HasSuffix(lower, ".tgz") || strings.HasSuffix(lower, ".tar") {
+		return fm.ExtractTarGz(archiveSubpath, destSubpath)
+	}
+	return errors.New("unsupported archive format")
+}
+
+// CompressZip compresses multiple files and directories into a destination zip inside jail.
+func (fm *FileManager) CompressZip(srcSubpaths []string, destZipSubpath string) error {
+	destReal, err := fm.sanitizer.ResolvePath(destZipSubpath)
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(filepath.Dir(destReal), 0755); err != nil {
+		return err
+	}
+
+	zipFile, err := os.Create(destReal)
+	if err != nil {
+		return err
+	}
+	defer zipFile.Close()
+
+	w := zip.NewWriter(zipFile)
+	defer w.Close()
+
+	for _, subpath := range srcSubpaths {
+		realPath, err := fm.sanitizer.ResolvePath(subpath)
+		if err != nil {
+			continue
+		}
+
+		fi, err := os.Stat(realPath)
+		if err != nil {
+			continue
+		}
+
+		baseDir := filepath.Dir(realPath)
+
+		if fi.IsDir() {
+			err = filepath.Walk(realPath, func(path string, info os.FileInfo, err error) error {
+				if err != nil {
+					return err
+				}
+
+				relPath, err := filepath.Rel(baseDir, path)
+				if err != nil {
+					return err
+				}
+				relPath = filepath.ToSlash(relPath)
+
+				header, err := zip.FileInfoHeader(info)
+				if err != nil {
+					return err
+				}
+				header.Name = relPath
+				if info.IsDir() {
+					header.Name += "/"
+				} else {
+					header.Method = zip.Deflate
+				}
+
+				writer, err := w.CreateHeader(header)
+				if err != nil {
+					return err
+				}
+
+				if !info.IsDir() {
+					file, err := os.Open(path)
+					if err != nil {
+						return err
+					}
+					defer file.Close()
+					_, err = io.Copy(writer, file)
+					return err
+				}
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+		} else {
+			header, err := zip.FileInfoHeader(fi)
+			if err != nil {
+				return err
+			}
+			header.Name = filepath.Base(realPath)
+			header.Method = zip.Deflate
+
+			writer, err := w.CreateHeader(header)
+			if err != nil {
+				return err
+			}
+
+			file, err := os.Open(realPath)
+			if err != nil {
+				return err
+			}
+			_, err = io.Copy(writer, file)
+			file.Close()
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func isArchiveExt(name string) bool {
+	lower := strings.ToLower(name)
+	return strings.HasSuffix(lower, ".zip") ||
+		strings.HasSuffix(lower, ".tar.gz") ||
+		strings.HasSuffix(lower, ".tgz") ||
+		strings.HasSuffix(lower, ".tar")
 }
 
 func isEditableExt(ext string) bool {
@@ -277,9 +478,3 @@ func formatSize(bytes int64, isDir bool) string {
 	}
 	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }
-
-// Suppress unused imports
-var (
-	_ = tar.NewReader
-	_ = gzip.NewReader
-)

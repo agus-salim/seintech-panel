@@ -139,17 +139,17 @@ Atau via perintah Go langsung:
 GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/seintech ./cmd/seintech
 ```
 
-### 3. Deploy sebagai Systemd Service pada Linux
-Jalankan skrip instalasi pada server Linux Ubuntu/Debian/RHEL:
+### 3. Deploy sebagai Systemd Service pada Linux (Debian/Ubuntu/RHEL)
+Jalankan skrip instalasi langsung sebagai `root`:
 ```bash
-sudo ./deploy/install.sh
+./deploy/install.sh
 ```
 Atau manual:
 ```bash
-sudo cp bin/seintech /usr/local/bin/seintech
-sudo cp deploy/systemd/seintech.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now seintech
+cp bin/seintech /usr/local/bin/seintech
+cp deploy/systemd/seintech.service /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now seintech
 ```
 Cek status layanan:
 ```bash

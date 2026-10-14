@@ -16,10 +16,5 @@ RestartSec=5s
 LimitNOFILE=65535
 LimitNPROC=32768
 
-# Standard security isolation flags
-ProtectSystem=strict
-ReadWritePaths=/var/lib/seintech /var/www /etc/nginx /etc/apache2 /usr/local/lsws/conf /etc/caddy /etc/php /run/php /var/log
-PrivateTmp=true
-
 [Install]
 WantedBy=multi-user.target

@@ -86,6 +86,30 @@ func (h *DatabaseHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/databases?success=deleted", http.StatusSeeOther)
 }
 
+func (h *DatabaseHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
+	username := r.FormValue("username")
+	password := r.FormValue("password")
+	dbName := r.FormValue("database")
+	dbType := model.DBType(r.FormValue("type"))
+
+	if username != "" && password != "" {
+		ctx := r.Context()
+		if dbType == model.DBTypePostgres {
+			_ = h.pgMgr.CreateUser(ctx, username, password, "localhost")
+			if dbName != "" {
+				_ = h.pgMgr.GrantPrivileges(ctx, username, "localhost", dbName)
+			}
+		} else {
+			_ = h.mysqlMgr.CreateUser(ctx, username, password, "localhost")
+			if dbName != "" {
+				_ = h.mysqlMgr.GrantPrivileges(ctx, username, "localhost", dbName)
+			}
+		}
+	}
+
+	http.Redirect(w, r, "/databases?success=user_created", http.StatusSeeOther)
+}
+
 // Suppress unused imports
 var (
 	_ = hex.EncodeToString

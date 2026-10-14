@@ -228,3 +228,14 @@ func (h *FileManagerHandler) Chmod(w http.ResponseWriter, r *http.Request) {
 	parent := filepath.ToSlash(filepath.Dir(path))
 	http.Redirect(w, r, "/filemanager?path="+parent, http.StatusSeeOther)
 }
+
+func (h *FileManagerHandler) Rename(w http.ResponseWriter, r *http.Request) {
+	fm, _ := h.getFMForUser(r)
+	oldPath := r.FormValue("old_path")
+	newName := r.FormValue("new_name")
+	parent := filepath.ToSlash(filepath.Dir(oldPath))
+	newPath := filepath.Join(parent, newName)
+	_ = fm.Rename(oldPath, newPath)
+
+	http.Redirect(w, r, "/filemanager?path="+parent, http.StatusSeeOther)
+}

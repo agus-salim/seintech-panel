@@ -58,6 +58,7 @@ func NewRouter(
 	sslH := handler.NewSSLHandler(repo, sslMgr)
 	userH := handler.NewUserHandler(repo, cfg)
 	settingsH := handler.NewSettingsHandler(repo, sm)
+	servicesH := handler.NewServicesHandler(repo, sm)
 
 	// Public Routes
 	r.Get("/login", authH.ShowLogin)
@@ -84,7 +85,13 @@ func NewRouter(
 		pr.Post("/filemanager/delete", fmH.Delete)
 		pr.Post("/filemanager/create-file", fmH.CreateFile)
 		pr.Post("/filemanager/create-dir", fmH.CreateDir)
+		pr.Post("/filemanager/rename", fmH.Rename)
 		pr.Post("/filemanager/chmod", fmH.Chmod)
+
+		// Services & Package Installer
+		pr.Get("/services", servicesH.List)
+		pr.Post("/services/action", servicesH.ExecuteAction)
+		pr.Post("/services/restart", servicesH.ExecuteAction)
 
 		// PHP Engines
 		pr.Get("/php", phpH.List)
@@ -92,6 +99,7 @@ func NewRouter(
 		// Databases
 		pr.Get("/databases", dbH.List)
 		pr.Post("/databases/create", dbH.Create)
+		pr.Post("/databases/create-user", dbH.CreateUser)
 		pr.Post("/databases/delete", dbH.Delete)
 
 		// SSL
@@ -108,7 +116,6 @@ func NewRouter(
 
 			admin.Get("/settings", settingsH.View)
 			admin.Post("/settings/save", settingsH.Save)
-			admin.Post("/services/restart", settingsH.RestartService)
 		})
 	})
 

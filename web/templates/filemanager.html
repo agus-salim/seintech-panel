@@ -197,5 +197,41 @@
         </div>
     </div>
 
+    <!-- Rename Modal -->
+    <div x-show="renameModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" style="display: none;">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-md border border-slate-200">
+            <h3 class="text-sm font-bold text-slate-900 mb-3">Rename Item</h3>
+            <form action="/filemanager/rename" method="POST">
+                <input type="hidden" name="old_path" x-model="renameOld">
+                <div class="mb-4">
+                    <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">New Name</label>
+                    <input type="text" name="new_name" x-model="renameNew" required class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-mono">
+                </div>
+                <div class="flex justify-end space-x-2">
+                    <button type="button" @click="renameModal = false" class="px-3 py-1.5 text-xs text-slate-600">Cancel</button>
+                    <button type="submit" class="px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 rounded-xl">Rename</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Chmod Permissions Modal -->
+    <div x-show="chmodModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" style="display: none;">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-md border border-slate-200">
+            <h3 class="text-sm font-bold text-slate-900 mb-3">Change Permissions (chmod)</h3>
+            <form action="/filemanager/chmod" method="POST">
+                <input type="hidden" name="path" x-model="chmodTarget">
+                <div class="mb-4">
+                    <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Octal Mode (e.g. 0755, 0644)</label>
+                    <input type="text" name="mode" x-model="chmodVal" required class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-mono">
+                </div>
+                <div class="flex justify-end space-x-2">
+                    <button type="button" @click="chmodModal = false" class="px-3 py-1.5 text-xs text-slate-600">Cancel</button>
+                    <button type="submit" class="px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 rounded-xl">Apply</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
 </div>
 {{ end }}

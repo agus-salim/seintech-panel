@@ -1,5 +1,5 @@
 {{ define "content" }}
-<div class="space-y-6" x-data="{ createModal: false }">
+<div class="space-y-6" x-data="{ createModal: new URLSearchParams(window.location.search).has('new') }">
 
     <!-- Header Actions -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

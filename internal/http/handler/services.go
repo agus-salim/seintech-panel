@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/seintech/panel/internal/core/system"
@@ -91,11 +93,15 @@ func (h *ServicesHandler) ExecuteAction(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err != nil {
-		msg = fmt.Sprintf("Error performing %s on %s: %v", action, service, err)
+		if strings.Contains(err.Error(), "not found") {
+			msg = fmt.Sprintf("Service %s belum terpasang di sistem (unit service tidak ditemukan). Silakan klik tombol Install.", service)
+		} else {
+			msg = fmt.Sprintf("Error performing %s on %s: %v", action, service, err)
+		}
 		msgType = "error"
 	}
 
-	http.Redirect(w, r, fmt.Sprintf("/services?msg=%s&type=%s", msg, msgType), http.StatusSeeOther)
+	http.Redirect(w, r, fmt.Sprintf("/services?msg=%s&type=%s", url.QueryEscape(msg), msgType), http.StatusSeeOther)
 }
 
 // StartInstallJob kicks off an async install job and returns the job ID as JSON.

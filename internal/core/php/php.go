@@ -52,11 +52,9 @@ func (p *PHPManager) ListVersions(ctx context.Context) ([]PHPVersionInfo, error)
 		poolDir := fmt.Sprintf("/etc/php/%s/fpm/pool.d", v)
 		iniFile := fmt.Sprintf("/etc/php/%s/fpm/php.ini", v)
 
-		// Check if pool directory or binary exists
+		// Check if FPM daemon binary exists
 		installed := false
-		if _, err := os.Stat(poolDir); err == nil {
-			installed = true
-		} else if _, err := os.Stat(fmt.Sprintf("/usr/bin/php%s", v)); err == nil {
+		if _, err := os.Stat(fmt.Sprintf("/usr/sbin/php-fpm%s", v)); err == nil {
 			installed = true
 		}
 

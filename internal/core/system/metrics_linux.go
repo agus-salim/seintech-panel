@@ -36,6 +36,7 @@ func collectLinuxOSRelease(metrics *SystemMetrics) {
 			if strings.HasPrefix(line, "PRETTY_NAME=") {
 				val := strings.TrimPrefix(line, "PRETTY_NAME=")
 				val = strings.Trim(val, "\"")
+				val = strings.Replace(val, "GNU/Linux ", "", 1)
 				if val != "" {
 					metrics.OSRelease = val
 					return

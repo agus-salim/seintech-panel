@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -132,7 +133,12 @@ func (h *ServicesHandler) StartInstallJob(w http.ResponseWriter, r *http.Request
 	job := js.Create(service, "install")
 
 	// Run in background goroutine
-	go h.sm.RunInstallJob(job.ID, service)
+	go func() {
+		h.sm.RunInstallJob(job.ID, service)
+		if h.sslMgr != nil && (service == "phpmyadmin" || service == "phppgadmin" || strings.HasPrefix(service, "php")) {
+			_ = h.sslMgr.SyncPanelNginxReverseProxy(context.Background())
+		}
+	}()
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]string{"job_id": job.ID})
@@ -150,7 +156,12 @@ func (h *ServicesHandler) StartUninstallJob(w http.ResponseWriter, r *http.Reque
 	job := js.Create(service, "uninstall")
 
 	// Run in background goroutine
-	go h.sm.RunUninstallJob(job.ID, service)
+	go func() {
+		h.sm.RunUninstallJob(job.ID, service)
+		if h.sslMgr != nil && (service == "phpmyadmin" || service == "phppgadmin" || strings.HasPrefix(service, "php")) {
+			_ = h.sslMgr.SyncPanelNginxReverseProxy(context.Background())
+		}
+	}()
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]string{"job_id": job.ID})

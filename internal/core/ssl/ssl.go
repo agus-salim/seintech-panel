@@ -852,11 +852,14 @@ func (s *SSLManager) SyncPanelNginxReverseProxy(ctx context.Context) error {
             root /usr/share/;
             fastcgi_pass unix:%s;
             fastcgi_index index.php;
-            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
             include /etc/nginx/fastcgi_params;
+            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+            fastcgi_param HTTPS on;
         }
-        location ~* ^/phpmyadmin/(.+\.(jpg|jpeg|gif|css|png|js|ico|html|xml|txt))$ {
+        location ~* ^/phpmyadmin/(.+\.(jpg|jpeg|gif|css|png|js|ico|html|xml|txt|svg|woff|woff2|ttf|webp|map))$ {
             root /usr/share/;
+            access_log off;
+            expires 30d;
         }
     }`, phpSock)
 		}
@@ -878,11 +881,14 @@ func (s *SSLManager) SyncPanelNginxReverseProxy(ctx context.Context) error {
             root /usr/share/;
             fastcgi_pass unix:%s;
             fastcgi_index index.php;
-            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
             include /etc/nginx/fastcgi_params;
+            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+            fastcgi_param HTTPS on;
         }
-        location ~* ^/phppgadmin/(.+\.(jpg|jpeg|gif|css|png|js|ico|html|xml|txt))$ {
+        location ~* ^/phppgadmin/(.+\.(jpg|jpeg|gif|css|png|js|ico|html|xml|txt|svg|woff|woff2|ttf|webp|map))$ {
             root /usr/share/;
+            access_log off;
+            expires 30d;
         }
     }`, phpSock)
 		}

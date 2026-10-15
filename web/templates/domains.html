@@ -24,6 +24,74 @@
     dbSetupPass: '',
     showDbPass: false,
     dbSetupLoading: false,
+    openLogs(id, domain, engine) {
+        this.logId = id;
+        this.logDomain = domain;
+        this.logEngine = engine;
+        this.logType = 'access';
+        this.logModal = true;
+        this.fetchLogs();
+    },
+    switchLogType(type) {
+        this.logType = type;
+        this.fetchLogs();
+    },
+    fetchLogs() {
+        this.logLoading = true;
+        this.logContent = 'Memuat log ' + this.logType.toUpperCase() + '...';
+
+        fetch('/domains/logs?id=' + encodeURIComponent(this.logId) + '&type=' + encodeURIComponent(this.logType))
+            .then(r => r.json())
+            .then(data => {
+                this.logLoading = false;
+                this.logContent = data.logs || 'Belum ada catatan log.';
+                this.logPath = data.path || '';
+                this.$nextTick(() => {
+                    const box = document.getElementById('logContentBox');
+                    if (box) box.scrollTop = box.scrollHeight;
+                });
+            })
+            .catch(err => {
+                this.logLoading = false;
+                this.logContent = 'Gagal memuat log: ' + err.message;
+            });
+    },
+    copyLog() {
+        if (!this.logContent) return;
+        navigator.clipboard.writeText(this.logContent).then(() => {
+            if (typeof showToast === 'function') showToast('Isi log berhasil disalin ke clipboard', 'success');
+        }).catch(err => {
+            if (typeof showToast === 'function') showToast('Gagal menyalin: ' + err.message, 'error');
+        });
+    },
+    clearCurrentLog() {
+        if (!confirm('Apakah Anda yakin ingin mengosongkan berkas log ' + this.logType.toUpperCase() + ' untuk ' + this.logDomain + '?')) return;
+        const params = new URLSearchParams();
+        params.append('id', this.logId);
+        params.append('type', this.logType);
+
+        fetch('/domains/clear-logs', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: params.toString()
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                if (typeof showToast === 'function') showToast(data.message, 'success');
+                this.fetchLogs();
+            } else {
+                if (typeof showToast === 'function') showToast(data.error || 'Gagal mengosongkan log', 'error');
+            }
+        })
+        .catch(err => {
+            if (typeof showToast === 'function') showToast('Error: ' + err.message, 'error');
+        });
+    },
     openDBSetup(id, domain) {
         this.dbSetupId = id;
         this.dbSetupDomain = domain;
@@ -418,64 +486,94 @@
             </div>
         </div>
     </div>
-
     <!-- Webserver Log Viewer Modal -->
-    <div x-show="logModal" x-cloak class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
-        <div class="min-h-screen px-4 text-center flex items-center justify-center">
-            <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" @click="logModal = false"></div>
-
-            <div class="inline-block w-full max-w-3xl p-6 my-8 text-left align-middle transition-all transform bg-white shadow-2xl rounded-2xl border border-slate-200 z-10">
-                <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-                    <div class="flex items-center space-x-3">
-                        <div class="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                        </div>
-                        <div>
-                            <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
-                                <span>Webserver Logs</span>
-                                <span class="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-slate-100 text-slate-700" x-text="logEngine"></span>
-                            </h3>
-                            <p class="text-xs text-indigo-600 font-mono mt-0.5" x-text="logDomain"></p>
-                        </div>
+    <div x-show="logModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" style="display: none;">
+        <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden" @click.away="logModal = false">
+            <!-- Modal Header -->
+            <div class="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+                <div class="flex items-center space-x-3 min-w-0">
+                    <div class="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200/80 flex items-center justify-center text-amber-600 flex-shrink-0 shadow-sm">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                     </div>
-                    <button @click="logModal = false" class="text-slate-400 hover:text-slate-600">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-2">
+                            <h3 class="font-bold text-slate-900 text-sm">Webserver Logs: <span class="font-mono text-indigo-600" x-text="logDomain"></span></h3>
+                            <span class="text-[10px] font-mono uppercase bg-slate-200/80 text-slate-700 px-1.5 py-0.5 rounded font-semibold" x-text="logEngine"></span>
+                        </div>
+                        <p class="text-xs text-slate-400 font-mono truncate mt-0.5" x-text="logPath || 'Path log webserver'"></p>
+                    </div>
+                </div>
+                <button type="button" @click="logModal = false" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <!-- Controls: Log Type Tabs & Action Buttons -->
+            <div class="px-5 py-3 border-b border-slate-100 bg-white flex flex-wrap items-center justify-between gap-3">
+                <div class="flex items-center bg-slate-100 p-1 rounded-xl">
+                    <button type="button" 
+                            @click="switchLogType('access')" 
+                            :class="logType === 'access' ? 'bg-white text-indigo-600 shadow-sm font-semibold' : 'text-slate-600 hover:text-slate-900'"
+                            class="px-3 py-1 rounded-lg text-xs transition-all flex items-center gap-1.5">
+                        <span class="w-1.5 h-1.5 rounded-full" :class="logType === 'access' ? 'bg-indigo-600' : 'bg-slate-400'"></span>
+                        Access Log
+                    </button>
+                    <button type="button" 
+                            @click="switchLogType('error')" 
+                            :class="logType === 'error' ? 'bg-white text-rose-600 shadow-sm font-semibold' : 'text-slate-600 hover:text-slate-900'"
+                            class="px-3 py-1 rounded-lg text-xs transition-all flex items-center gap-1.5">
+                        <span class="w-1.5 h-1.5 rounded-full" :class="logType === 'error' ? 'bg-rose-600' : 'bg-slate-400'"></span>
+                        Error Log
                     </button>
                 </div>
 
-                <!-- Log Controls -->
-                <div class="mt-4 flex items-center justify-between flex-wrap gap-2">
-                    <div class="inline-flex p-1 bg-slate-100 rounded-xl space-x-1">
-                        <button type="button" 
-                                @click="switchLogType('access')"
-                                :class="logType === 'access' ? 'bg-white shadow text-slate-900 font-semibold' : 'text-slate-600 hover:text-slate-900'"
-                                class="px-3 py-1 text-xs rounded-lg transition-all">
-                            Access Log
-                        </button>
-                        <button type="button" 
-                                @click="switchLogType('error')"
-                                :class="logType === 'error' ? 'bg-white shadow text-slate-900 font-semibold' : 'text-slate-600 hover:text-slate-900'"
-                                class="px-3 py-1 text-xs rounded-lg transition-all">
-                            Error Log
-                        </button>
-                    </div>
-
-                    <div class="flex items-center space-x-2">
-                        <span class="text-[11px] font-mono text-slate-400 truncate max-w-xs" x-text="logPath"></span>
-                        <button type="button" @click="fetchLogs()" title="Muat Ulang" class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors">
-                            <svg class="w-4 h-4" :class="logLoading ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                        </button>
-                    </div>
+                <div class="flex items-center gap-2">
+                    <button type="button" 
+                            @click="copyLog()" 
+                            class="px-2.5 py-1 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors flex items-center gap-1.5"
+                            title="Salin isi log ke clipboard">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                        <span>Salin</span>
+                    </button>
+                    <button type="button" 
+                            @click="clearCurrentLog()" 
+                            class="px-2.5 py-1 text-xs font-medium text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors flex items-center gap-1.5"
+                            title="Kosongkan berkas log ini">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        <span>Kosongkan</span>
+                    </button>
+                    <button type="button" 
+                            @click="fetchLogs()" 
+                            :disabled="logLoading"
+                            class="px-3 py-1 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-95 disabled:opacity-50 rounded-lg transition-all shadow-sm flex items-center gap-1.5">
+                        <svg class="w-3.5 h-3.5" :class="logLoading ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                        <span>Segarkan</span>
+                    </button>
                 </div>
+            </div>
 
-                <!-- Log Content Box -->
-                <div class="mt-3 bg-slate-950 text-slate-200 rounded-xl p-4 font-mono text-xs overflow-x-auto max-h-96 leading-relaxed select-text border border-slate-800">
-                    <pre class="whitespace-pre-wrap break-all" x-text="logContent"></pre>
+            <!-- Log Terminal Body -->
+            <div class="flex-1 p-4 bg-slate-950 overflow-hidden flex flex-col relative min-h-[350px]">
+                <div class="flex-1 overflow-y-auto font-mono text-xs leading-relaxed select-text p-2 rounded-lg" id="logContentBox" style="max-height: 55vh;">
+                    <template x-if="logLoading">
+                        <div class="py-12 flex flex-col items-center justify-center text-slate-400 gap-2">
+                            <svg class="animate-spin w-6 h-6 text-indigo-400" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span>Memuat catatan log...</span>
+                        </div>
+                    </template>
+                    <pre x-show="!logLoading" class="whitespace-pre-wrap break-all text-slate-300 font-mono" x-text="logContent"></pre>
                 </div>
+            </div>
 
-                <div class="mt-4 flex justify-end">
-                    <button type="button" @click="logModal = false" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">Tutup</button>
-                </div>
+            <!-- Modal Footer -->
+            <div class="p-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                <span class="text-[11px] font-mono">Menampilkan 100 baris terbaru secara real-time</span>
+                <button type="button" @click="logModal = false" class="px-4 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors shadow-sm">
+                    Tutup
+                </button>
             </div>
         </div>
     </div>
@@ -704,42 +802,32 @@ function fixDomainPermissions(id, domain) {
     .catch(err => showToast('Error: ' + err.message, 'error'));
 }
 
-// Log viewer helpers
+// Global Log viewer fallback helpers
+function getAlpineRoot() {
+    const el = document.querySelector('[x-data]');
+    if (!el) return null;
+    return el._x_dataStack ? el._x_dataStack[0] : (window.Alpine && typeof Alpine.$data === 'function' ? Alpine.$data(el) : null);
+}
+
 function openLogs(id, domain, engine) {
-    const root = Alpine.$data(document.querySelector('[x-data]'));
-    if (!root) return;
-    root.logId = id;
-    root.logDomain = domain;
-    root.logEngine = engine;
-    root.logType = 'access';
-    root.logModal = true;
-    fetchLogs();
+    const root = getAlpineRoot();
+    if (root && typeof root.openLogs === 'function') {
+        root.openLogs(id, domain, engine);
+    }
 }
 
 function switchLogType(type) {
-    const root = Alpine.$data(document.querySelector('[x-data]'));
-    if (!root) return;
-    root.logType = type;
-    fetchLogs();
+    const root = getAlpineRoot();
+    if (root && typeof root.switchLogType === 'function') {
+        root.switchLogType(type);
+    }
 }
 
 function fetchLogs() {
-    const root = Alpine.$data(document.querySelector('[x-data]'));
-    if (!root) return;
-    root.logLoading = true;
-    root.logContent = 'Memuat log ' + root.logType.toUpperCase() + '...';
-
-    fetch('/domains/logs?id=' + encodeURIComponent(root.logId) + '&type=' + encodeURIComponent(root.logType))
-        .then(r => r.json())
-        .then(data => {
-            root.logLoading = false;
-            root.logContent = data.logs || 'Belum ada log.';
-            root.logPath = data.path || '';
-        })
-        .catch(err => {
-            root.logLoading = false;
-            root.logContent = 'Gagal memuat log: ' + err.message;
-        });
+    const root = getAlpineRoot();
+    if (root && typeof root.fetchLogs === 'function') {
+        root.fetchLogs();
+    }
 }
 </script>
 {{ end }}

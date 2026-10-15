@@ -425,21 +425,25 @@ func (h *DomainHandler) GetLogs(w http.ResponseWriter, r *http.Request) {
 		}
 	case model.WebServerApache:
 		if logType == "error" {
-			logPath = filepath.Join("/var/log/apache2", domain.DomainName+"_ssl_error.log")
+			logPath = filepath.Join("/var/log/apache2", domain.DomainName+"_error.log")
 			if _, err := os.Stat(logPath); err != nil {
-				logPath = filepath.Join("/var/log/apache2", domain.DomainName+"_error.log")
+				logPath = filepath.Join("/var/log/nginx", domain.DomainName+".error.log")
 			}
 		} else {
-			logPath = filepath.Join("/var/log/apache2", domain.DomainName+"_ssl_access.log")
+			logPath = filepath.Join("/var/log/apache2", domain.DomainName+"_access.log")
 			if _, err := os.Stat(logPath); err != nil {
-				logPath = filepath.Join("/var/log/apache2", domain.DomainName+"_access.log")
+				logPath = filepath.Join("/var/log/nginx", domain.DomainName+".access.log")
 			}
 		}
 	}
 
-	content := readLastLines(logPath, 80)
+	content := readLastLines(logPath, 100)
 	if strings.TrimSpace(content) == "" {
-		content = fmt.Sprintf("[%s Log kosong atau belum ada data tercatat di %s]", strings.ToUpper(logType), logPath)
+		if _, err := os.Stat(logPath); err != nil {
+			content = fmt.Sprintf("[Berkas log belum terbuat di %s. Log akan otomatis terisi saat ada kunjungan atau request ke domain ini]", logPath)
+		} else {
+			content = fmt.Sprintf("[%s Log kosong atau belum ada entri terbaru tercatat di %s]", strings.ToUpper(logType), logPath)
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -449,6 +453,52 @@ func (h *DomainHandler) GetLogs(w http.ResponseWriter, r *http.Request) {
 		"type":   logType,
 		"path":   logPath,
 		"logs":   content,
+	})
+}
+
+// ClearLogs clears the specified log file for a virtual host
+func (h *DomainHandler) ClearLogs(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimSpace(r.FormValue("id"))
+	logType := strings.TrimSpace(r.FormValue("type"))
+	if logType == "" {
+		logType = "access"
+	}
+
+	domain, err := h.repo.GetDomainByID(id)
+	if err != nil {
+		domain, err = h.repo.GetDomainByName(id)
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": "Domain tidak ditemukan"})
+			return
+		}
+	}
+
+	var logPath string
+	switch domain.WebServerType {
+	case model.WebServerNginx:
+		if logType == "error" {
+			logPath = filepath.Join("/var/log/nginx", domain.DomainName+".error.log")
+		} else {
+			logPath = filepath.Join("/var/log/nginx", domain.DomainName+".access.log")
+		}
+	case model.WebServerApache:
+		if logType == "error" {
+			logPath = filepath.Join("/var/log/apache2", domain.DomainName+"_error.log")
+		} else {
+			logPath = filepath.Join("/var/log/apache2", domain.DomainName+"_access.log")
+		}
+	}
+
+	if logPath != "" {
+		_ = os.WriteFile(logPath, []byte(""), 0644)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"success": true,
+		"message": fmt.Sprintf("Log %s untuk %s berhasil dikosongkan.", strings.ToUpper(logType), domain.DomainName),
 	})
 }
 

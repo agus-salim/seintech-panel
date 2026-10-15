@@ -359,27 +359,36 @@
             {{ end }}
         </div>
 
-        <!-- Buttons Toolbar -->
+        <!-- Buttons Toolbar (Compact Icons) -->
         <div class="flex items-center space-x-2">
-            <button @click="newFileModal = true" class="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors inline-flex items-center shadow-xs">
-                <svg class="w-3.5 h-3.5 mr-1 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                New File
-            </button>
-            <button @click="newDirModal = true" class="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors inline-flex items-center shadow-xs">
-                <svg class="w-3.5 h-3.5 mr-1 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"></path></svg>
-                New Folder
+            <!-- New File Icon -->
+            <button type="button" 
+                    @click="newFileModal = true" 
+                    title="Buat File Baru (New File)" 
+                    class="w-9 h-9 text-slate-600 bg-white hover:bg-slate-50 hover:text-slate-900 border border-slate-200/90 rounded-xl transition-all shadow-xs flex items-center justify-center active:scale-95">
+                <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
             </button>
 
-            <!-- Reset Izin (755/644) & Ownership Button -->
-            <button @click="resetCurrentPermissions()" class="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-colors inline-flex items-center shadow-xs" title="Reset izin folder (755) &amp; file (644) serta kepemilikan user situs">
-                <svg class="w-3.5 h-3.5 mr-1 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-                Reset Izin
+            <!-- New Folder Icon -->
+            <button type="button" 
+                    @click="newDirModal = true" 
+                    title="Buat Folder Baru (New Folder)" 
+                    class="w-9 h-9 text-slate-600 bg-white hover:bg-slate-50 hover:text-slate-900 border border-slate-200/90 rounded-xl transition-all shadow-xs flex items-center justify-center active:scale-95">
+                <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"></path></svg>
+            </button>
+
+            <!-- Reset Izin (755/644) & Ownership Icon -->
+            <button type="button" 
+                    @click="resetCurrentPermissions()" 
+                    title="Pulihkan Izin Default (Folder 755 &amp; File 644)" 
+                    class="w-9 h-9 text-cyan-600 bg-white hover:bg-cyan-50 hover:text-cyan-700 border border-slate-200/90 hover:border-cyan-200 rounded-xl transition-all shadow-xs flex items-center justify-center active:scale-95">
+                <svg class="w-4 h-4 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
             </button>
             
-            <!-- Upload File Button with AJAX & Progress Animation trigger -->
-            <label class="cursor-pointer px-3.5 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors inline-flex items-center shadow-sm">
-                <svg class="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
-                Upload File
+            <!-- Upload File Icon with AJAX & Progress Animation trigger -->
+            <label title="Upload File" 
+                   class="cursor-pointer w-9 h-9 text-white bg-indigo-600 hover:bg-indigo-700 active:scale-95 rounded-xl transition-all shadow-sm flex items-center justify-center">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
                 <input type="file" multiple class="hidden" @change="startUpload($event.target.files); $event.target.value = ''">
             </label>
         </div>

@@ -16,7 +16,7 @@
    - **Atomic Write:** Menggunakan strategi penulisan ke temporary file kemudian `os.Rename` untuk mencegah kerusakan data jika terjadi pemadaman mendadak.
 
 3. **Multi-Webserver Management:**
-   - Abstraksi interface `WebServer` yang dapat mengendalikan **Nginx**, **Apache2**, **OpenLiteSpeed**, dan **Caddy**.
+   - Abstraksi interface `WebServer` yang dapat mengendalikan **Nginx**, **Apache2**.
    - Dilengkapi template generator vhost untuk reverse proxy, static site, dan PHP-FPM socket router.
 
 4. **Multi-PHP Version Engine (7.4 s/d 8.5):**

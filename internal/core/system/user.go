@@ -222,20 +222,32 @@ func SetupVHostDirectory(baseWebRoot, siteUser, domainName string) (string, stri
 	return userHome, docRoot, nil
 }
 
-// EnsureDomainIndexHTML creates a standard welcome index.html in docRoot if missing.
+// EnsureDomainIndexHTML creates a standard welcome index.html in docRoot if missing or broken.
 func EnsureDomainIndexHTML(docRoot, domainName, siteUser, siteGroup string) {
 	if docRoot == "" {
 		return
 	}
 	_ = os.MkdirAll(docRoot, 0755)
 	indexFile := filepath.Join(docRoot, "index.html")
+
+	needWrite := false
 	if _, err := os.Stat(indexFile); os.IsNotExist(err) {
-		defaultContent := fmt.Sprintf(`<!DOCTYPE html>
+		needWrite = true
+	} else if data, err := os.ReadFile(indexFile); err == nil {
+		content := string(data)
+		// Auto-repair if existing file has the formatting bug or old wording
+		if strings.Contains(content, "%!s(MISSING)") || strings.Contains(content, "Selamat datang di situs") {
+			needWrite = true
+		}
+	}
+
+	if needWrite {
+		tpl := `<!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Selamat Datang di %s</title>
+    <title>Selamat Datang di {{DOMAIN}}</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -333,7 +345,7 @@ func EnsureDomainIndexHTML(docRoot, domainName, siteUser, siteGroup string) {
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
             </svg>
         </div>
-        <h1>Selamat datang di situs <span class="domain">%s</span></h1>
+        <h1>Selamat datang di <span class="domain">{{DOMAIN}}</span></h1>
         <p>Situs ini berhasil dibuat dan berjalan menggunakan <strong>Seintech Panel</strong>.</p>
         <span class="badge">Situs Aktif & Berjalan Normal</span>
         <div class="footer">
@@ -342,7 +354,8 @@ func EnsureDomainIndexHTML(docRoot, domainName, siteUser, siteGroup string) {
     </div>
 </body>
 </html>
-`, domainName, domainName)
+`
+		defaultContent := strings.ReplaceAll(tpl, "{{DOMAIN}}", domainName)
 
 		_ = os.WriteFile(indexFile, []byte(defaultContent), 0644)
 		_ = os.Chmod(indexFile, 0644)

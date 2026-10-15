@@ -852,6 +852,10 @@ server {
         try_files $uri =404;
     }
 
+    # Maximum upload file size for File Manager & panel actions
+    client_max_body_size 2048M;
+    client_body_buffer_size 128M;
+
     # Reverse proxy to Seintech Panel
     location / {
         proxy_pass https://127.0.0.1:%d;
@@ -864,8 +868,11 @@ server {
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
-        proxy_read_timeout 300s;
+        proxy_read_timeout 600s;
         proxy_connect_timeout 60s;
+        proxy_send_timeout 600s;
+        proxy_request_buffering off;
+        client_max_body_size 2048M;
     }
 }
 `, backendPort, h, certPath, keyPath, s.acmeRoot, backendPort)
@@ -884,6 +891,7 @@ server {
     listen 80;
     listen [::]:80;
     server_name %s;
+    client_max_body_size 2048M;
 
     location /.well-known/acme-challenge/ {
         root %s;

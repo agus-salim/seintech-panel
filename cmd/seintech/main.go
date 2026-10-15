@@ -90,6 +90,7 @@ func main() {
 		repoCtx, repoCancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer repoCancel()
 		sm.EnsureSystemRepositories(repoCtx)
+		sm.EnsureNginxConfiguration(repoCtx)
 		sm.EnsureApacheConfiguration(repoCtx)
 		sm.CleanupDeprecatedRepositories(repoCtx)
 
@@ -131,7 +132,8 @@ func main() {
 		_ = sslMgr.GenerateSelfSigned("localhost", panelCert, panelKey)
 	}
 
-	// Ensure Nginx reverse proxy is configured for panel domains (port 443 / 80)
+	// Ensure Nginx reverse proxy and global tuning are configured for panel domains (port 443 / 80)
+	sm.EnsureNginxConfiguration(ctx)
 	if err := sslMgr.SyncPanelNginxReverseProxy(ctx); err != nil {
 		log.Printf("[Seintech] Notice: Nginx reverse proxy sync: %v", err)
 	}
@@ -140,11 +142,12 @@ func main() {
 
 	// Prepare TLS Server
 	server := &http.Server{
-		Addr:         listenTarget,
-		Handler:      router,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 60 * time.Second,
-		IdleTimeout:  120 * time.Second,
+		Addr:              listenTarget,
+		Handler:           router,
+		ReadHeaderTimeout: 30 * time.Second,
+		ReadTimeout:       30 * time.Minute,
+		WriteTimeout:      30 * time.Minute,
+		IdleTimeout:       120 * time.Second,
 		TLSConfig: &tls.Config{
 			MinVersion: tls.VersionTLS12,
 			GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {

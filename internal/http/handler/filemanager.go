@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -174,15 +175,16 @@ func (h *FileManagerHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Support up to 1GB upload
-	if err := r.ParseMultipartForm(1024 << 20); err != nil {
+	// Support up to 2GB upload
+	if err := r.ParseMultipartForm(2048 << 20); err != nil {
+		log.Printf("[FileManager] Upload ParseMultipartForm error: %v", err)
 		if isAjax {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
 			_ = json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": "Gagal membaca form data: " + err.Error()})
 			return
 		}
-		http.Error(w, "Failed reading uploaded file", http.StatusBadRequest)
+		http.Error(w, "Failed reading uploaded file: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -215,22 +217,31 @@ func (h *FileManagerHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	for _, header := range files {
 		file, err := header.Open()
 		if err != nil {
+			log.Printf("[FileManager] Open header error for %s: %v", header.Filename, err)
 			continue
 		}
-		target := filepath.Join(destPath, header.Filename)
+
+		cleanFileName := filepath.Base(filepath.ToSlash(header.Filename))
+		if cleanFileName == "." || cleanFileName == "/" || cleanFileName == "" {
+			file.Close()
+			continue
+		}
+
+		target := filepath.Join(destPath, cleanFileName)
 		err = fm.WriteStream(target, file)
 		file.Close()
 		if err != nil {
+			log.Printf("[FileManager] WriteStream error for %s (target: %s): %v", header.Filename, target, err)
 			if isAjax {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusInternalServerError)
-				_ = json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": fmt.Sprintf("Gagal menulis file %s: %v", header.Filename, err)})
+				_ = json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": fmt.Sprintf("Gagal menulis file %s: %v", cleanFileName, err)})
 				return
 			}
-			http.Error(w, fmt.Sprintf("Failed writing file %s: %v", header.Filename, err), http.StatusInternalServerError)
+			http.Error(w, fmt.Sprintf("Failed writing file %s: %v", cleanFileName, err), http.StatusInternalServerError)
 			return
 		}
-		uploaded = append(uploaded, header.Filename)
+		uploaded = append(uploaded, cleanFileName)
 	}
 
 	if isAjax {

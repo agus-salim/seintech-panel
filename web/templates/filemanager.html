@@ -244,7 +244,15 @@
                         const res = JSON.parse(xhr.responseText);
                         this.uploadErrorMsg = res.error || 'Gagal mengupload file.';
                     } catch (_) {
-                        this.uploadErrorMsg = xhr.statusText || 'Gagal mengupload file.';
+                        if (xhr.status === 413) {
+                            this.uploadErrorMsg = 'Ukuran file melebihi batas upload web server (413 Payload Too Large).';
+                        } else if (xhr.status === 504 || xhr.status === 502) {
+                            this.uploadErrorMsg = 'Gateway Timeout / Bad Gateway (HTTP ' + xhr.status + ').';
+                        } else if (xhr.status === 403) {
+                            this.uploadErrorMsg = 'Akses ditolak (403 Forbidden). Izin direktori tidak mencukupi.';
+                        } else {
+                            this.uploadErrorMsg = xhr.statusText ? (xhr.status + ': ' + xhr.statusText) : ('Gagal mengupload file (HTTP ' + xhr.status + ')');
+                        }
                     }
                 }
             }

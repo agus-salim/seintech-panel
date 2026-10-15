@@ -690,25 +690,17 @@ func (sm *ServiceManager) AutoConfigurePhpPgAdmin(ctx context.Context) {
 			// Ensure host is set to localhost
 			str = strings.ReplaceAll(str, "$conf['servers'][0]['host'] = '';", "$conf['servers'][0]['host'] = 'localhost';")
 
-			// Append PHP tuning strictly inside PHP tags
+			// Append PHP error suppression cleanly without modifying $conf['servers'] array keys
 			tuning := "\n/* Seintech PHP8 Tuning */\n" +
 				"@ini_set('display_errors', '0');\n" +
-				"@error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT & ~E_NOTICE & ~E_WARNING);\n" +
-				"if (isset($conf['servers'][0])) {\n" +
-				"    $conf['servers'][0]['host'] = 'localhost';\n" +
-				"    $conf['servers'][0]['port'] = 5432;\n" +
-				"    $conf['servers'][0]['sslmode'] = 'allow';\n" +
-				"    $conf['servers']['0'] = &$conf['servers'][0];\n" +
-				"    $conf['servers']['localhost:5432:allow'] = &$conf['servers'][0];\n" +
-				"    $conf['servers']['localhost'] = &$conf['servers'][0];\n" +
-				"}\n"
+				"@error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT & ~E_NOTICE & ~E_WARNING);\n"
 
 			str = strings.TrimSpace(str) + "\n" + tuning
 			_ = os.WriteFile(confFile, []byte(str), 0644)
 		}
 	}
 
-	// 4. Install SSO bridge script in /usr/share/phppgadmin/sso.php
+	// 4. Install native SSO bridge script in /usr/share/phppgadmin/sso.php
 	ssoScript := `/usr/share/phppgadmin/sso.php`
 	ssoContent := `<?php
 // Seintech Panel SSO Bridge for phpPgAdmin
@@ -727,39 +719,51 @@ if (!$data || time() > $data['expires']) {
     die("Token expired");
 }
 
-// Clear previous phpPgAdmin cookie to allow immediate fresh login
-foreach ($_COOKIE as $name => $val) {
-    if (stripos($name, 'PPA_') !== false || stripos($name, 'phppgadmin') !== false) {
-        setcookie($name, '', time() - 3600, '/');
-        setcookie($name, '', time() - 3600, '/phppgadmin/');
-    }
+chdir('/usr/share/phppgadmin');
+
+// Clear previous session cookies if any
+if (isset($_COOKIE['PPA_ID'])) {
+    session_name('PPA_ID');
+    @session_start();
+    $_SESSION = array();
+    @session_destroy();
 }
 
-$user = $data['user'];
-$pass = $data['pass'];
-$db = $data['db'];
-?>
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <title>Auto-Login phpPgAdmin</title>
-</head>
-<body onload="document.forms[0].submit()">
-    <form method="post" action="/phppgadmin/redirect.php">
-        <input type="hidden" name="subject" value="server">
-        <input type="hidden" name="server" value="0">
-        <input type="hidden" name="database" value="<?php echo htmlspecialchars($db, ENT_QUOTES); ?>">
-        <input type="hidden" name="loginUsername" value="<?php echo htmlspecialchars($user, ENT_QUOTES); ?>">
-        <input type="hidden" name="loginPassword" value="<?php echo htmlspecialchars($pass, ENT_QUOTES); ?>">
-        <input type="hidden" name="loginLanguage" value="english">
-    </form>
-    <div style="font-family: -apple-system, sans-serif; text-align: center; margin-top: 80px;">
-        <h3 style="color: #1e293b;">Membuka phpPgAdmin untuk database <?php echo htmlspecialchars($db); ?>...</h3>
-        <p style="color: #64748b;">Mengalihkan secara otomatis...</p>
-    </div>
-</body>
-</html>
+$server_id = 0;
+// Set POST and REQUEST credentials before loading phpPgAdmin core library
+$_POST['loginServer'] = $server_id;
+$_POST['loginUsername'] = $data['user'];
+$_POST['loginPassword_' . md5($server_id)] = $data['pass'];
+$_POST['loginShared'] = '1';
+$_REQUEST['server'] = $server_id;
+if (!empty($data['db'])) {
+    $_REQUEST['database'] = $data['db'];
+}
+
+$_no_db_connection = true;
+require_once('./libraries/lib.inc.php');
+
+// Explicitly register authenticated server credentials in session via Misc helper
+if (isset($misc)) {
+    $_server_info = $misc->getServerInfo($server_id);
+    if (!empty($_server_info)) {
+        $_server_info['username'] = $data['user'];
+        $_server_info['password'] = $data['pass'];
+        $misc->setServerInfo(null, $_server_info, $server_id);
+    }
+}
+$_SESSION['sharedUsername'] = $data['user'];
+$_SESSION['sharedPassword'] = $data['pass'];
+
+session_write_close();
+
+$db = urlencode($data['db'] ?? '');
+if ($db !== '') {
+    header("Location: /phppgadmin/database.php?server=" . $server_id . "&database=" . $db);
+} else {
+    header("Location: /phppgadmin/redirect.php?subject=server&server=" . $server_id);
+}
+exit;
 `
 	_ = os.WriteFile(ssoScript, []byte(ssoContent), 0644)
 }

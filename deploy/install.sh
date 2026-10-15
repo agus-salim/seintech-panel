@@ -14,7 +14,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 # 1. Create System Directories
-echo "[1/5] Creating application directories..."
+echo "[1/6] Creating application directories..."
 mkdir -p /var/lib/seintech/data
 mkdir -p /var/lib/seintech/ssl/panel
 mkdir -p /var/lib/seintech/acme-challenge
@@ -22,8 +22,72 @@ mkdir -p /var/www
 chmod 750 /var/lib/seintech/data
 chmod 700 /var/lib/seintech/ssl
 
-# 2. Install Binary (Stop existing service first if running to avoid Text file busy error)
-echo "[2/5] Installing binary to /usr/local/bin/seintech..."
+# 2. Configure APT Repositories for PHP & LiteSpeed (Debian/Ubuntu)
+if command -v apt-get >/dev/null 2>&1; then
+    echo "[2/6] Configuring APT repositories for PHP & LiteSpeed..."
+    export DEBIAN_FRONTEND=noninteractive
+
+    OS_ID="debian"
+    CODENAME=""
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        OS_ID="${ID:-debian}"
+        CODENAME="${VERSION_CODENAME:-}"
+    fi
+
+    if [ -z "$CODENAME" ] && command -v lsb_release >/dev/null 2>&1; then
+        CODENAME=$(lsb_release -sc)
+    fi
+
+    if [ -z "$CODENAME" ] && [ -n "$VERSION_ID" ]; then
+        case "$VERSION_ID" in
+            13*) CODENAME="trixie" ;;
+            12*) CODENAME="bookworm" ;;
+            11*) CODENAME="bullseye" ;;
+            24.04*) CODENAME="noble" ;;
+            22.04*) CODENAME="jammy" ;;
+            20.04*) CODENAME="focal" ;;
+        esac
+    fi
+
+    if [ -z "$CODENAME" ]; then
+        if [ "$OS_ID" = "ubuntu" ]; then
+            CODENAME="noble"
+        else
+            CODENAME="trixie"
+        fi
+    fi
+
+    echo "  -> Detected OS: $OS_ID ($CODENAME)"
+    apt-get update -y -qq
+    apt-get install -y -qq ca-certificates curl gnupg lsb-release wget software-properties-common 2>/dev/null || true
+
+    mkdir -p /usr/share/keyrings /etc/apt/trusted.gpg.d /etc/apt/sources.list.d
+
+    # Setup PHP Repository (Sury for Debian, PPA for Ubuntu)
+    if [ "$OS_ID" = "ubuntu" ]; then
+        if command -v add-apt-repository >/dev/null 2>&1; then
+            add-apt-repository -y ppa:ondrej/php
+        else
+            curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x14AA40EC0831756756D7F66C4F4EA0AAE5267A6C" | gpg --dearmor -o /etc/apt/trusted.gpg.d/ondrej-php.gpg 2>/dev/null || true
+            echo "deb [signed-by=/etc/apt/trusted.gpg.d/ondrej-php.gpg] https://ppa.launchpadcontent.net/ondrej/php/ubuntu $CODENAME main" > /etc/apt/sources.list.d/php.list
+        fi
+    else
+        curl -fsSL https://packages.sury.org/php/apt.gpg -o /usr/share/keyrings/deb.sury.org-php.gpg 2>/dev/null || true
+        cp /usr/share/keyrings/deb.sury.org-php.gpg /etc/apt/trusted.gpg.d/php.gpg 2>/dev/null || true
+        echo "deb [signed-by=/usr/share/keyrings/deb.sury.org-php.gpg] https://packages.sury.org/php/ $CODENAME main" > /etc/apt/sources.list.d/php.list
+    fi
+
+    # Setup LiteSpeed Repository
+    curl -fsSL -o /etc/apt/trusted.gpg.d/lst_debian_repo.gpg http://rpms.litespeedtech.com/debian/lst_debian_repo.gpg 2>/dev/null || wget -qO /etc/apt/trusted.gpg.d/lst_debian_repo.gpg http://rpms.litespeedtech.com/debian/lst_debian_repo.gpg || true
+    curl -fsSL -o /etc/apt/trusted.gpg.d/lst_repo.gpg http://rpms.litespeedtech.com/debian/lst_repo.gpg 2>/dev/null || wget -qO /etc/apt/trusted.gpg.d/lst_repo.gpg http://rpms.litespeedtech.com/debian/lst_repo.gpg || true
+    echo "deb http://rpms.litespeedtech.com/debian/ $CODENAME main" > /etc/apt/sources.list.d/lst_debian_repo.list
+
+    apt-get update -y -qq || true
+fi
+
+# 3. Install Binary (Stop existing service first if running to avoid Text file busy error)
+echo "[3/6] Installing binary to /usr/local/bin/seintech..."
 systemctl stop seintech.service 2>/dev/null || true
 
 if [ -f "./bin/seintech" ]; then
@@ -36,18 +100,18 @@ else
     chmod 755 /usr/local/bin/seintech
 fi
 
-# 3. Setup Systemd Service
-echo "[3/5] Setting up systemd service unit..."
+# 4. Setup Systemd Service
+echo "[4/6] Setting up systemd service unit..."
 cp ./deploy/systemd/seintech.service /etc/systemd/system/seintech.service
 systemctl daemon-reload
 
-# 4. Enable and Start Service
-echo "[4/5] Enabling and starting Seintech Panel..."
+# 5. Enable and Start Service
+echo "[5/6] Enabling and starting Seintech Panel..."
 systemctl enable seintech.service
 systemctl restart seintech.service
 
-# 5. Output Access Information
-echo "[5/5] Checking service status..."
+# 6. Output Access Information
+echo "[6/6] Checking service status..."
 sleep 2
 
 HOST_IP=$(hostname -I | awk '{print $1}')

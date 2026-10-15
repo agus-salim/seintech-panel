@@ -85,6 +85,13 @@ func main() {
 	pgMgr := database.NewPostgresManager(sm)
 	authMgr := auth.NewAuthManager(repo)
 
+	// Ensure system APT repositories (PHP Sury/PPA & LiteSpeed) in background on startup
+	go func() {
+		repoCtx, repoCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer repoCancel()
+		sm.EnsureSystemRepositories(repoCtx)
+	}()
+
 	// Context for graceful shutdown & background workers
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

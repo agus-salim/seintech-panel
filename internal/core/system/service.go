@@ -423,36 +423,69 @@ func (sm *ServiceManager) UninstallService(ctx context.Context, serviceName stri
 	return nil
 }
 
+// EnsureSystemRepositories automatically configures official APT repositories for PHP (Sury/PPA) and LiteSpeed.
+func (sm *ServiceManager) EnsureSystemRepositories(ctx context.Context) {
+	sm.ensureSuryPHPRepo(ctx)
+	sm.ensureOpenLiteSpeedRepo(ctx)
+}
+
 func (sm *ServiceManager) ensureSuryPHPRepo(ctx context.Context) {
-	// If the keyring and list already exist and are non-empty, check if already configured
-	if stat, err := os.Stat("/etc/apt/sources.list.d/php.list"); err == nil && stat.Size() > 0 {
-		if _, err := os.Stat("/usr/share/keyrings/deb.sury.org-php.gpg"); err == nil {
-			return
-		}
+	if _, err := exec.LookPath("apt-get"); err != nil {
+		return
 	}
 
-	// Official Sury debian setup for Debian 12 (Bookworm) and Debian 13 (Trixie)
+	// Auto-detect Debian vs Ubuntu and distribution codename (trixie, bookworm, bullseye, noble, jammy, focal)
 	script := `
 		export DEBIAN_FRONTEND=noninteractive
-		apt-get update -y
-		apt-get install -y ca-certificates curl gnupg lsb-release
-		curl -fsSL -o /tmp/debsuryorg-archive-keyring.deb https://packages.sury.org/debsuryorg-archive-keyring.deb
-		dpkg -i /tmp/debsuryorg-archive-keyring.deb || true
-		rm -f /tmp/debsuryorg-archive-keyring.deb
-
+		OS_ID="debian"
 		CODENAME=""
+
 		if [ -f /etc/os-release ]; then
 			. /etc/os-release
-			CODENAME="$VERSION_CODENAME"
+			OS_ID="${ID:-debian}"
+			CODENAME="${VERSION_CODENAME:-}"
 		fi
+
 		if [ -z "$CODENAME" ] && command -v lsb_release >/dev/null 2>&1; then
 			CODENAME=$(lsb_release -sc)
 		fi
-		if [ -z "$CODENAME" ]; then
-			CODENAME="trixie"
+
+		if [ -z "$CODENAME" ] && [ -n "$VERSION_ID" ]; then
+			case "$VERSION_ID" in
+				13*) CODENAME="trixie" ;;
+				12*) CODENAME="bookworm" ;;
+				11*) CODENAME="bullseye" ;;
+				24.04*) CODENAME="noble" ;;
+				22.04*) CODENAME="jammy" ;;
+				20.04*) CODENAME="focal" ;;
+			esac
 		fi
 
-		echo "deb [signed-by=/usr/share/keyrings/deb.sury.org-php.gpg] https://packages.sury.org/php/ $CODENAME main" > /etc/apt/sources.list.d/php.list
+		if [ -z "$CODENAME" ]; then
+			if [ "$OS_ID" = "ubuntu" ]; then
+				CODENAME="noble"
+			else
+				CODENAME="trixie"
+			fi
+		fi
+
+		apt-get update -y
+		apt-get install -y ca-certificates curl gnupg lsb-release wget software-properties-common || true
+
+		mkdir -p /usr/share/keyrings /etc/apt/trusted.gpg.d /etc/apt/sources.list.d
+
+		if [ "$OS_ID" = "ubuntu" ]; then
+			if command -v add-apt-repository >/dev/null 2>&1; then
+				add-apt-repository -y ppa:ondrej/php
+			else
+				curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x14AA40EC0831756756D7F66C4F4EA0AAE5267A6C" | gpg --dearmor -o /etc/apt/trusted.gpg.d/ondrej-php.gpg 2>/dev/null || true
+				echo "deb [signed-by=/etc/apt/trusted.gpg.d/ondrej-php.gpg] https://ppa.launchpadcontent.net/ondrej/php/ubuntu $CODENAME main" > /etc/apt/sources.list.d/php.list
+			fi
+		else
+			curl -fsSL https://packages.sury.org/php/apt.gpg -o /usr/share/keyrings/deb.sury.org-php.gpg 2>/dev/null || true
+			cp /usr/share/keyrings/deb.sury.org-php.gpg /etc/apt/trusted.gpg.d/php.gpg 2>/dev/null || true
+			echo "deb [signed-by=/usr/share/keyrings/deb.sury.org-php.gpg] https://packages.sury.org/php/ $CODENAME main" > /etc/apt/sources.list.d/php.list
+		fi
 		apt-get update -y
 	`
 
@@ -536,19 +569,46 @@ import /etc/caddy/conf.d/*.caddy
 }
 
 func (sm *ServiceManager) ensureOpenLiteSpeedRepo(ctx context.Context) {
-	// If lsws is already installed or repo file exists, skip
-	if _, err := os.Stat("/usr/local/lsws/bin/lswsctrl"); err == nil {
-		return
-	}
-	if _, err := os.Stat("/etc/apt/sources.list.d/lst_debian_repo.list"); err == nil {
+	if _, err := exec.LookPath("apt-get"); err != nil {
 		return
 	}
 
 	script := `
 		export DEBIAN_FRONTEND=noninteractive
+		CODENAME=""
+
+		if [ -f /etc/os-release ]; then
+			. /etc/os-release
+			CODENAME="${VERSION_CODENAME:-}"
+		fi
+
+		if [ -z "$CODENAME" ] && command -v lsb_release >/dev/null 2>&1; then
+			CODENAME=$(lsb_release -sc)
+		fi
+
+		if [ -z "$CODENAME" ] && [ -n "$VERSION_ID" ]; then
+			case "$VERSION_ID" in
+				13*) CODENAME="trixie" ;;
+				12*) CODENAME="bookworm" ;;
+				11*) CODENAME="bullseye" ;;
+				24.04*) CODENAME="noble" ;;
+				22.04*) CODENAME="jammy" ;;
+				20.04*) CODENAME="focal" ;;
+			esac
+		fi
+
+		if [ -z "$CODENAME" ]; then
+			CODENAME="trixie"
+		fi
+
 		apt-get update -y
-		apt-get install -y wget curl ca-certificates gnupg
-		wget -qO - https://repo.litespeed.sh | bash || true
+		apt-get install -y wget curl ca-certificates gnupg || true
+
+		mkdir -p /etc/apt/trusted.gpg.d /etc/apt/sources.list.d
+		curl -fsSL -o /etc/apt/trusted.gpg.d/lst_debian_repo.gpg http://rpms.litespeedtech.com/debian/lst_debian_repo.gpg || wget -qO /etc/apt/trusted.gpg.d/lst_debian_repo.gpg http://rpms.litespeedtech.com/debian/lst_debian_repo.gpg || true
+		curl -fsSL -o /etc/apt/trusted.gpg.d/lst_repo.gpg http://rpms.litespeedtech.com/debian/lst_repo.gpg || wget -qO /etc/apt/trusted.gpg.d/lst_repo.gpg http://rpms.litespeedtech.com/debian/lst_repo.gpg || true
+		echo "deb http://rpms.litespeedtech.com/debian/ $CODENAME main" > /etc/apt/sources.list.d/lst_debian_repo.list
+
 		apt-get update -y
 	`
 	cmd := exec.CommandContext(ctx, "bash", "-c", script)

@@ -213,63 +213,8 @@ func SetupVHostDirectory(baseWebRoot, siteUser, domainName string) (string, stri
 		_ = os.Chmod(dir, 0755)
 	}
 
-	// Create default index.php if empty
-	indexFile := filepath.Join(docRoot, "index.php")
-	if _, err := os.Stat(indexFile); os.IsNotExist(err) {
-		defaultContent := fmt.Sprintf(`<?php
-$rewriteActive = isset($_GET['rewrite']) && $_GET['rewrite'] === 'active';
-?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome to %s</title>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 1rem; }
-        .card { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 2.5rem; max-width: 520px; text-align: center; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5); }
-        h1 { color: #38bdf8; margin-top: 0; font-size: 1.75rem; }
-        p { color: #94a3b8; font-size: 0.95rem; line-height: 1.6; }
-        .badge { display: inline-block; background: #0284c7; color: white; padding: 0.35rem 0.85rem; border-radius: 9999px; font-size: 0.8rem; font-weight: 600; margin-top: 1rem; }
-        .status-box { margin-top: 1.25rem; padding: 0.75rem 1rem; border-radius: 12px; font-size: 0.85rem; text-align: left; }
-        .status-success { background: rgba(16, 185, 129, 0.15); border: 1px solid #10b981; color: #6ee7b7; }
-        .status-info { background: rgba(56, 189, 248, 0.1); border: 1px solid #0284c7; color: #bae6fd; }
-        code { background: #0f172a; padding: 0.2rem 0.4rem; border-radius: 6px; font-family: monospace; font-size: 0.85rem; }
-    </style>
-</head>
-<body>
-    <div class="card">
-        <h1>Welcome to %s</h1>
-        <p>Virtual host ini aktif dan berjalan lancar menggunakan user <strong>%s</strong>.</p>
-        
-        <?php if ($rewriteActive): ?>
-        <div class="status-box status-success">
-            <strong>✅ .htaccess Berfungsi Sempurna!</strong><br>
-            URL rewrite <code>/test-rewrite</code> berhasil diproses oleh Apache <code>mod_rewrite</code>.
-        </div>
-        <?php else: ?>
-        <div class="status-box status-info">
-            <strong>💡 Uji Coba .htaccess:</strong><br>
-            Buka <a href="/test-rewrite" style="color:#38bdf8;text-decoration:underline;">/test-rewrite</a> untuk menguji kerja aturan rewrite pada file <code>.htaccess</code>.
-        </div>
-        <?php endif; ?>
-
-        <div style="margin-top: 1.5rem;">
-            <span class="badge">PHP <?php echo PHP_VERSION; ?> &bull; Powered by Seintech Panel</span>
-        </div>
-    </div>
-</body>
-</html>
-`, domainName, domainName, siteUser)
-
-		if err := os.WriteFile(indexFile, []byte(defaultContent), 0644); err != nil {
-			return "", "", fmt.Errorf("failed to write default index.php: %w", err)
-		}
-		_ = os.Chmod(indexFile, 0644)
-	}
-
-	// Create default .htaccess if not present
-	EnsureDomainHtaccess(docRoot, siteUser, siteUser)
+	// Create default index.html if not present
+	EnsureDomainIndexHTML(docRoot, domainName, siteUser, siteUser)
 
 	// Recursively apply 0755 for dirs and 0644 for files, with ownership
 	_ = SetVHostPermissions(userHome, siteUser, siteUser)
@@ -277,40 +222,130 @@ $rewriteActive = isset($_GET['rewrite']) && $_GET['rewrite'] === 'active';
 	return userHome, docRoot, nil
 }
 
-// EnsureDomainHtaccess creates a standard sample .htaccess in docRoot if missing.
-func EnsureDomainHtaccess(docRoot, siteUser, siteGroup string) {
+// EnsureDomainIndexHTML creates a standard welcome index.html in docRoot if missing.
+func EnsureDomainIndexHTML(docRoot, domainName, siteUser, siteGroup string) {
 	if docRoot == "" {
 		return
 	}
 	_ = os.MkdirAll(docRoot, 0755)
-	htaccessFile := filepath.Join(docRoot, ".htaccess")
-	if _, err := os.Stat(htaccessFile); os.IsNotExist(err) {
-		htaccessContent := `# ==============================================================================
-# Seintech Panel - Apache VirtualHost Configuration (.htaccess)
-# ==============================================================================
-<IfModule mod_rewrite.c>
-    RewriteEngine On
-    RewriteBase /
+	indexFile := filepath.Join(docRoot, "index.html")
+	if _, err := os.Stat(indexFile); os.IsNotExist(err) {
+		defaultContent := fmt.Sprintf(`<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Selamat Datang di %s</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: #0f172a;
+            color: #f8fafc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 1.5rem;
+        }
+        .card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 20px;
+            padding: 3rem 2.5rem;
+            max-width: 560px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            position: relative;
+            overflow: hidden;
+        }
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #6366f1, #38bdf8, #10b981);
+        }
+        .icon-box {
+            width: 60px;
+            height: 60px;
+            background: rgba(99, 102, 241, 0.15);
+            color: #818cf8;
+            border-radius: 18px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+        }
+        h1 {
+            color: #ffffff;
+            font-size: 1.75rem;
+            font-weight: 700;
+            line-height: 1.3;
+            margin-bottom: 1rem;
+        }
+        .domain {
+            color: #38bdf8;
+            word-break: break-all;
+        }
+        p {
+            color: #94a3b8;
+            font-size: 1rem;
+            line-height: 1.6;
+            margin-bottom: 1.5rem;
+        }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            background: rgba(16, 185, 129, 0.15);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            padding: 0.4rem 1.1rem;
+            border-radius: 9999px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .badge::before {
+            content: '';
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #10b981;
+            margin-right: 0.5rem;
+        }
+        .footer {
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid #334155;
+            font-size: 0.85rem;
+            color: #64748b;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="icon-box">
+            <svg width="30" height="30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+        </div>
+        <h1>Selamat datang di situs <span class="domain">%s</span></h1>
+        <p>Situs ini berhasil dibuat dan berjalan menggunakan <strong>Seintech Panel</strong>.</p>
+        <span class="badge">Situs Aktif & Berjalan Normal</span>
+        <div class="footer">
+            Dikelola dengan Seintech Systems Panel
+        </div>
+    </div>
+</body>
+</html>
+`, domainName, domainName)
 
-    # Uji coba rewrite: buka /test-rewrite untuk memastikan .htaccess aktif
-    RewriteRule ^test-rewrite$ index.php?rewrite=active [L,QSA]
-
-    # Standard Front Controller (WordPress, Laravel, CodeIgniter, etc.)
-    RewriteCond %{REQUEST_FILENAME} !-f
-    RewriteCond %{REQUEST_FILENAME} !-d
-    RewriteRule . /index.php [L]
-</IfModule>
-
-# Security Headers & Directory Options
-<IfModule mod_headers.c>
-    Header set X-Content-Type-Options "nosniff"
-    Header set X-Frame-Options "SAMEORIGIN"
-</IfModule>
-
-Options -Indexes +FollowSymLinks
-`
-		_ = os.WriteFile(htaccessFile, []byte(htaccessContent), 0644)
-		_ = os.Chmod(htaccessFile, 0644)
+		_ = os.WriteFile(indexFile, []byte(defaultContent), 0644)
+		_ = os.Chmod(indexFile, 0644)
 		if siteUser != "" {
 			_ = SetVHostPermissions(docRoot, siteUser, siteGroup)
 		}

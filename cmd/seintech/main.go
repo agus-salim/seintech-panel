@@ -94,11 +94,11 @@ func main() {
 		sm.EnsureApacheConfiguration(repoCtx)
 		sm.CleanupDeprecatedRepositories(repoCtx)
 
-		// Ensure .htaccess exists for all active domains
+		// Ensure default index.html exists for all active domains if empty
 		if domains, err := repo.GetDomains(); err == nil {
 			for _, d := range domains {
 				if d.DocumentRoot != "" {
-					system.EnsureDomainHtaccess(d.DocumentRoot, d.SiteUser, d.SiteGroup)
+					system.EnsureDomainIndexHTML(d.DocumentRoot, d.DomainName, d.SiteUser, d.SiteGroup)
 				}
 			}
 		}

@@ -148,6 +148,7 @@
                         <th class="pb-3 font-medium">Domain Name</th>
                         <th class="pb-3 font-medium">Web Engine</th>
                         <th class="pb-3 font-medium">PHP Version</th>
+                        <th class="pb-3 font-medium">Mode</th>
                         <th class="pb-3 font-medium">SSL Status</th>
                         <th class="pb-3 font-medium">Document Root</th>
                         <th class="pb-3 font-medium text-right">Actions</th>
@@ -164,13 +165,34 @@
                         </td>
                         <td class="py-3">
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium bg-slate-100 text-slate-700 uppercase">
-                                {{ .WebServerType }}
+                                {{ if eq .WebServerType "apache2" }}APACHE 2.4{{ else }}NGINX{{ end }}
                             </span>
                         </td>
                         <td class="py-3">
+                            {{ if or .IsReverseProxy .IsStatic }}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono text-slate-400 bg-slate-50 border border-slate-100">
+                                N/A
+                            </span>
+                            {{ else }}
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium bg-indigo-50 text-indigo-700">
                                 PHP {{ .PHPVersion }}
                             </span>
+                            {{ end }}
+                        </td>
+                        <td class="py-3">
+                            {{ if .IsReverseProxy }}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-700">
+                                Reverse Proxy
+                            </span>
+                            {{ else if .IsStatic }}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700">
+                                Static Site
+                            </span>
+                            {{ else }}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700">
+                                PHP-FPM
+                            </span>
+                            {{ end }}
                         </td>
                         <td class="py-3">
                             {{ if .SSLEnabled }}
@@ -194,7 +216,7 @@
                     </tr>
                     {{ else }}
                     <tr>
-                        <td colspan="6" class="py-8 text-center text-slate-400">
+                        <td colspan="7" class="py-8 text-center text-slate-400">
                             No virtual hosts configured yet. Click "Add Virtual Host" above to create one.
                         </td>
                     </tr>

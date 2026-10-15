@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"text/template"
 
@@ -457,6 +458,132 @@ func (p *PHPManager) DeleteIonCube(ctx context.Context, version string) error {
 	}
 
 	// Restart PHP-FPM service
+	_ = p.sm.Restart(ctx, p.GetServiceName(version))
+	return nil
+}
+
+// CommonDirectives to track in Quick Settings
+var CommonDirectives = []string{
+	"upload_max_filesize",
+	"post_max_size",
+	"memory_limit",
+	"max_execution_time",
+	"max_input_time",
+	"max_input_vars",
+	"display_errors",
+	"date.timezone",
+	"short_open_tag",
+	"default_socket_timeout",
+	"allow_url_fopen",
+	"opcache.enable",
+}
+
+func (p *PHPManager) GetIniPath(version string) string {
+	fpmPath := fmt.Sprintf("/etc/php/%s/fpm/php.ini", version)
+	if _, err := os.Stat(fpmPath); err == nil {
+		return fpmPath
+	}
+	cliPath := fmt.Sprintf("/etc/php/%s/cli/php.ini", version)
+	if _, err := os.Stat(cliPath); err == nil {
+		return cliPath
+	}
+	return fpmPath
+}
+
+func (p *PHPManager) GetIni(ctx context.Context, version string) (map[string]any, error) {
+	iniPath := p.GetIniPath(version)
+	data, err := os.ReadFile(iniPath)
+	if err != nil {
+		return nil, fmt.Errorf("file konfigurasi %s tidak ditemukan: %w", iniPath, err)
+	}
+
+	content := string(data)
+	directives := make(map[string]string)
+
+	// Initialize default keys
+	for _, d := range CommonDirectives {
+		directives[d] = ""
+	}
+
+	// Regex to match active directives: ^\s*([a-zA-Z0-9_\.]+)\s*=\s*(.*?)\s*(;.*)?$
+	re := regexp.MustCompile(`(?m)^\s*([a-zA-Z0-9_\.]+)\s*=\s*([^;\r\n]*?)(\s*;.*)?$`)
+	matches := re.FindAllStringSubmatch(content, -1)
+	for _, m := range matches {
+		if len(m) >= 3 {
+			key := strings.TrimSpace(m[1])
+			val := strings.TrimSpace(m[2])
+			val = strings.Trim(val, `"'`)
+			directives[key] = val
+		}
+	}
+
+	return map[string]any{
+		"version":    version,
+		"file":       iniPath,
+		"content":    content,
+		"directives": directives,
+	}, nil
+}
+
+func (p *PHPManager) SaveIniRaw(ctx context.Context, version, newContent string) error {
+	iniPath := p.GetIniPath(version)
+	if strings.TrimSpace(newContent) == "" {
+		return fmt.Errorf("konten konfigurasi php.ini tidak boleh kosong")
+	}
+
+	// Backup old ini
+	if oldData, err := os.ReadFile(iniPath); err == nil {
+		_ = os.WriteFile(iniPath+".bak", oldData, 0644)
+	}
+
+	if err := os.WriteFile(iniPath, []byte(newContent), 0644); err != nil {
+		return fmt.Errorf("gagal menulis file %s: %w", iniPath, err)
+	}
+
+	// Restart FPM service
+	_ = p.sm.Restart(ctx, p.GetServiceName(version))
+	return nil
+}
+
+func (p *PHPManager) SaveIniDirectives(ctx context.Context, version string, updates map[string]string) error {
+	iniPath := p.GetIniPath(version)
+	data, err := os.ReadFile(iniPath)
+	if err != nil {
+		return fmt.Errorf("file konfigurasi %s tidak ditemukan: %w", iniPath, err)
+	}
+
+	// Backup
+	_ = os.WriteFile(iniPath+".bak", data, 0644)
+
+	content := string(data)
+	for key, val := range updates {
+		key = strings.TrimSpace(key)
+		val = strings.TrimSpace(val)
+		if key == "" {
+			continue
+		}
+
+		// Pattern to find active or commented directive: ^[;\s]*KEY\s*=.*$
+		re := regexp.MustCompile(`(?mi)^[;\s]*` + regexp.QuoteMeta(key) + `\s*=.*$`)
+		replacement := fmt.Sprintf("%s = %s", key, val)
+
+		if re.MatchString(content) {
+			content = re.ReplaceAllString(content, replacement)
+		} else {
+			// Append under [PHP] or at end of file
+			if idx := strings.Index(content, "[PHP]"); idx != -1 {
+				content = content[:idx+5] + "\n" + replacement + content[idx+5:]
+			} else {
+				content += "\n" + replacement + "\n"
+			}
+		}
+	}
+
+	if err := os.WriteFile(iniPath, []byte(content), 0644); err != nil {
+		return fmt.Errorf("gagal menyimpan %s: %w", iniPath, err)
+	}
+
+	// Restart FPM service
 	_ = p.sm.Restart(ctx, p.GetServiceName(version))
 	return nil
 }

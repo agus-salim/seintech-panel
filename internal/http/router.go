@@ -104,11 +104,13 @@ func NewRouter(
 		pr.Post("/services/uninstall", servicesH.StartUninstallJob)
 		pr.Get("/services/job/{jobID}", servicesH.GetJobStatus)
 
-		// PHP Engines & Extensions
+		// PHP Engines & Extensions & Configuration
 		pr.Get("/php", phpH.List)
 		pr.Get("/php/extensions", phpH.GetExtensions)
 		pr.Post("/php/extension/install", phpH.InstallExtension)
 		pr.Post("/php/extension/delete", phpH.DeleteExtension)
+		pr.Get("/php/ini", phpH.GetIni)
+		pr.Post("/php/ini/save", phpH.SaveIni)
 
 		// Databases
 		pr.Get("/databases", dbH.List)

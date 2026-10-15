@@ -8,10 +8,10 @@
         </div>
     </div>
 
-    <!-- Supported PHP Engines Grid -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <!-- Supported PHP Engines Grid (3 Columns) -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {{ range .Versions }}
-        <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
+        <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
             <div>
                 <div class="flex items-center justify-between mb-3">
                     <span class="font-bold text-base text-slate-900">PHP {{ .Version }}</span>
@@ -35,19 +35,35 @@
                 </div>
             </div>
 
-            <!-- Action Buttons: Restart & Extension (Extension only for active PHP) -->
+            <!-- Action Buttons: Restart, Config & Extension -->
             <div class="mt-4 pt-3 border-t border-slate-100 flex items-center gap-2">
                 <form action="/services/restart" method="POST" class="flex-1">
                     <input type="hidden" name="service" value="php{{ .Version }}-fpm">
-                    <button type="submit" class="w-full py-1.5 px-3 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors shadow-sm">
-                        Restart
+                    <button type="submit" 
+                            class="w-full py-1.5 px-2.5 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 active:scale-95 border border-slate-200 rounded-xl transition-all shadow-sm inline-flex items-center justify-center gap-1.5"
+                            title="Restart layanan PHP-FPM {{ .Version }}">
+                        <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                        <span>Restart</span>
                     </button>
                 </form>
 
                 {{ if .Active }}
+                <!-- Config php.ini -->
+                <button type="button" 
+                        onclick="openConfigModal('{{ .Version }}')" 
+                        class="flex-1 py-1.5 px-2.5 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 active:scale-95 border border-amber-200/90 rounded-xl transition-all shadow-sm inline-flex items-center justify-center gap-1.5"
+                        title="Ubah konfigurasi php.ini PHP {{ .Version }}">
+                    <svg class="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
+                    <span>Config</span>
+                </button>
+
+                <!-- Extension -->
                 <button type="button" 
                         onclick="openExtensionsModal('{{ .Version }}')" 
-                        class="flex-1 py-1.5 px-3 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 active:scale-95 border border-indigo-200 rounded-xl transition-all shadow-sm inline-flex items-center justify-center gap-1.5"
+                        class="flex-1 py-1.5 px-2.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 active:scale-95 border border-indigo-200/90 rounded-xl transition-all shadow-sm inline-flex items-center justify-center gap-1.5"
                         title="Kelola ekstensi PHP {{ .Version }}">
                     <svg class="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
                     <span>Extension</span>
@@ -58,6 +74,228 @@
         {{ end }}
     </div>
 
+</div>
+
+<!-- ==================== PHP CONFIG (php.ini) MODAL ==================== -->
+<div id="phpConfigModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 transition-opacity">
+    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden">
+        
+        <!-- Modal Header -->
+        <div class="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+            <div class="flex items-center gap-3 min-w-0">
+                <div class="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200/80 flex items-center justify-center text-amber-600 shadow-sm flex-shrink-0">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
+                </div>
+                <div class="min-w-0">
+                    <h3 class="font-bold text-slate-900 text-sm">Konfigurasi PHP <span id="configPhpVersion" class="font-mono text-amber-600"></span> (php.ini)</h3>
+                    <p class="text-xs text-slate-500 font-mono truncate" id="configPhpFile">/etc/php/8.3/fpm/php.ini</p>
+                </div>
+            </div>
+            <button type="button" onclick="closeConfigModal()" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors flex-shrink-0">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+
+        <!-- Navigation Tabs: Pengaturan Populer vs Full php.ini Editor -->
+        <div class="px-5 pt-3 border-b border-slate-200 bg-slate-50/40 flex items-center justify-between gap-4">
+            <div class="flex items-center space-x-2">
+                <button type="button" onclick="switchConfigTab('directives')" id="tabBtnDirectives" 
+                        class="px-4 py-2 text-xs font-bold rounded-t-xl border-b-2 border-indigo-600 text-indigo-600 bg-white shadow-xs transition-all flex items-center gap-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+                    <span>Pengaturan Populer</span>
+                </button>
+                <button type="button" onclick="switchConfigTab('raw')" id="tabBtnRaw" 
+                        class="px-4 py-2 text-xs font-semibold rounded-t-xl border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition-all flex items-center gap-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+                    <span>Editor php.ini Lengkap</span>
+                </button>
+            </div>
+            <div class="text-[11px] text-slate-400 font-medium hidden sm:block">
+                Setelah disimpan, service PHP-FPM akan otomatis di-restart
+            </div>
+        </div>
+
+        <!-- Modal Body Content -->
+        <div class="flex-1 overflow-y-auto p-5 relative">
+            <!-- Loading Indicator -->
+            <div id="configLoading" class="absolute inset-0 bg-white/80 backdrop-blur-xs flex items-center justify-center z-10">
+                <div class="flex flex-col items-center gap-2">
+                    <svg class="animate-spin w-8 h-8 text-indigo-600" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span class="text-xs text-slate-600 font-medium">Memuat konfigurasi php.ini...</span>
+                </div>
+            </div>
+
+            <!-- Tab 1: Directives Form -->
+            <form id="formDirectives" class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    
+                    <!-- upload_max_filesize -->
+                    <div class="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80">
+                        <label class="block text-xs font-bold text-slate-800 mb-1">upload_max_filesize</label>
+                        <p class="text-[11px] text-slate-500 mb-2">Batas ukuran maksimum per berkas yang diunggah</p>
+                        <div class="flex gap-2">
+                            <input type="text" id="dir_upload_max_filesize" name="upload_max_filesize" placeholder="64M" 
+                                   class="w-full px-3 py-1.5 text-xs font-mono border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                            <select onchange="document.getElementById('dir_upload_max_filesize').value = this.value" class="px-2 py-1 text-xs border border-slate-200 rounded-lg bg-white text-slate-600">
+                                <option value="">Preset</option>
+                                <option value="32M">32M</option>
+                                <option value="64M">64M</option>
+                                <option value="128M">128M</option>
+                                <option value="256M">256M</option>
+                                <option value="512M">512M</option>
+                                <option value="1024M">1G</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- post_max_size -->
+                    <div class="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80">
+                        <label class="block text-xs font-bold text-slate-800 mb-1">post_max_size</label>
+                        <p class="text-[11px] text-slate-500 mb-2">Batas maksimum total data POST (biasanya ≥ upload_max_filesize)</p>
+                        <div class="flex gap-2">
+                            <input type="text" id="dir_post_max_size" name="post_max_size" placeholder="64M" 
+                                   class="w-full px-3 py-1.5 text-xs font-mono border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                            <select onchange="document.getElementById('dir_post_max_size').value = this.value" class="px-2 py-1 text-xs border border-slate-200 rounded-lg bg-white text-slate-600">
+                                <option value="">Preset</option>
+                                <option value="32M">32M</option>
+                                <option value="64M">64M</option>
+                                <option value="128M">128M</option>
+                                <option value="256M">256M</option>
+                                <option value="512M">512M</option>
+                                <option value="1024M">1G</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- memory_limit -->
+                    <div class="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80">
+                        <label class="block text-xs font-bold text-slate-800 mb-1">memory_limit</label>
+                        <p class="text-[11px] text-slate-500 mb-2">Batas alokasi memori RAM maksimum per skrip PHP</p>
+                        <div class="flex gap-2">
+                            <input type="text" id="dir_memory_limit" name="memory_limit" placeholder="256M" 
+                                   class="w-full px-3 py-1.5 text-xs font-mono border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                            <select onchange="document.getElementById('dir_memory_limit').value = this.value" class="px-2 py-1 text-xs border border-slate-200 rounded-lg bg-white text-slate-600">
+                                <option value="">Preset</option>
+                                <option value="128M">128M</option>
+                                <option value="256M">256M</option>
+                                <option value="512M">512M</option>
+                                <option value="1024M">1G</option>
+                                <option value="-1">-1 (Unlimited)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- max_execution_time -->
+                    <div class="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80">
+                        <label class="block text-xs font-bold text-slate-800 mb-1">max_execution_time (detik)</label>
+                        <p class="text-[11px] text-slate-500 mb-2">Waktu eksekusi maksimum skrip sebelum dihentikan timeout</p>
+                        <div class="flex gap-2">
+                            <input type="text" id="dir_max_execution_time" name="max_execution_time" placeholder="300" 
+                                   class="w-full px-3 py-1.5 text-xs font-mono border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                            <select onchange="document.getElementById('dir_max_execution_time').value = this.value" class="px-2 py-1 text-xs border border-slate-200 rounded-lg bg-white text-slate-600">
+                                <option value="">Preset</option>
+                                <option value="30">30s (Default)</option>
+                                <option value="60">60s</option>
+                                <option value="120">120s</option>
+                                <option value="300">300s (5m)</option>
+                                <option value="600">600s (10m)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- max_input_time -->
+                    <div class="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80">
+                        <label class="block text-xs font-bold text-slate-800 mb-1">max_input_time (detik)</label>
+                        <p class="text-[11px] text-slate-500 mb-2">Waktu maksimal mengurai data input (POST/GET/upload)</p>
+                        <input type="text" id="dir_max_input_time" name="max_input_time" placeholder="300" 
+                               class="w-full px-3 py-1.5 text-xs font-mono border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                    </div>
+
+                    <!-- max_input_vars -->
+                    <div class="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80">
+                        <label class="block text-xs font-bold text-slate-800 mb-1">max_input_vars</label>
+                        <p class="text-[11px] text-slate-500 mb-2">Batas jumlah variabel form input yang dapat diterima</p>
+                        <input type="text" id="dir_max_input_vars" name="max_input_vars" placeholder="3000" 
+                               class="w-full px-3 py-1.5 text-xs font-mono border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                    </div>
+
+                    <!-- date.timezone -->
+                    <div class="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80">
+                        <label class="block text-xs font-bold text-slate-800 mb-1">date.timezone</label>
+                        <p class="text-[11px] text-slate-500 mb-2">Zona waktu bawaan untuk fungsi tanggal/waktu PHP</p>
+                        <input type="text" id="dir_date_timezone" name="date.timezone" placeholder="Asia/Jakarta" 
+                               class="w-full px-3 py-1.5 text-xs font-mono border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                    </div>
+
+                    <!-- display_errors -->
+                    <div class="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80">
+                        <label class="block text-xs font-bold text-slate-800 mb-1">display_errors</label>
+                        <p class="text-[11px] text-slate-500 mb-2">Tampilkan pesan galat langsung pada layar browser</p>
+                        <select id="dir_display_errors" name="display_errors" class="w-full px-3 py-1.5 text-xs font-mono border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                            <option value="Off">Off (Direkomendasikan untuk Produksi)</option>
+                            <option value="On">On (Development / Debug)</option>
+                        </select>
+                    </div>
+
+                    <!-- short_open_tag -->
+                    <div class="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80">
+                        <label class="block text-xs font-bold text-slate-800 mb-1">short_open_tag</label>
+                        <p class="text-[11px] text-slate-500 mb-2">Dukungan tag pembuka singkat PHP (&lt;? ?&gt;)</p>
+                        <select id="dir_short_open_tag" name="short_open_tag" class="w-full px-3 py-1.5 text-xs font-mono border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                            <option value="On">On (Aktif)</option>
+                            <option value="Off">Off (Nonaktif)</option>
+                        </select>
+                    </div>
+
+                    <!-- allow_url_fopen -->
+                    <div class="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80">
+                        <label class="block text-xs font-bold text-slate-800 mb-1">allow_url_fopen</label>
+                        <p class="text-[11px] text-slate-500 mb-2">Izinkan pengambilan URL luar via file_get_contents</p>
+                        <select id="dir_allow_url_fopen" name="allow_url_fopen" class="w-full px-3 py-1.5 text-xs font-mono border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                            <option value="On">On (Aktif)</option>
+                            <option value="Off">Off (Nonaktif)</option>
+                        </select>
+                    </div>
+
+                </div>
+            </form>
+
+            <!-- Tab 2: Raw Editor -->
+            <div id="wrapperRawEditor" class="hidden h-full flex flex-col">
+                <div class="mb-2 flex items-center justify-between text-xs text-slate-500 font-mono">
+                    <span>Editor Langsung File php.ini</span>
+                    <span>Pintasan: Ctrl+S untuk menyimpan</span>
+                </div>
+                <div class="flex-1 min-h-[400px] bg-slate-900 rounded-xl p-3 border border-slate-800 overflow-hidden flex flex-col">
+                    <textarea id="rawIniEditor" 
+                              class="w-full h-full min-h-[380px] bg-transparent font-mono text-xs text-slate-100 outline-none resize-none leading-relaxed" 
+                              spellcheck="false" 
+                              placeholder="Memuat isi php.ini..."></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="p-4 border-t border-slate-100 bg-slate-50/70 flex items-center justify-between gap-3">
+            <button type="button" onclick="closeConfigModal()" class="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors">
+                Tutup
+            </button>
+            <div class="flex items-center gap-2">
+                <button type="button" id="btnSaveConfig" onclick="savePhpConfig()" 
+                        class="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-95 rounded-xl shadow-md shadow-indigo-500/20 transition-all inline-flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                    <span>Simpan & Terapkan</span>
+                </button>
+            </div>
+        </div>
+
+    </div>
 </div>
 
 <!-- ==================== PHP EXTENSIONS MODAL ==================== -->
@@ -329,5 +567,147 @@ function handleExtAction(action, version, extName, btnEl) {
         }
     });
 }
+
+// ==================== PHP CONFIG MODAL LOGIC ====================
+let currentConfigVersion = '';
+let currentConfigTab = 'directives';
+
+function openConfigModal(version) {
+    currentConfigVersion = version;
+    document.getElementById('configPhpVersion').textContent = version;
+    document.getElementById('configLoading').classList.remove('hidden');
+    document.getElementById('phpConfigModal').classList.remove('hidden');
+    switchConfigTab('directives');
+
+    fetch('/php/ini?version=' + encodeURIComponent(version))
+        .then(async res => {
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.success) {
+                throw new Error(data.error || 'Gagal membaca file php.ini');
+            }
+            return data;
+        })
+        .then(data => {
+            document.getElementById('configLoading').classList.add('hidden');
+            document.getElementById('configPhpFile').textContent = data.file || `/etc/php/${version}/fpm/php.ini`;
+            document.getElementById('rawIniEditor').value = data.content || '';
+
+            // Populate form directives
+            const dirs = data.directives || {};
+            for (const [k, v] of Object.entries(dirs)) {
+                const elId = 'dir_' + k.replace('.', '_');
+                const el = document.getElementById(elId);
+                if (el) {
+                    el.value = v;
+                }
+            }
+        })
+        .catch(err => {
+            document.getElementById('configLoading').classList.add('hidden');
+            if (typeof showToast === 'function') {
+                showToast(err.message, 'error');
+            } else {
+                alert(err.message);
+            }
+        });
+}
+
+function closeConfigModal() {
+    document.getElementById('phpConfigModal').classList.add('hidden');
+}
+
+function switchConfigTab(tab) {
+    currentConfigTab = tab;
+    const tabBtnDirectives = document.getElementById('tabBtnDirectives');
+    const tabBtnRaw = document.getElementById('tabBtnRaw');
+    const formDirectives = document.getElementById('formDirectives');
+    const wrapperRawEditor = document.getElementById('wrapperRawEditor');
+
+    if (tab === 'directives') {
+        tabBtnDirectives.className = "px-4 py-2 text-xs font-bold rounded-t-xl border-b-2 border-indigo-600 text-indigo-600 bg-white shadow-xs transition-all flex items-center gap-1.5";
+        tabBtnRaw.className = "px-4 py-2 text-xs font-semibold rounded-t-xl border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition-all flex items-center gap-1.5";
+        formDirectives.classList.remove('hidden');
+        wrapperRawEditor.classList.add('hidden');
+    } else {
+        tabBtnRaw.className = "px-4 py-2 text-xs font-bold rounded-t-xl border-b-2 border-indigo-600 text-indigo-600 bg-white shadow-xs transition-all flex items-center gap-1.5";
+        tabBtnDirectives.className = "px-4 py-2 text-xs font-semibold rounded-t-xl border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition-all flex items-center gap-1.5";
+        formDirectives.classList.add('hidden');
+        wrapperRawEditor.classList.remove('hidden');
+    }
+}
+
+function savePhpConfig() {
+    if (!currentConfigVersion) return;
+    const btn = document.getElementById('btnSaveConfig');
+    const origHTML = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `
+        <svg class="animate-spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <span>Menyimpan & Restart...</span>
+    `;
+
+    const formData = new URLSearchParams();
+    formData.append('version', currentConfigVersion);
+    formData.append('mode', currentConfigTab);
+
+    if (currentConfigTab === 'raw') {
+        formData.append('content', document.getElementById('rawIniEditor').value);
+    } else {
+        const form = document.getElementById('formDirectives');
+        const inputs = form.querySelectorAll('input, select');
+        inputs.forEach(inp => {
+            if (inp.name) {
+                formData.append(inp.name, inp.value);
+            }
+        });
+    }
+
+    fetch('/php/ini/save', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: formData.toString()
+    })
+    .then(async res => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) {
+            throw new Error(data.error || 'Gagal menyimpan konfigurasi php.ini');
+        }
+        return data;
+    })
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = origHTML;
+        if (typeof showToast === 'function') {
+            showToast(data.message || `Konfigurasi php.ini PHP ${currentConfigVersion} berhasil diterapkan!`, 'success');
+        }
+        closeConfigModal();
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = origHTML;
+        if (typeof showToast === 'function') {
+            showToast(err.message, 'error');
+        } else {
+            alert(err.message);
+        }
+    });
+}
+
+// Support Ctrl+S shortcut inside phpConfigModal
+window.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        const modal = document.getElementById('phpConfigModal');
+        if (modal && !modal.classList.contains('hidden')) {
+            e.preventDefault();
+            savePhpConfig();
+        }
+    }
+});
 </script>
 {{ end }}

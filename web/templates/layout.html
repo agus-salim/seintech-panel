@@ -41,7 +41,12 @@
     
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
-<body class="h-full font-sans text-slate-800 antialiased flex flex-col md:flex-row bg-slate-50" x-data="{ sidebarOpen: false }">
+<body class="h-full font-sans text-slate-800 antialiased flex flex-col md:flex-row bg-slate-50" 
+      x-data="{ 
+          sidebarOpen: false, 
+          sidebarCollapsed: localStorage.getItem('sidebar_minimized') === 'true' 
+      }" 
+      x-init="$watch('sidebarCollapsed', val => localStorage.setItem('sidebar_minimized', val))">
 
     <!-- Mobile Nav Bar -->
     <div class="md:hidden flex items-center justify-between bg-white border-b border-slate-200 px-4 py-3">
@@ -58,16 +63,35 @@
         </button>
     </div>
 
+    <!-- Mobile Sidebar Backdrop Overlay -->
+    <div x-show="sidebarOpen" 
+         @click="sidebarOpen = false" 
+         x-transition:enter="transition-opacity ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition-opacity ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-30 md:hidden"
+         style="display: none;"></div>
+
     <!-- Sidebar Navigation -->
-    <aside :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'" class="fixed md:static inset-y-0 left-0 z-40 w-64 bg-white border-r border-slate-200/80 flex flex-col justify-between transition-transform duration-200 ease-in-out md:translate-x-0">
+    <aside :class="{
+               'translate-x-0': sidebarOpen,
+               '-translate-x-full md:translate-x-0': !sidebarOpen,
+               'md:w-16 w-64': sidebarCollapsed,
+               'w-64': !sidebarCollapsed
+           }" 
+           class="fixed md:static inset-y-0 left-0 z-40 bg-white border-r border-slate-200/80 flex flex-col justify-between transition-all duration-200 ease-in-out flex-shrink-0">
         <div>
             <!-- Brand Logo -->
-            <div class="h-16 min-h-[64px] max-h-[64px] box-border flex items-center px-6 border-b border-slate-200/80 bg-white">
-                <a href="/" class="flex items-center space-x-3">
-                    <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-500 flex items-center justify-center text-white font-bold text-xl shadow-sm shadow-indigo-200">
+            <div class="h-16 min-h-[64px] max-h-[64px] box-border flex items-center border-b border-slate-200/80 bg-white transition-all duration-200"
+                 :class="sidebarCollapsed ? 'md:justify-center md:px-0 px-6' : 'px-6'">
+                <a href="/" class="flex items-center space-x-3 overflow-hidden">
+                    <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-500 flex items-center justify-center text-white font-bold text-xl shadow-sm shadow-indigo-200 flex-shrink-0">
                         S
                     </div>
-                    <div>
+                    <div :class="sidebarCollapsed ? 'md:hidden block' : 'block'" class="transition-opacity duration-150 whitespace-nowrap">
                         <span class="font-bold text-slate-900 tracking-tight text-lg block leading-none">Seintech<span class="text-indigo-600">.</span></span>
                         <span class="text-[10px] uppercase font-semibold text-slate-400 tracking-widest mt-1 block">Systems Panel</span>
                     </div>
@@ -75,7 +99,7 @@
             </div>
 
             <!-- Server Quick Status Badge -->
-            <div class="mx-4 my-3 p-2.5 bg-slate-50 border border-slate-200/60 rounded-xl">
+            <div :class="sidebarCollapsed ? 'md:hidden block' : 'block'" class="mx-4 my-3 p-2.5 bg-slate-50 border border-slate-200/60 rounded-xl">
                 <div class="flex items-center justify-between text-xs mb-1">
                     <span class="text-slate-500 font-medium">Node Host</span>
                     <span class="inline-flex items-center font-mono font-medium text-emerald-600 text-[11px]">
@@ -87,56 +111,65 @@
                 </div>
             </div>
 
+            <!-- Mini Status Dot (When collapsed on desktop) -->
+            <div :class="sidebarCollapsed ? 'hidden md:flex' : 'hidden'" class="my-3 justify-center" title="Node Host Online: {{ .Hostname }}">
+                <span class="relative flex h-2.5 w-2.5">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                </span>
+            </div>
+
             <!-- Navigation Links -->
-            <nav class="px-3 py-2 space-y-1">
-                <a href="/" class="flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "dashboard" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}">
-                    <svg class="w-5 h-5 mr-3 {{ if eq .ActiveNav "dashboard" }}text-indigo-600{{ else }}text-slate-400{{ end }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
-                    Dashboard
+            <nav class="py-2 space-y-1 transition-all" :class="sidebarCollapsed ? 'md:px-2 px-3' : 'px-3'">
+                <a href="/" title="Dashboard" class="flex items-center py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "dashboard" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}" :class="sidebarCollapsed ? 'md:justify-center md:px-0 px-3' : 'px-3'">
+                    <svg class="w-5 h-5 flex-shrink-0 transition-all {{ if eq .ActiveNav "dashboard" }}text-indigo-600{{ else }}text-slate-400{{ end }}" :class="sidebarCollapsed ? 'md:mr-0 mr-3' : 'mr-3'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+                    <span :class="sidebarCollapsed ? 'md:hidden block' : 'block'" class="truncate">Dashboard</span>
                 </a>
 
-                <a href="/domains" class="flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "domains" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}">
-                    <svg class="w-5 h-5 mr-3 {{ if eq .ActiveNav "domains" }}text-indigo-600{{ else }}text-slate-400{{ end }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg>
-                    Virtual Hosts & Web
+                <a href="/domains" title="Virtual Hosts & Web" class="flex items-center py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "domains" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}" :class="sidebarCollapsed ? 'md:justify-center md:px-0 px-3' : 'px-3'">
+                    <svg class="w-5 h-5 flex-shrink-0 transition-all {{ if eq .ActiveNav "domains" }}text-indigo-600{{ else }}text-slate-400{{ end }}" :class="sidebarCollapsed ? 'md:mr-0 mr-3' : 'mr-3'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg>
+                    <span :class="sidebarCollapsed ? 'md:hidden block' : 'block'" class="truncate">Virtual Hosts & Web</span>
                 </a>
 
-                <a href="/filemanager" class="flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "filemanager" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}">
-                    <svg class="w-5 h-5 mr-3 {{ if eq .ActiveNav "filemanager" }}text-indigo-600{{ else }}text-slate-400{{ end }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
-                    Web File Manager
+                <a href="/filemanager" title="Web File Manager" class="flex items-center py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "filemanager" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}" :class="sidebarCollapsed ? 'md:justify-center md:px-0 px-3' : 'px-3'">
+                    <svg class="w-5 h-5 flex-shrink-0 transition-all {{ if eq .ActiveNav "filemanager" }}text-indigo-600{{ else }}text-slate-400{{ end }}" :class="sidebarCollapsed ? 'md:mr-0 mr-3' : 'mr-3'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                    <span :class="sidebarCollapsed ? 'md:hidden block' : 'block'" class="truncate">Web File Manager</span>
                 </a>
 
-                <a href="/php" class="flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "php" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}">
-                    <svg class="w-5 h-5 mr-3 {{ if eq .ActiveNav "php" }}text-indigo-600{{ else }}text-slate-400{{ end }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
-                    PHP Engines
+                <a href="/php" title="PHP Engines" class="flex items-center py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "php" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}" :class="sidebarCollapsed ? 'md:justify-center md:px-0 px-3' : 'px-3'">
+                    <svg class="w-5 h-5 flex-shrink-0 transition-all {{ if eq .ActiveNav "php" }}text-indigo-600{{ else }}text-slate-400{{ end }}" :class="sidebarCollapsed ? 'md:mr-0 mr-3' : 'mr-3'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+                    <span :class="sidebarCollapsed ? 'md:hidden block' : 'block'" class="truncate">PHP Engines</span>
                 </a>
 
-                <a href="/databases" class="flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "databases" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}">
-                    <svg class="w-5 h-5 mr-3 {{ if eq .ActiveNav "databases" }}text-indigo-600{{ else }}text-slate-400{{ end }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
-                    Databases
+                <a href="/databases" title="Databases" class="flex items-center py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "databases" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}" :class="sidebarCollapsed ? 'md:justify-center md:px-0 px-3' : 'px-3'">
+                    <svg class="w-5 h-5 flex-shrink-0 transition-all {{ if eq .ActiveNav "databases" }}text-indigo-600{{ else }}text-slate-400{{ end }}" :class="sidebarCollapsed ? 'md:mr-0 mr-3' : 'mr-3'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
+                    <span :class="sidebarCollapsed ? 'md:hidden block' : 'block'" class="truncate">Databases</span>
                 </a>
 
-                <a href="/ssl" class="flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "ssl" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}">
-                    <svg class="w-5 h-5 mr-3 {{ if eq .ActiveNav "ssl" }}text-indigo-600{{ else }}text-slate-400{{ end }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-                    SSL & Certificates
+                <a href="/ssl" title="SSL & Certificates" class="flex items-center py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "ssl" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}" :class="sidebarCollapsed ? 'md:justify-center md:px-0 px-3' : 'px-3'">
+                    <svg class="w-5 h-5 flex-shrink-0 transition-all {{ if eq .ActiveNav "ssl" }}text-indigo-600{{ else }}text-slate-400{{ end }}" :class="sidebarCollapsed ? 'md:mr-0 mr-3' : 'mr-3'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                    <span :class="sidebarCollapsed ? 'md:hidden block' : 'block'" class="truncate">SSL & Certificates</span>
                 </a>
 
-                <a href="/users" class="flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "users" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}">
-                    <svg class="w-5 h-5 mr-3 {{ if eq .ActiveNav "users" }}text-indigo-600{{ else }}text-slate-400{{ end }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
-                    Users & Quotas
+                <a href="/users" title="Users & Quotas" class="flex items-center py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "users" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}" :class="sidebarCollapsed ? 'md:justify-center md:px-0 px-3' : 'px-3'">
+                    <svg class="w-5 h-5 flex-shrink-0 transition-all {{ if eq .ActiveNav "users" }}text-indigo-600{{ else }}text-slate-400{{ end }}" :class="sidebarCollapsed ? 'md:mr-0 mr-3' : 'mr-3'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                    <span :class="sidebarCollapsed ? 'md:hidden block' : 'block'" class="truncate">Users & Quotas</span>
                 </a>
 
                 {{ if eq .UserRole "admin" }}
                 <div class="pt-4 pb-1">
-                    <span class="px-3 text-[11px] font-semibold tracking-wider text-slate-400 uppercase">System Admin</span>
+                    <span :class="sidebarCollapsed ? 'md:hidden block' : 'block'" class="px-3 text-[11px] font-semibold tracking-wider text-slate-400 uppercase">System Admin</span>
+                    <hr :class="sidebarCollapsed ? 'hidden md:block' : 'hidden'" class="border-slate-200 my-1 mx-2">
                 </div>
 
-                <a href="/services" class="flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "services" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}">
-                    <svg class="w-5 h-5 mr-3 {{ if eq .ActiveNav "services" }}text-indigo-600{{ else }}text-slate-400{{ end }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-                    Services & Packages
+                <a href="/services" title="Services & Packages" class="flex items-center py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "services" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}" :class="sidebarCollapsed ? 'md:justify-center md:px-0 px-3' : 'px-3'">
+                    <svg class="w-5 h-5 flex-shrink-0 transition-all {{ if eq .ActiveNav "services" }}text-indigo-600{{ else }}text-slate-400{{ end }}" :class="sidebarCollapsed ? 'md:mr-0 mr-3' : 'mr-3'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                    <span :class="sidebarCollapsed ? 'md:hidden block' : 'block'" class="truncate">Services & Packages</span>
                 </a>
 
-                <a href="/settings" class="flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "settings" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}">
-                    <svg class="w-5 h-5 mr-3 {{ if eq .ActiveNav "settings" }}text-indigo-600{{ else }}text-slate-400{{ end }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                    Panel Settings
+                <a href="/settings" title="Panel Settings" class="flex items-center py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "settings" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}" :class="sidebarCollapsed ? 'md:justify-center md:px-0 px-3' : 'px-3'">
+                    <svg class="w-5 h-5 flex-shrink-0 transition-all {{ if eq .ActiveNav "settings" }}text-indigo-600{{ else }}text-slate-400{{ end }}" :class="sidebarCollapsed ? 'md:mr-0 mr-3' : 'mr-3'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    <span :class="sidebarCollapsed ? 'md:hidden block' : 'block'" class="truncate">Panel Settings</span>
                 </a>
                 {{ end }}
             </nav>
@@ -144,18 +177,18 @@
 
         <!-- User Profile & Logout -->
         <div class="p-3 border-t border-slate-200/80 bg-slate-50/50">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center space-x-2.5 min-w-0">
-                    <div class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs ring-2 ring-white">
+            <div :class="sidebarCollapsed ? 'md:flex-col md:items-center md:gap-2 flex items-center justify-between' : 'flex items-center justify-between'">
+                <div class="flex items-center space-x-2.5 min-w-0" :title="'User: ' + '{{ .Username }}' + ' (' + '{{ .UserRole }}' + ')'">
+                    <div class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs ring-2 ring-white flex-shrink-0">
                         {{ .UsernameInitial }}
                     </div>
-                    <div class="truncate">
+                    <div class="truncate" :class="sidebarCollapsed ? 'md:hidden block' : 'block'">
                         <span class="text-xs font-semibold text-slate-800 block truncate">{{ .Username }}</span>
                         <span class="inline-block px-1.5 py-0.2 bg-slate-200 text-slate-600 rounded text-[10px] font-medium capitalize">{{ .UserRole }}</span>
                     </div>
                 </div>
-                <form action="/logout" method="POST">
-                    <button type="submit" title="Logout" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors">
+                <form action="/logout" method="POST" class="m-0">
+                    <button type="submit" title="Logout" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors flex items-center justify-center">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
                     </button>
                 </form>
@@ -166,8 +199,17 @@
     <!-- Main Content Area -->
     <main class="flex-1 flex flex-col min-w-0 overflow-y-auto">
         <!-- Top App Bar -->
-        <header class="h-16 min-h-[64px] max-h-[64px] box-border bg-white border-b border-slate-200/80 px-6 flex items-center justify-between sticky top-0 z-30">
-            <div>
+        <header class="h-16 min-h-[64px] max-h-[64px] box-border bg-white border-b border-slate-200/80 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30">
+            <div class="flex items-center space-x-3">
+                <button type="button" 
+                        @click="window.innerWidth < 768 ? (sidebarOpen = !sidebarOpen) : (sidebarCollapsed = !sidebarCollapsed)" 
+                        class="p-2 -ml-2 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded-lg focus:outline-none transition-colors"
+                        title="Toggle / Minimize Sidebar"
+                        aria-label="Toggle Sidebar">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                    </svg>
+                </button>
                 <h1 class="text-lg font-bold text-slate-900 tracking-tight">{{ .PageTitle }}</h1>
             </div>
             <div class="flex items-center space-x-4">

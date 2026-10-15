@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -29,15 +30,17 @@ type DomainHandler struct {
 	phpMgr   *php.PHPManager
 	sslMgr   *ssl.SSLManager
 	cfg      *config.Config
+	sm       *system.ServiceManager
 }
 
-func NewDomainHandler(repo *storage.Repository, registry *webserver.Registry, phpMgr *php.PHPManager, sslMgr *ssl.SSLManager, cfg *config.Config) *DomainHandler {
+func NewDomainHandler(repo *storage.Repository, registry *webserver.Registry, phpMgr *php.PHPManager, sslMgr *ssl.SSLManager, cfg *config.Config, sm *system.ServiceManager) *DomainHandler {
 	return &DomainHandler{
 		repo:     repo,
 		registry: registry,
 		phpMgr:   phpMgr,
 		sslMgr:   sslMgr,
 		cfg:      cfg,
+		sm:       sm,
 	}
 }
 
@@ -203,11 +206,7 @@ func (h *DomainHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate VHost on the chosen WebServer engine
-	ws, err := h.registry.Get(wsType)
-	if err == nil {
-		_ = ws.GenerateVHost(r.Context(), &domain)
-		_ = ws.Reload(r.Context())
-	}
+	_ = h.syncDomainVHosts(r.Context(), &domain)
 
 	// If SSL requested, issue certificate
 	if sslEnable {
@@ -248,11 +247,7 @@ func (h *DomainHandler) UpdateEngine(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Remove VHost from old webserver
-	oldWs, err := h.registry.Get(domain.WebServerType)
-	if err == nil {
-		_ = oldWs.RemoveVHost(r.Context(), domain)
-		_ = oldWs.Reload(r.Context())
-	}
+	h.removeDomainVHosts(r.Context(), domain, domain.WebServerType)
 
 	// Update domain model
 	oldType := domain.WebServerType
@@ -260,17 +255,10 @@ func (h *DomainHandler) UpdateEngine(w http.ResponseWriter, r *http.Request) {
 	domain.UpdatedAt = time.Now()
 
 	// Generate VHost on new webserver
-	newWs, err := h.registry.Get(newEngine)
-	if err != nil {
-		h.respondJSON(w, false, fmt.Sprintf("Webserver engine '%s' tidak didukung", newEngine))
+	if err := h.syncDomainVHosts(r.Context(), domain); err != nil {
+		h.respondJSON(w, false, err.Error())
 		return
 	}
-
-	if err := newWs.GenerateVHost(r.Context(), domain); err != nil {
-		h.respondJSON(w, false, "Gagal membuat vhost pada "+string(newEngine)+": "+err.Error())
-		return
-	}
-	_ = newWs.Reload(r.Context())
 
 	_ = h.repo.UpsertDomain(*domain)
 
@@ -309,11 +297,7 @@ func (h *DomainHandler) UpdatePHP(w http.ResponseWriter, r *http.Request) {
 	domain.UpdatedAt = time.Now()
 
 	// Regenerate VHost on current webserver
-	ws, err := h.registry.Get(domain.WebServerType)
-	if err == nil {
-		_ = ws.GenerateVHost(r.Context(), domain)
-		_ = ws.Reload(r.Context())
-	}
+	_ = h.syncDomainVHosts(r.Context(), domain)
 
 	_ = h.repo.UpsertDomain(*domain)
 
@@ -405,17 +389,11 @@ func (h *DomainHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	// If engine changed, remove from old
 	if oldWsType != newWsType {
-		if oldWs, err := h.registry.Get(oldWsType); err == nil {
-			_ = oldWs.RemoveVHost(r.Context(), domain)
-			_ = oldWs.Reload(r.Context())
-		}
+		h.removeDomainVHosts(r.Context(), domain, oldWsType)
 	}
 
 	// Generate on active engine
-	if ws, err := h.registry.Get(newWsType); err == nil {
-		_ = ws.GenerateVHost(r.Context(), domain)
-		_ = ws.Reload(r.Context())
-	}
+	_ = h.syncDomainVHosts(r.Context(), domain)
 
 	_ = h.repo.UpsertDomain(*domain)
 
@@ -517,17 +495,77 @@ func (h *DomainHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if domain != nil {
-		ws, err := h.registry.Get(domain.WebServerType)
-		if err == nil {
-			_ = ws.RemoveVHost(r.Context(), domain)
-			_ = ws.Reload(r.Context())
-		}
+		h.removeDomainVHosts(r.Context(), domain, domain.WebServerType)
 		_ = h.repo.DeleteDomain(domain.ID)
 		http.Redirect(w, r, fmt.Sprintf("/domains?msg=Virtual+host+%s+berhasil+dihapus&type=success", domain.DomainName), http.StatusSeeOther)
 		return
 	}
 
 	http.Redirect(w, r, "/domains?msg=Domain+tidak+ditemukan&type=error", http.StatusSeeOther)
+}
+
+// syncDomainVHosts generates and reloads webserver configuration for a virtual host.
+// For Apache2 (Option 2), it provisions the Apache backend on 127.0.0.1:8080 (supporting .htaccess & PHP-FPM)
+// and the Nginx frontend reverse proxy on Port 80 / 443 (handling SSL & ACME challenges).
+func (h *DomainHandler) syncDomainVHosts(ctx context.Context, domain *model.Domain) error {
+	if domain.WebServerType == model.WebServerApache {
+		// Ensure Apache2 service is active
+		_ = h.sm.Start(ctx, "apache2")
+
+		// 1. Generate Apache backend vhost
+		if apacheWs, err := h.registry.Get(model.WebServerApache); err == nil {
+			if err := apacheWs.GenerateVHost(ctx, domain); err != nil {
+				return fmt.Errorf("gagal membuat vhost Apache: %w", err)
+			}
+			_ = apacheWs.Reload(ctx)
+		}
+
+		// 2. Generate Nginx frontend reverse proxy vhost
+		if nginxWs, err := h.registry.Get(model.WebServerNginx); err == nil {
+			if err := nginxWs.GenerateVHost(ctx, domain); err != nil {
+				return fmt.Errorf("gagal membuat reverse proxy Nginx: %w", err)
+			}
+			_ = nginxWs.Reload(ctx)
+		}
+		return nil
+	}
+
+	// For Nginx standalone or other engines:
+	// If switching away from Apache, ensure Apache backend vhost is removed
+	if apacheWs, err := h.registry.Get(model.WebServerApache); err == nil {
+		_ = apacheWs.RemoveVHost(ctx, domain)
+		_ = apacheWs.Reload(ctx)
+	}
+
+	ws, err := h.registry.Get(domain.WebServerType)
+	if err != nil {
+		return fmt.Errorf("webserver engine '%s' tidak didukung: %w", domain.WebServerType, err)
+	}
+
+	if err := ws.GenerateVHost(ctx, domain); err != nil {
+		return fmt.Errorf("gagal membuat vhost %s: %w", domain.WebServerType, err)
+	}
+	_ = ws.Reload(ctx)
+	return nil
+}
+
+func (h *DomainHandler) removeDomainVHosts(ctx context.Context, domain *model.Domain, wsType model.WebServerType) {
+	if wsType == model.WebServerApache {
+		if apacheWs, err := h.registry.Get(model.WebServerApache); err == nil {
+			_ = apacheWs.RemoveVHost(ctx, domain)
+			_ = apacheWs.Reload(ctx)
+		}
+		if nginxWs, err := h.registry.Get(model.WebServerNginx); err == nil {
+			_ = nginxWs.RemoveVHost(ctx, domain)
+			_ = nginxWs.Reload(ctx)
+		}
+		return
+	}
+
+	if ws, err := h.registry.Get(wsType); err == nil {
+		_ = ws.RemoveVHost(ctx, domain)
+		_ = ws.Reload(ctx)
+	}
 }
 
 func (h *DomainHandler) respondJSON(w http.ResponseWriter, success bool, message string) {

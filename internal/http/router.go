@@ -51,7 +51,7 @@ func NewRouter(
 	// Initialize Handlers
 	authH := handler.NewAuthHandler(authMgr)
 	dashH := handler.NewDashboardHandler(repo, sm)
-	domainH := handler.NewDomainHandler(repo, registry, phpMgr, sslMgr, cfg)
+	domainH := handler.NewDomainHandler(repo, registry, phpMgr, sslMgr, cfg, sm)
 	fmH := handler.NewFileManagerHandler(repo, cfg)
 	phpH := handler.NewPHPHandler(repo, phpMgr)
 	dbH := handler.NewDatabaseHandler(repo, mysqlMgr, pgMgr)

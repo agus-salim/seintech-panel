@@ -92,7 +92,7 @@ var Catalog = []ServiceDefinition{
 		Description: "Reliable, open-source HTTP server with modular proxy and rewrite capabilities.",
 		CheckPaths:  []string{"/usr/sbin/apache2"},
 		AptPackages: []string{"apache2", "apache2-utils"},
-		Ports:       "HTTP :8080 • HTTPS :8444",
+		Ports:       "Backend :8080 (Proxied by Nginx :80/:443)",
 	},
 	{
 		Name:        "caddy",
@@ -509,31 +509,47 @@ func (sm *ServiceManager) ensureApachePorts(ctx context.Context) {
 	_ = os.MkdirAll("/etc/apache2", 0755)
 	_ = os.MkdirAll("/etc/apache2/sites-available", 0755)
 	_ = os.MkdirAll("/etc/apache2/sites-enabled", 0755)
+	_ = os.MkdirAll("/etc/apache2/conf-available", 0755)
+	_ = os.MkdirAll("/etc/apache2/conf-enabled", 0755)
 
-	portsConf := `# Configured by Seintech Panel to prevent port conflicts with Nginx
+	portsConf := `# Configured by Seintech Panel for Nginx Reverse Proxy Backend
+Listen 127.0.0.1:8080
+Listen [::1]:8080
 Listen 8080
-
-<IfModule ssl_module>
-	Listen 8444
-</IfModule>
-
-<IfModule mod_gnutls.c>
-	Listen 8444
-</IfModule>
 `
 	_ = os.WriteFile("/etc/apache2/ports.conf", []byte(portsConf), 0644)
 
-	// Update 000-default.conf if it exists so it doesn't bind to 80
+	// RemoteIP configuration so Apache and PHP ($_SERVER['REMOTE_ADDR']) get real visitor IP from Nginx
+	remoteIPConf := `# Configured by Seintech Panel for Nginx Reverse Proxy
+<IfModule mod_remoteip.c>
+	RemoteIPHeader X-Forwarded-For
+	RemoteIPInternalProxy 127.0.0.1
+	RemoteIPInternalProxy ::1
+</IfModule>
+`
+	_ = os.WriteFile("/etc/apache2/conf-available/remoteip.conf", []byte(remoteIPConf), 0644)
+	_ = os.Symlink("/etc/apache2/conf-available/remoteip.conf", "/etc/apache2/conf-enabled/remoteip.conf")
+
+	// Update 000-default.conf if it exists so it doesn't bind to port 80
 	defaultConfPath := "/etc/apache2/sites-available/000-default.conf"
 	if data, err := os.ReadFile(defaultConfPath); err == nil {
-		updated := strings.ReplaceAll(string(data), "<VirtualHost *:80>", "<VirtualHost *:8080>")
+		updated := strings.ReplaceAll(string(data), "<VirtualHost *:80>", "<VirtualHost 127.0.0.1:8080 [::1]:8080 *:8080>")
 		_ = os.WriteFile(defaultConfPath, []byte(updated), 0644)
 	}
 
-	// Enable required Apache modules if a2enmod is available
+	// Enable required Apache modules
 	if _, err := exec.LookPath("a2enmod"); err == nil {
-		cmd := exec.CommandContext(ctx, "a2enmod", "rewrite", "ssl", "proxy", "proxy_fcgi", "headers")
+		cmd := exec.CommandContext(ctx, "a2enmod", "rewrite", "ssl", "proxy", "proxy_fcgi", "headers", "remoteip", "setenvif")
 		_ = cmd.Run()
+		cmdConf := exec.CommandContext(ctx, "a2enconf", "remoteip")
+		_ = cmdConf.Run()
+	}
+}
+
+// EnsureApacheConfiguration exposes Apache port & module setup for startup
+func (sm *ServiceManager) EnsureApacheConfiguration(ctx context.Context) {
+	if sm.IsInstalled("apache2") {
+		sm.ensureApachePorts(ctx)
 	}
 }
 

@@ -537,18 +537,33 @@ func (s *SSLManager) ProvisionLetsEncrypt(ctx context.Context, domain *model.Dom
 	}
 
 	// Re-generate webserver vhost and reload webserver
-	ws, err := s.registry.Get(domain.WebServerType)
-	if err != nil {
-		return fmt.Errorf("webserver '%s' tidak ditemukan: %w", domain.WebServerType, err)
-	}
+	if domain.WebServerType == model.WebServerApache {
+		if apacheWs, err := s.registry.Get(model.WebServerApache); err == nil {
+			_ = apacheWs.GenerateVHost(ctx, domain)
+			_ = apacheWs.Reload(ctx)
+		}
+		if nginxWs, err := s.registry.Get(model.WebServerNginx); err == nil {
+			if err := nginxWs.GenerateVHost(ctx, domain); err != nil {
+				return fmt.Errorf("gagal meregenerasi frontend nginx: %w", err)
+			}
+			if err := nginxWs.Reload(ctx); err != nil {
+				_ = nginxWs.Restart(ctx)
+			}
+		}
+	} else {
+		ws, err := s.registry.Get(domain.WebServerType)
+		if err != nil {
+			return fmt.Errorf("webserver '%s' tidak ditemukan: %w", domain.WebServerType, err)
+		}
 
-	if err := ws.GenerateVHost(ctx, domain); err != nil {
-		return fmt.Errorf("gagal meregenerasi virtual host: %w", err)
-	}
+		if err := ws.GenerateVHost(ctx, domain); err != nil {
+			return fmt.Errorf("gagal meregenerasi virtual host: %w", err)
+		}
 
-	if err := ws.Reload(ctx); err != nil {
-		// Fallback to restart if reload fails
-		_ = ws.Restart(ctx)
+		if err := ws.Reload(ctx); err != nil {
+			// Fallback to restart if reload fails
+			_ = ws.Restart(ctx)
+		}
 	}
 
 	return nil

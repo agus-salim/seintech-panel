@@ -64,14 +64,29 @@
             <p class="text-xs text-slate-500 mt-0.5">Provision and manage MariaDB / MySQL &amp; PostgreSQL instances</p>
         </div>
         <div class="flex items-center flex-wrap gap-2">
+            {{ if .PhpMyAdminInstalled }}
             <a href="/phpmyadmin/" target="_blank" title="Buka Web GUI phpMyAdmin (MariaDB/MySQL)" class="px-3 py-2 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 rounded-xl transition-colors inline-flex items-center shadow-sm">
                 <svg class="w-3.5 h-3.5 mr-1.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
                 Login phpMyAdmin
             </a>
+            {{ else }}
+            <button type="button" onclick="startInstallJob('phpmyadmin', 'phpMyAdmin', 'install')" title="Klik untuk menginstal &amp; konfigurasi phpMyAdmin otomatis" class="px-3 py-2 text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-xl transition-colors inline-flex items-center shadow-sm">
+                <svg class="w-3.5 h-3.5 mr-1.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                Install phpMyAdmin (Auto)
+            </button>
+            {{ end }}
+
+            {{ if .PhpPgAdminInstalled }}
             <a href="/phppgadmin/" target="_blank" title="Buka Web GUI phpPgAdmin (PostgreSQL)" class="px-3 py-2 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200/80 rounded-xl transition-colors inline-flex items-center shadow-sm">
                 <svg class="w-3.5 h-3.5 mr-1.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
                 Login phpPgAdmin
             </a>
+            {{ else }}
+            <button type="button" onclick="startInstallJob('phppgadmin', 'phpPgAdmin', 'install')" title="Klik untuk menginstal &amp; konfigurasi phpPgAdmin otomatis" class="px-3 py-2 text-xs font-semibold text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-300 rounded-xl transition-colors inline-flex items-center shadow-sm">
+                <svg class="w-3.5 h-3.5 mr-1.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                Install phpPgAdmin (Auto)
+            </button>
+            {{ end }}
             <button @click="dbModal = true" class="px-3.5 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm transition-colors inline-flex items-center">
                 <svg class="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                 New Database
@@ -128,21 +143,41 @@
                         <td class="py-4 px-6 text-right">
                             <div class="inline-flex items-center gap-1.5 justify-end">
                                 {{ if eq .Type "postgres" }}
-                                <!-- Login phpPgAdmin Icon -->
-                                <a href="/phppgadmin/" 
-                                   target="_blank"
-                                   title="Login phpPgAdmin (PostgreSQL)"
-                                   class="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/20">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
-                                </a>
+                                    {{ if $.PhpPgAdminInstalled }}
+                                    <!-- Login phpPgAdmin Icon -->
+                                    <a href="/phppgadmin/" 
+                                       target="_blank"
+                                       title="Login phpPgAdmin (PostgreSQL)"
+                                       class="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
+                                    </a>
+                                    {{ else }}
+                                    <!-- Quick Auto-Install phpPgAdmin Icon -->
+                                    <button type="button"
+                                            onclick="startInstallJob('phppgadmin', 'phpPgAdmin', 'install')"
+                                            title="phpPgAdmin belum terpasang (Klik untuk Pasang Otomatis)"
+                                            class="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                    </button>
+                                    {{ end }}
                                 {{ else }}
-                                <!-- Login phpMyAdmin Icon -->
-                                <a href="/phpmyadmin/" 
-                                   target="_blank"
-                                   title="Login phpMyAdmin (MariaDB)"
-                                   class="p-1.5 text-amber-600 hover:text-amber-800 hover:bg-amber-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-amber-500/20">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
-                                </a>
+                                    {{ if $.PhpMyAdminInstalled }}
+                                    <!-- Login phpMyAdmin Icon -->
+                                    <a href="/phpmyadmin/" 
+                                       target="_blank"
+                                       title="Login phpMyAdmin (MariaDB)"
+                                       class="p-1.5 text-amber-600 hover:text-amber-800 hover:bg-amber-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-amber-500/20">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/></svg>
+                                    </a>
+                                    {{ else }}
+                                    <!-- Quick Auto-Install phpMyAdmin Icon -->
+                                    <button type="button"
+                                            onclick="startInstallJob('phpmyadmin', 'phpMyAdmin', 'install')"
+                                            title="phpMyAdmin belum terpasang (Klik untuk Pasang Otomatis)"
+                                            class="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-amber-500/20">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                    </button>
+                                    {{ end }}
                                 {{ end }}
 
                                 <!-- Import Icon -->

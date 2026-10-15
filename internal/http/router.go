@@ -54,7 +54,7 @@ func NewRouter(
 	domainH := handler.NewDomainHandler(repo, registry, phpMgr, sslMgr, cfg, sm)
 	fmH := handler.NewFileManagerHandler(repo, cfg)
 	phpH := handler.NewPHPHandler(repo, phpMgr)
-	dbH := handler.NewDatabaseHandler(repo, mysqlMgr, pgMgr)
+	dbH := handler.NewDatabaseHandler(repo, mysqlMgr, pgMgr, sm)
 	sslH := handler.NewSSLHandler(repo, sslMgr)
 	userH := handler.NewUserHandler(repo, cfg)
 	settingsH := handler.NewSettingsHandler(repo, sm, sslMgr)

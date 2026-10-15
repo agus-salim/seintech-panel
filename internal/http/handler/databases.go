@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/seintech/panel/internal/core/database"
+	"github.com/seintech/panel/internal/core/system"
 	"github.com/seintech/panel/internal/model"
 	"github.com/seintech/panel/internal/storage"
 	"github.com/seintech/panel/web"
@@ -20,19 +21,23 @@ type DatabaseHandler struct {
 	repo     *storage.Repository
 	mysqlMgr *database.MySQLManager
 	pgMgr    *database.PostgresManager
+	sm       *system.ServiceManager
 }
 
-func NewDatabaseHandler(repo *storage.Repository, mysqlMgr *database.MySQLManager, pgMgr *database.PostgresManager) *DatabaseHandler {
+func NewDatabaseHandler(repo *storage.Repository, mysqlMgr *database.MySQLManager, pgMgr *database.PostgresManager, sm *system.ServiceManager) *DatabaseHandler {
 	return &DatabaseHandler{
 		repo:     repo,
 		mysqlMgr: mysqlMgr,
 		pgMgr:    pgMgr,
+		sm:       sm,
 	}
 }
 
 type DBPageData struct {
 	BasePageData
-	Databases []model.Database
+	Databases           []model.Database
+	PhpMyAdminInstalled bool
+	PhpPgAdminInstalled bool
 }
 
 func (h *DatabaseHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -59,8 +64,10 @@ func (h *DatabaseHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := DBPageData{
-		BasePageData: NewBaseData(r, "Databases", "Multi-Database Engine Provisioning", "databases", settings.Hostname),
-		Databases:    dbs,
+		BasePageData:        NewBaseData(r, "Databases", "Multi-Database Engine Provisioning", "databases", settings.Hostname),
+		Databases:           dbs,
+		PhpMyAdminInstalled: h.sm.IsInstalled("phpmyadmin"),
+		PhpPgAdminInstalled: h.sm.IsInstalled("phppgadmin"),
 	}
 
 	_ = web.RenderTemplate(w, "databases.html", data)

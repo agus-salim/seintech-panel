@@ -2,6 +2,7 @@ package system
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"os"
@@ -379,35 +380,21 @@ func (sm *ServiceManager) InstallService(ctx context.Context, serviceName string
 		sm.ensureApachePorts(ctx)
 	}
 
-	// Preseed debconf for database tools so installation does not block or fail on prompts
-	if serviceName == "phpmyadmin" {
-		preseeds := []string{
-			"phpmyadmin phpmyadmin/dbconfig-install boolean false",
-			"phpmyadmin phpmyadmin/reconfigure-webserver multiselect none",
-		}
-		for _, ps := range preseeds {
-			pcmd := exec.CommandContext(ctx, "debconf-set-selections")
-			pcmd.Stdin = strings.NewReader(ps + "\n")
-			_ = pcmd.Run()
-		}
-	} else if serviceName == "phppgadmin" {
-		preseeds := []string{
-			"phppgadmin phppgadmin/reconfigure-webserver multiselect none",
-		}
-		for _, ps := range preseeds {
-			pcmd := exec.CommandContext(ctx, "debconf-set-selections")
-			pcmd.Stdin = strings.NewReader(ps + "\n")
-			_ = pcmd.Run()
-		}
-	}
+	// Always preseed debconf so NO interactive prompts ever block APT or terminal execution
+	sm.PreseedDebconf(ctx)
+
+	// Recover from any interrupted dpkg / debconf prompt
+	recoverCmd := exec.CommandContext(ctx, "dpkg", "--configure", "-a")
+	recoverCmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
+	_ = recoverCmd.Run()
 
 	// apt-get update
 	updateCmd := exec.CommandContext(ctx, "apt-get", "update", "-y")
 	updateCmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
 	_ = updateCmd.Run()
 
-	// apt-get install -y <packages> with force-confold so pre-configured ports aren't overridden
-	args := append([]string{"install", "-y", "-o", "Dpkg::Options::=--force-confold"}, targetDef.AptPackages...)
+	// apt-get install -y <packages> with force-confold so pre-configured files aren't overridden
+	args := append([]string{"install", "-y", "-o", "Dpkg::Options::=--force-confold", "-o", "Dpkg::Options::=--force-confdef"}, targetDef.AptPackages...)
 	installCmd := exec.CommandContext(ctx, "apt-get", args...)
 	installCmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
 	out, err := installCmd.CombinedOutput()
@@ -418,6 +405,12 @@ func (sm *ServiceManager) InstallService(ctx context.Context, serviceName string
 	// Post-install port and configuration enforcement
 	if serviceName == "apache2" {
 		sm.ensureApachePorts(ctx)
+	}
+	if serviceName == "phpmyadmin" {
+		sm.AutoConfigurePhpMyAdmin(ctx)
+	}
+	if serviceName == "phppgadmin" {
+		sm.AutoConfigurePhpPgAdmin(ctx)
 	}
 
 	// Enable and start the installed service
@@ -475,9 +468,112 @@ func (sm *ServiceManager) UninstallService(ctx context.Context, serviceName stri
 	return nil
 }
 
-// EnsureSystemRepositories automatically configures official APT repositories for PHP (Sury/PPA).
+// PreseedDebconf sets debconf selections non-interactively to prevent any interactive dialogs.
+func (sm *ServiceManager) PreseedDebconf(ctx context.Context) {
+	preseeds := []string{
+		"phpmyadmin phpmyadmin/dbconfig-install boolean false",
+		"phpmyadmin phpmyadmin/reconfigure-webserver multiselect none",
+		"phpmyadmin phpmyadmin/app-password-confirm password",
+		"phpmyadmin phpmyadmin/mysql/admin-pass password",
+		"phpmyadmin phpmyadmin/mysql/app-pass password",
+		"phpmyadmin phpmyadmin/mysql/method select Unix socket",
+		"phpmyadmin phpmyadmin/setup-username string root",
+		"phpmyadmin phpmyadmin/setup-password password",
+		"phpmyadmin phpmyadmin/internal/skip-preseed boolean true",
+		"dbconfig-common dbconfig-common/dbconfig-install boolean false",
+		"dbconfig-common dbconfig-common/dbconfig-reinstall boolean false",
+		"dbconfig-common dbconfig-common/dbconfig-upgrade boolean false",
+		"phppgadmin phppgadmin/reconfigure-webserver multiselect none",
+		"phppgadmin phppgadmin/dbconfig-install boolean false",
+	}
+
+	for _, ps := range preseeds {
+		cmd := exec.CommandContext(ctx, "debconf-set-selections")
+		cmd.Stdin = strings.NewReader(ps + "\n")
+		_ = cmd.Run()
+	}
+}
+
+// AutoConfigurePhpMyAdmin creates blowfish secret, fixes permissions, and configures phpMyAdmin.
+func (sm *ServiceManager) AutoConfigurePhpMyAdmin(ctx context.Context) {
+	if !sm.IsInstalled("phpmyadmin") {
+		return
+	}
+
+	// 1. Ensure blowfish secret file exists and is valid
+	secretFile := "/var/lib/phpmyadmin/blowfish_secret.inc.php"
+	if fi, err := os.Stat(secretFile); err != nil || fi.Size() < 20 {
+		_ = os.MkdirAll("/var/lib/phpmyadmin", 0755)
+		bytes := make([]byte, 16)
+		_, _ = rand.Read(bytes)
+		secret := fmt.Sprintf("%x", bytes) // 32 chars hex
+		content := fmt.Sprintf("<?php\n$cfg['blowfish_secret'] = '%s';\n", secret)
+		_ = os.WriteFile(secretFile, []byte(content), 0640)
+		_ = exec.CommandContext(ctx, "chown", "-R", "www-data:www-data", "/var/lib/phpmyadmin").Run()
+	}
+
+	// 2. Ensure tmp directory exists for caching/sessions
+	tmpDir := "/var/lib/phpmyadmin/tmp"
+	_ = os.MkdirAll(tmpDir, 0777)
+	_ = os.Chmod(tmpDir, 0777)
+
+	// 3. Ensure phpmyadmin config allows standard MySQL root & user logins without dbconfig-common errors
+	confFile := "/etc/phpmyadmin/conf.d/01-seintech.inc.php"
+	_ = os.MkdirAll("/etc/phpmyadmin/conf.d", 0755)
+	customConf := `<?php
+/* Auto-generated by Seintech Panel */
+$cfg['Servers'][1]['auth_type'] = 'cookie';
+$cfg['Servers'][1]['host'] = 'localhost';
+$cfg['Servers'][1]['compress'] = false;
+$cfg['Servers'][1]['AllowNoPassword'] = false;
+$cfg['SendErrorReports'] = 'never';
+`
+	_ = os.WriteFile(confFile, []byte(customConf), 0644)
+}
+
+// AutoConfigurePhpPgAdmin adjusts security settings so PostgreSQL logins work seamlessly.
+func (sm *ServiceManager) AutoConfigurePhpPgAdmin(ctx context.Context) {
+	if !sm.IsInstalled("phppgadmin") {
+		return
+	}
+
+	confFile := "/etc/phppgadmin/config.inc.php"
+	data, err := os.ReadFile(confFile)
+	if err != nil {
+		return
+	}
+
+	str := string(data)
+	modified := false
+
+	// Disable extra login security so 'postgres' superuser and local users can log in
+	if strings.Contains(str, "$conf['extra_login_security'] = true;") {
+		str = strings.ReplaceAll(str, "$conf['extra_login_security'] = true;", "$conf['extra_login_security'] = false;")
+		modified = true
+	}
+
+	// Allow users to see all databases they have access to
+	if strings.Contains(str, "$conf['owned_only'] = true;") {
+		str = strings.ReplaceAll(str, "$conf['owned_only'] = true;", "$conf['owned_only'] = false;")
+		modified = true
+	}
+
+	if modified {
+		_ = os.WriteFile(confFile, []byte(str), 0644)
+	}
+}
+
+// EnsureDatabaseTools preseeds debconf and auto-configures both tools if present.
+func (sm *ServiceManager) EnsureDatabaseTools(ctx context.Context) {
+	sm.PreseedDebconf(ctx)
+	sm.AutoConfigurePhpMyAdmin(ctx)
+	sm.AutoConfigurePhpPgAdmin(ctx)
+}
+
+// EnsureSystemRepositories automatically configures official APT repositories for PHP (Sury/PPA) and database tools.
 func (sm *ServiceManager) EnsureSystemRepositories(ctx context.Context) {
 	sm.ensureSuryPHPRepo(ctx)
+	sm.EnsureDatabaseTools(ctx)
 }
 
 func (sm *ServiceManager) ensureSuryPHPRepo(ctx context.Context) {

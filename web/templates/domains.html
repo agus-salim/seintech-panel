@@ -144,13 +144,11 @@
                             <div class="relative inline-block">
                                 <select onchange="updatePHPVersion('{{ .ID }}', this.value, this)"
                                         class="text-xs font-mono font-medium rounded-lg border border-indigo-200 bg-indigo-50/50 hover:bg-indigo-50 hover:border-indigo-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 py-1.5 pl-2.5 pr-7 outline-none cursor-pointer text-indigo-700 shadow-sm transition-all appearance-none">
-                                    <option value="8.5" {{ if eq .PHPVersion "8.5" }}selected{{ end }}>PHP 8.5</option>
-                                    <option value="8.4" {{ if eq .PHPVersion "8.4" }}selected{{ end }}>PHP 8.4</option>
-                                    <option value="8.3" {{ if eq .PHPVersion "8.3" }}selected{{ end }}>PHP 8.3</option>
-                                    <option value="8.2" {{ if eq .PHPVersion "8.2" }}selected{{ end }}>PHP 8.2</option>
-                                    <option value="8.1" {{ if eq .PHPVersion "8.1" }}selected{{ end }}>PHP 8.1</option>
-                                    <option value="8.0" {{ if eq .PHPVersion "8.0" }}selected{{ end }}>PHP 8.0</option>
-                                    <option value="7.4" {{ if eq .PHPVersion "7.4" }}selected{{ end }}>PHP 7.4</option>
+                                    {{ $currentVer := .PHPVersion }}
+                                    {{ $isActive := .IsPHPActive }}
+                                    {{ range .AvailablePHPVersions }}
+                                    <option value="{{ . }}" {{ if eq $currentVer . }}selected{{ end }}>PHP {{ . }}{{ if and (eq $currentVer .) (not $isActive) }} (Inactive){{ end }}</option>
+                                    {{ end }}
                                 </select>
                                 <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1.5 text-indigo-500">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
@@ -328,14 +326,10 @@
 
                     <div x-show="mode === 'php'">
                         <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">PHP Version</label>
-                        <select name="php_version" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
-                            <option value="8.5">PHP 8.5</option>
-                            <option value="8.4">PHP 8.4</option>
-                            <option value="8.3" selected>PHP 8.3</option>
-                            <option value="8.2">PHP 8.2</option>
-                            <option value="8.1">PHP 8.1</option>
-                            <option value="8.0">PHP 8.0</option>
-                            <option value="7.4">PHP 7.4</option>
+                        <select name="php_version" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-white font-mono">
+                            {{ range .PHPVersions }}
+                            <option value="{{ . }}">PHP {{ . }}</option>
+                            {{ end }}
                         </select>
                     </div>
 
@@ -405,14 +399,10 @@
 
                     <div x-show="editData.mode === 'php'">
                         <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">PHP Version</label>
-                        <select name="php_version" x-model="editData.php" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
-                            <option value="8.5">PHP 8.5</option>
-                            <option value="8.4">PHP 8.4</option>
-                            <option value="8.3">PHP 8.3</option>
-                            <option value="8.2">PHP 8.2</option>
-                            <option value="8.1">PHP 8.1</option>
-                            <option value="8.0">PHP 8.0</option>
-                            <option value="7.4">PHP 7.4</option>
+                        <select name="php_version" x-model="editData.php" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-white font-mono">
+                            {{ range .PHPVersions }}
+                            <option value="{{ . }}">PHP {{ . }}</option>
+                            {{ end }}
                         </select>
                     </div>
 

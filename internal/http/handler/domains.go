@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -40,9 +41,15 @@ func NewDomainHandler(repo *storage.Repository, registry *webserver.Registry, ph
 	}
 }
 
+type DomainViewItem struct {
+	model.Domain
+	AvailablePHPVersions []string
+	IsPHPActive          bool
+}
+
 type DomainsPageData struct {
 	BasePageData
-	Domains     []model.Domain
+	Domains     []DomainViewItem
 	PHPVersions []string
 	WebServers  []model.WebServerType
 }
@@ -56,10 +63,60 @@ func (h *DomainHandler) List(w http.ResponseWriter, r *http.Request) {
 		_ = h.sslMgr.SyncDomainSSLStatus(&domains[i])
 	}
 
+	// Fetch PHP versions whose service is actively running on the host
+	phpList, err := h.phpMgr.ListVersions(r.Context())
+	var activePHPVersions []string
+	activeMap := make(map[string]bool)
+	if err == nil {
+		for _, pv := range phpList {
+			if pv.Active {
+				activePHPVersions = append(activePHPVersions, pv.Version)
+				activeMap[pv.Version] = true
+			}
+		}
+	}
+
+	// Sort descending so newer versions appear first: 8.5, 8.4, 8.3...
+	sort.Slice(activePHPVersions, func(i, j int) bool {
+		return activePHPVersions[i] > activePHPVersions[j]
+	})
+
+	// If no PHP service is active, fallback so select isn't empty
+	fallbackVersions := activePHPVersions
+	if len(fallbackVersions) == 0 {
+		fallbackVersions = []string{"8.4", "8.3", "8.2", "8.1", "8.0", "7.4"}
+	}
+
+	var domainViews []DomainViewItem
+	for _, d := range domains {
+		isPHPActive := activeMap[d.PHPVersion]
+
+		// Dropdown options for this domain: list active PHP versions
+		opts := append([]string{}, activePHPVersions...)
+
+		// If this domain's assigned PHP version is currently inactive, also include it so the current value is visible
+		if d.PHPVersion != "" && !activeMap[d.PHPVersion] {
+			opts = append(opts, d.PHPVersion)
+			sort.Slice(opts, func(i, j int) bool {
+				return opts[i] > opts[j]
+			})
+		}
+
+		if len(opts) == 0 {
+			opts = fallbackVersions
+		}
+
+		domainViews = append(domainViews, DomainViewItem{
+			Domain:               d,
+			AvailablePHPVersions: opts,
+			IsPHPActive:          isPHPActive,
+		})
+	}
+
 	data := DomainsPageData{
 		BasePageData: NewBaseData(r, "Virtual Hosts", "Virtual Hosts & Web Routing", "domains", settings.Hostname),
-		Domains:      domains,
-		PHPVersions:  php.SupportedVersions,
+		Domains:      domainViews,
+		PHPVersions:  fallbackVersions,
 		WebServers: []model.WebServerType{
 			model.WebServerNginx,
 			model.WebServerApache,

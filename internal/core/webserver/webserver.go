@@ -32,8 +32,6 @@ func NewRegistry(sm *system.ServiceManager) *Registry {
 
 	r.Register(NewNginxServer(sm))
 	r.Register(NewApacheServer(sm))
-	r.Register(NewOpenLiteSpeedServer(sm))
-	r.Register(NewCaddyServer(sm))
 
 	return r
 }

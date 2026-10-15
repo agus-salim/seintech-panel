@@ -78,10 +78,9 @@ if command -v apt-get >/dev/null 2>&1; then
         echo "deb [signed-by=/usr/share/keyrings/deb.sury.org-php.gpg] https://packages.sury.org/php/ $CODENAME main" > /etc/apt/sources.list.d/php.list
     fi
 
-    # Setup LiteSpeed Repository
-    curl -fsSL -o /etc/apt/trusted.gpg.d/lst_debian_repo.gpg http://rpms.litespeedtech.com/debian/lst_debian_repo.gpg 2>/dev/null || wget -qO /etc/apt/trusted.gpg.d/lst_debian_repo.gpg http://rpms.litespeedtech.com/debian/lst_debian_repo.gpg || true
-    curl -fsSL -o /etc/apt/trusted.gpg.d/lst_repo.gpg http://rpms.litespeedtech.com/debian/lst_repo.gpg 2>/dev/null || wget -qO /etc/apt/trusted.gpg.d/lst_repo.gpg http://rpms.litespeedtech.com/debian/lst_repo.gpg || true
-    echo "deb http://rpms.litespeedtech.com/debian/ $CODENAME main" > /etc/apt/sources.list.d/lst_debian_repo.list
+    # Cleanup any deprecated repositories (LiteSpeed / Caddy)
+    rm -f /etc/apt/sources.list.d/lst_debian_repo.list /etc/apt/sources.list.d/caddy-stable.list 2>/dev/null || true
+    rm -f /etc/apt/trusted.gpg.d/lst_debian_repo.gpg /etc/apt/trusted.gpg.d/lst_repo.gpg /usr/share/keyrings/caddy-stable-archive-keyring.gpg 2>/dev/null || true
 
     apt-get update -y -qq || true
 fi

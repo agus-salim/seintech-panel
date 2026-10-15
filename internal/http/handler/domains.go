@@ -123,8 +123,6 @@ func (h *DomainHandler) List(w http.ResponseWriter, r *http.Request) {
 		WebServers: []model.WebServerType{
 			model.WebServerNginx,
 			model.WebServerApache,
-			model.WebServerCaddy,
-			model.WebServerOLS,
 		},
 	}
 
@@ -436,14 +434,6 @@ func (h *DomainHandler) GetLogs(w http.ResponseWriter, r *http.Request) {
 			if _, err := os.Stat(logPath); err != nil {
 				logPath = filepath.Join("/var/log/apache2", domain.DomainName+"_access.log")
 			}
-		}
-	case model.WebServerCaddy:
-		logPath = filepath.Join("/var/log/caddy", domain.DomainName+".log")
-	case model.WebServerOLS:
-		if logType == "error" {
-			logPath = filepath.Join("/usr/local/lsws/logs", domain.DomainName+".error.log")
-		} else {
-			logPath = filepath.Join("/usr/local/lsws/logs", domain.DomainName+".access.log")
 		}
 	}
 

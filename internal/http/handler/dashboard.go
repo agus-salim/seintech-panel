@@ -33,7 +33,7 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	metrics := system.CollectMetrics()
 
 	// Check core services status
-	serviceNames := []string{"nginx", "apache2", "caddy", "mariadb", "postgresql", "php8.3-fpm"}
+	serviceNames := []string{"nginx", "apache2", "mariadb", "postgresql", "php8.3-fpm"}
 	var services []system.ServiceState
 	for _, s := range serviceNames {
 		st, _ := h.sm.GetStatus(ctx, s)

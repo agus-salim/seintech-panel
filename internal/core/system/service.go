@@ -19,8 +19,6 @@ var (
 var AllowedServices = map[string]bool{
 	"nginx":       true,
 	"apache2":     true,
-	"lsws":        true,
-	"caddy":       true,
 	"mariadb":     true,
 	"mysql":       true,
 	"postgresql":  true,
@@ -93,24 +91,6 @@ var Catalog = []ServiceDefinition{
 		CheckPaths:  []string{"/usr/sbin/apache2"},
 		AptPackages: []string{"apache2", "apache2-utils"},
 		Ports:       "Backend :8080 (Proxied by Nginx :80/:443)",
-	},
-	{
-		Name:        "caddy",
-		DisplayName: "Caddy Server",
-		Category:    "webserver",
-		Description: "Enterprise-ready open-source web server with automatic HTTPS.",
-		CheckPaths:  []string{"/usr/bin/caddy"},
-		AptPackages: []string{"caddy"},
-		Ports:       "HTTP :2080 • HTTPS :2443",
-	},
-	{
-		Name:        "lsws",
-		DisplayName: "OpenLiteSpeed",
-		Category:    "webserver",
-		Description: "High-performance, lightweight HTTP server with native LSAPI cache.",
-		CheckPaths:  []string{"/usr/local/lsws/bin/lswsctrl"},
-		AptPackages: []string{"openlitespeed"},
-		Ports:       "HTTP :8088 • HTTPS :7443 • Admin :7080",
 	},
 
 	// Databases
@@ -250,13 +230,8 @@ func (sm *ServiceManager) GetStatus(ctx context.Context, serviceName string) (Se
 }
 
 func (sm *ServiceManager) Start(ctx context.Context, serviceName string) error {
-	switch serviceName {
-	case "apache2":
+	if serviceName == "apache2" {
 		sm.ensureApachePorts(ctx)
-	case "caddy":
-		sm.ensureCaddyPorts(ctx)
-	case "lsws":
-		sm.ensureOpenLiteSpeedPorts(ctx)
 	}
 	_, err := sm.ExecuteSystemctl(ctx, "start", serviceName)
 	return err
@@ -268,13 +243,8 @@ func (sm *ServiceManager) Stop(ctx context.Context, serviceName string) error {
 }
 
 func (sm *ServiceManager) Restart(ctx context.Context, serviceName string) error {
-	switch serviceName {
-	case "apache2":
+	if serviceName == "apache2" {
 		sm.ensureApachePorts(ctx)
-	case "caddy":
-		sm.ensureCaddyPorts(ctx)
-	case "lsws":
-		sm.ensureOpenLiteSpeedPorts(ctx)
 	}
 	_, err := sm.ExecuteSystemctl(ctx, "restart", serviceName)
 	return err
@@ -344,14 +314,8 @@ func (sm *ServiceManager) InstallService(ctx context.Context, serviceName string
 	}
 
 	// Web server port pre-configurations before installation starts
-	switch serviceName {
-	case "apache2":
+	if serviceName == "apache2" {
 		sm.ensureApachePorts(ctx)
-	case "caddy":
-		sm.ensureCaddyRepo(ctx)
-		sm.ensureCaddyPorts(ctx)
-	case "lsws":
-		sm.ensureOpenLiteSpeedRepo(ctx)
 	}
 
 	// apt-get update
@@ -369,13 +333,8 @@ func (sm *ServiceManager) InstallService(ctx context.Context, serviceName string
 	}
 
 	// Post-install port and configuration enforcement
-	switch serviceName {
-	case "apache2":
+	if serviceName == "apache2" {
 		sm.ensureApachePorts(ctx)
-	case "caddy":
-		sm.ensureCaddyPorts(ctx)
-	case "lsws":
-		sm.ensureOpenLiteSpeedPorts(ctx)
 	}
 
 	// Enable and start the installed service
@@ -423,10 +382,9 @@ func (sm *ServiceManager) UninstallService(ctx context.Context, serviceName stri
 	return nil
 }
 
-// EnsureSystemRepositories automatically configures official APT repositories for PHP (Sury/PPA) and LiteSpeed.
+// EnsureSystemRepositories automatically configures official APT repositories for PHP (Sury/PPA).
 func (sm *ServiceManager) EnsureSystemRepositories(ctx context.Context) {
 	sm.ensureSuryPHPRepo(ctx)
-	sm.ensureOpenLiteSpeedRepo(ctx)
 }
 
 func (sm *ServiceManager) ensureSuryPHPRepo(ctx context.Context) {
@@ -553,106 +511,31 @@ func (sm *ServiceManager) EnsureApacheConfiguration(ctx context.Context) {
 	}
 }
 
-func (sm *ServiceManager) ensureCaddyPorts(ctx context.Context) {
-	_ = os.MkdirAll("/etc/caddy", 0755)
-	_ = os.MkdirAll("/etc/caddy/conf.d", 0755)
-
-	caddyfilePath := "/etc/caddy/Caddyfile"
-	needsWrite := true
-	if data, err := os.ReadFile(caddyfilePath); err == nil {
-		content := string(data)
-		if strings.Contains(content, "http_port 2080") && strings.Contains(content, "import /etc/caddy/conf.d/*.caddy") {
-			needsWrite = false
-		}
-	}
-
-	if needsWrite {
-		caddyContent := `# Configured by Seintech Panel to prevent port conflicts with Nginx
-{
-	http_port 2080
-	https_port 2443
-	admin off
-}
-
-:2080 {
-	respond "Caddy Server running on Seintech Panel (Port 2080)"
-}
-
-import /etc/caddy/conf.d/*.caddy
-`
-		_ = os.WriteFile(caddyfilePath, []byte(caddyContent), 0644)
-	}
-}
-
-func (sm *ServiceManager) ensureOpenLiteSpeedRepo(ctx context.Context) {
+// CleanupDeprecatedRepositories removes deprecated APT repositories and signing keys (Caddy and OpenLiteSpeed)
+func (sm *ServiceManager) CleanupDeprecatedRepositories(ctx context.Context) {
 	if _, err := exec.LookPath("apt-get"); err != nil {
 		return
 	}
 
-	script := `
-		export DEBIAN_FRONTEND=noninteractive
-		CODENAME=""
-
-		if [ -f /etc/os-release ]; then
-			. /etc/os-release
-			CODENAME="${VERSION_CODENAME:-}"
-		fi
-
-		if [ -z "$CODENAME" ] && command -v lsb_release >/dev/null 2>&1; then
-			CODENAME=$(lsb_release -sc)
-		fi
-
-		if [ -z "$CODENAME" ] && [ -n "$VERSION_ID" ]; then
-			case "$VERSION_ID" in
-				13*) CODENAME="trixie" ;;
-				12*) CODENAME="bookworm" ;;
-				11*) CODENAME="bullseye" ;;
-				24.04*) CODENAME="noble" ;;
-				22.04*) CODENAME="jammy" ;;
-				20.04*) CODENAME="focal" ;;
-			esac
-		fi
-
-		if [ -z "$CODENAME" ]; then
-			CODENAME="trixie"
-		fi
-
-		apt-get update -y
-		apt-get install -y wget curl ca-certificates gnupg || true
-
-		mkdir -p /etc/apt/trusted.gpg.d /etc/apt/sources.list.d
-		curl -fsSL -o /etc/apt/trusted.gpg.d/lst_debian_repo.gpg http://rpms.litespeedtech.com/debian/lst_debian_repo.gpg || wget -qO /etc/apt/trusted.gpg.d/lst_debian_repo.gpg http://rpms.litespeedtech.com/debian/lst_debian_repo.gpg || true
-		curl -fsSL -o /etc/apt/trusted.gpg.d/lst_repo.gpg http://rpms.litespeedtech.com/debian/lst_repo.gpg || wget -qO /etc/apt/trusted.gpg.d/lst_repo.gpg http://rpms.litespeedtech.com/debian/lst_repo.gpg || true
-		echo "deb http://rpms.litespeedtech.com/debian/ $CODENAME main" > /etc/apt/sources.list.d/lst_debian_repo.list
-
-		apt-get update -y
-	`
-	cmd := exec.CommandContext(ctx, "bash", "-c", script)
-	cmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
-	_ = cmd.Run()
-}
-
-func (sm *ServiceManager) ensureOpenLiteSpeedPorts(ctx context.Context) {
-	configPath := "/usr/local/lsws/conf/httpd_config.conf"
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return
-	}
-	content := string(data)
-	changed := false
-
-	// Replace port 80 listener with 8088 if any
-	if strings.Contains(content, "address                 *:80\n") {
-		content = strings.ReplaceAll(content, "address                 *:80\n", "address                 *:8088\n")
-		changed = true
-	}
-	// Replace port 443 listener with 7443 if any
-	if strings.Contains(content, "address                 *:443\n") {
-		content = strings.ReplaceAll(content, "address                 *:443\n", "address                 *:7443\n")
-		changed = true
+	removed := false
+	files := []string{
+		"/etc/apt/sources.list.d/lst_debian_repo.list",
+		"/etc/apt/sources.list.d/caddy-stable.list",
+		"/etc/apt/trusted.gpg.d/lst_debian_repo.gpg",
+		"/etc/apt/trusted.gpg.d/lst_repo.gpg",
+		"/usr/share/keyrings/caddy-stable-archive-keyring.gpg",
 	}
 
-	if changed {
-		_ = os.WriteFile(configPath, []byte(content), 0644)
+	for _, f := range files {
+		if _, err := os.Stat(f); err == nil {
+			_ = os.Remove(f)
+			removed = true
+		}
+	}
+
+	if removed {
+		cmd := exec.CommandContext(ctx, "apt-get", "update", "-y")
+		cmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
+		_ = cmd.Run()
 	}
 }

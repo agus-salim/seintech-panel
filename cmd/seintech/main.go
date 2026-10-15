@@ -85,12 +85,13 @@ func main() {
 	pgMgr := database.NewPostgresManager(sm)
 	authMgr := auth.NewAuthManager(repo)
 
-	// Ensure system APT repositories & Apache backend configuration in background on startup
+	// Ensure system APT repositories, Apache backend config, and cleanup deprecated repos on startup
 	go func() {
 		repoCtx, repoCancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer repoCancel()
 		sm.EnsureSystemRepositories(repoCtx)
 		sm.EnsureApacheConfiguration(repoCtx)
+		sm.CleanupDeprecatedRepositories(repoCtx)
 	}()
 
 	// Context for graceful shutdown & background workers

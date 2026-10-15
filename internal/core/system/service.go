@@ -618,6 +618,7 @@ func (sm *ServiceManager) AutoConfigurePhpMyAdmin(ctx context.Context) {
 				if [ "$need_pkg" -eq 1 ]; then
 					apt-get update -y >/dev/null 2>&1 || true
 					apt-get install -y php$ver-mbstring php$ver-mysql php$ver-xml php$ver-curl php$ver-zip php$ver-gd || true
+					phpenmod -v $ver mbstring mysqli mysql pdo_mysql xml curl zip gd 2>/dev/null || true
 					need_reload=1
 				fi
 			fi
@@ -626,11 +627,14 @@ func (sm *ServiceManager) AutoConfigurePhpMyAdmin(ctx context.Context) {
 		# Also ensure metapackages if missing
 		if ! dpkg -s php-mbstring >/dev/null 2>&1 || ! dpkg -s php-mysql >/dev/null 2>&1; then
 			apt-get install -y php-mbstring php-mysql php-xml php-curl php-zip php-gd || true
+			phpenmod mbstring mysqli mysql pdo_mysql xml curl zip gd 2>/dev/null || true
 			need_reload=1
 		fi
 
 		if [ "$need_reload" -eq 1 ]; then
-			systemctl restart "php*-fpm" 2>/dev/null || true
+			for svc in $(systemctl list-unit-files --type=service | grep -oE 'php[0-9\.]+-fpm\.service'); do
+				systemctl restart "$svc" 2>/dev/null || true
+			done
 			systemctl reload nginx 2>/dev/null || true
 		fi
 	`
@@ -742,6 +746,7 @@ func (sm *ServiceManager) AutoConfigurePhpPgAdmin(ctx context.Context) {
 				if [ "$need_pkg" -eq 1 ]; then
 					apt-get update -y >/dev/null 2>&1 || true
 					apt-get install -y php$ver-pgsql php$ver-mbstring || true
+					phpenmod -v $ver pgsql pdo_pgsql mbstring 2>/dev/null || true
 					need_reload=1
 				fi
 			fi
@@ -750,11 +755,14 @@ func (sm *ServiceManager) AutoConfigurePhpPgAdmin(ctx context.Context) {
 		# Also ensure generic php-pgsql & php-mbstring packages
 		if ! dpkg -s php-pgsql >/dev/null 2>&1 || ! dpkg -s php-mbstring >/dev/null 2>&1; then
 			apt-get install -y php-pgsql php-mbstring || true
+			phpenmod pgsql pdo_pgsql mbstring 2>/dev/null || true
 			need_reload=1
 		fi
 
 		if [ "$need_reload" -eq 1 ]; then
-			systemctl restart "php*-fpm" 2>/dev/null || true
+			for svc in $(systemctl list-unit-files --type=service | grep -oE 'php[0-9\.]+-fpm\.service'); do
+				systemctl restart "$svc" 2>/dev/null || true
+			done
 			systemctl reload nginx 2>/dev/null || true
 		fi
 	`

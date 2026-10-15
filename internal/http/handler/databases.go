@@ -2,11 +2,16 @@ package handler
 
 import (
 	"compress/gzip"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -181,6 +186,7 @@ func (h *DatabaseHandler) Setup(w http.ResponseWriter, r *http.Request) {
 		Name:      name,
 		Type:      dbType,
 		Username:  username,
+		Password:  password,
 		Host:      "localhost",
 		Charset:   charset,
 		CreatedAt: time.Now(),
@@ -325,9 +331,130 @@ func (h *DatabaseHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 				_ = h.mysqlMgr.GrantPrivileges(ctx, username, "localhost", dbName)
 			}
 		}
+
+		if dbName != "" {
+			dbs, _ := h.repo.GetDatabases()
+			for _, d := range dbs {
+				if strings.EqualFold(d.Name, dbName) {
+					d.Username = username
+					d.Password = password
+					_ = h.repo.UpsertDatabase(d)
+					break
+				}
+			}
+		}
 	}
 
 	http.Redirect(w, r, "/databases?success=user_created", http.StatusSeeOther)
+}
+
+// SSOLogin generates a secure one-time token and redirects the browser directly into phpMyAdmin or phpPgAdmin.
+func (h *DatabaseHandler) SSOLogin(w http.ResponseWriter, r *http.Request) {
+	name := strings.TrimSpace(r.URL.Query().Get("name"))
+
+	dbs, _ := h.repo.GetDatabases()
+	var targetDB *model.Database
+	for i := range dbs {
+		if strings.EqualFold(dbs[i].Name, name) {
+			targetDB = &dbs[i]
+			break
+		}
+	}
+
+	if targetDB == nil {
+		http.Redirect(w, r, "/databases?error=db_not_found", http.StatusSeeOther)
+		return
+	}
+
+	// If database record does not have a saved password yet, redirect with modal trigger
+	if targetDB.Password == "" {
+		http.Redirect(w, r, fmt.Sprintf("/databases?prompt_pwd=1&db=%s&user=%s&type=%s", url.QueryEscape(targetDB.Name), url.QueryEscape(targetDB.Username), url.QueryEscape(string(targetDB.Type))), http.StatusSeeOther)
+		return
+	}
+
+	// Generate secure one-time SSO token
+	tokenBytes := make([]byte, 16)
+	_, _ = rand.Read(tokenBytes)
+	token := hex.EncodeToString(tokenBytes)
+
+	tokenData := map[string]interface{}{
+		"user":    targetDB.Username,
+		"pass":    targetDB.Password,
+		"db":      targetDB.Name,
+		"type":    string(targetDB.Type),
+		"expires": time.Now().Add(60 * time.Second).Unix(),
+	}
+
+	tokenDir := "/var/lib/seintech/pma_tokens"
+	_ = os.MkdirAll(tokenDir, 0777)
+	_ = os.Chmod(tokenDir, 0777)
+
+	tokenBytesData, _ := json.Marshal(tokenData)
+	tokenFile := filepath.Join(tokenDir, token+".json")
+	_ = os.WriteFile(tokenFile, tokenBytesData, 0666)
+	_ = os.Chmod(tokenFile, 0666)
+
+	if targetDB.Type == model.DBTypePostgres {
+		h.sm.AutoConfigurePhpPgAdmin(r.Context())
+		http.Redirect(w, r, fmt.Sprintf("/phppgadmin/sso.php?token=%s", token), http.StatusSeeOther)
+	} else {
+		h.sm.AutoConfigurePhpMyAdmin(r.Context())
+		http.Redirect(w, r, fmt.Sprintf("/phpmyadmin/sso.php?token=%s", token), http.StatusSeeOther)
+	}
+}
+
+// SetPassword updates database password in database system and repository for seamless auto-login.
+func (h *DatabaseHandler) SetPassword(w http.ResponseWriter, r *http.Request) {
+	name := strings.TrimSpace(r.FormValue("name"))
+	username := strings.TrimSpace(r.FormValue("username"))
+	password := strings.TrimSpace(r.FormValue("password"))
+	syncServer := r.FormValue("sync") == "1" || r.FormValue("sync") == "true"
+
+	if name == "" || password == "" {
+		http.Error(w, "Nama database dan password wajib diisi", http.StatusBadRequest)
+		return
+	}
+
+	dbs, _ := h.repo.GetDatabases()
+	var targetDB *model.Database
+	for i := range dbs {
+		if strings.EqualFold(dbs[i].Name, name) {
+			targetDB = &dbs[i]
+			break
+		}
+	}
+
+	if targetDB == nil {
+		http.Error(w, "Database tidak ditemukan", http.StatusNotFound)
+		return
+	}
+
+	if username != "" {
+		targetDB.Username = username
+	} else if targetDB.Username == "" {
+		targetDB.Username = targetDB.Name
+	}
+	targetDB.Password = password
+
+	ctx := r.Context()
+	// Sync user password directly on database engine (MariaDB or PostgreSQL)
+	if syncServer && targetDB.Username != "" {
+		if targetDB.Type == model.DBTypePostgres {
+			_ = h.pgMgr.ChangePassword(ctx, targetDB.Username, "localhost", password)
+		} else {
+			_ = h.mysqlMgr.ChangePassword(ctx, targetDB.Username, "localhost", password)
+		}
+	}
+
+	_ = h.repo.UpsertDatabase(*targetDB)
+
+	// Return direct SSO URL for instantaneous browser redirect
+	ssoURL := fmt.Sprintf("/databases/sso?name=%s&type=%s", url.QueryEscape(targetDB.Name), url.QueryEscape(string(targetDB.Type)))
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"sso_url": ssoURL,
+	})
 }
 
 func respondError(w http.ResponseWriter, isAjax bool, msg string) {

@@ -118,6 +118,8 @@ func NewRouter(
 		pr.Post("/databases/delete", dbH.Delete)
 		pr.Get("/databases/export", dbH.Export)
 		pr.Post("/databases/import", dbH.Import)
+		pr.Get("/databases/sso", dbH.SSOLogin)
+		pr.Post("/databases/set-password", dbH.SetPassword)
 
 		// SSL
 		pr.Get("/ssl", sslH.List)

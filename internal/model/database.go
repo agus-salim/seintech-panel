@@ -15,6 +15,7 @@ type Database struct {
 	Name      string    `json:"name"`
 	Type      DBType    `json:"type"`
 	Username  string    `json:"username"`
+	Password  string    `json:"password,omitempty"`
 	Host      string    `json:"host"`
 	Charset   string    `json:"charset"`
 	Collation string    `json:"collation,omitempty"`
@@ -26,6 +27,7 @@ type DatabaseUser struct {
 	ID        string    `json:"id"`
 	UserID    string    `json:"user_id"`
 	Username  string    `json:"username"`
+	Password  string    `json:"password,omitempty"`
 	Type      DBType    `json:"type"`
 	Host      string    `json:"host"` // localhost or %
 	CreatedAt time.Time `json:"created_at"`

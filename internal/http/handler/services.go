@@ -111,7 +111,7 @@ func (h *ServicesHandler) ExecuteAction(w http.ResponseWriter, r *http.Request) 
 			msg = fmt.Sprintf("Error performing %s on %s: %v", action, service, err)
 		}
 		msgType = "error"
-	} else if service == "phpmyadmin" || service == "phppgadmin" {
+	} else if service == "phpmyadmin" || service == "phppgadmin" || strings.HasPrefix(service, "php") {
 		if h.sslMgr != nil {
 			_ = h.sslMgr.SyncPanelNginxReverseProxy(ctx)
 		}

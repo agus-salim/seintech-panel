@@ -534,7 +534,7 @@ func (sm *ServiceManager) UninstallService(ctx context.Context, serviceName stri
 	_ = exec.CommandContext(ctx, "systemctl", "reset-failed", targetDef.Name).Run()
 	_ = exec.CommandContext(ctx, "systemctl", "daemon-reload").Run()
 
-	if targetDef.Category == "database_tool" || targetDef.Category == "webserver" {
+	if targetDef.Category == "database_tool" || targetDef.Category == "webserver" || targetDef.Category == "php" {
 		_, _ = sm.ExecuteSystemctl(ctx, "reload", "nginx")
 	}
 
@@ -601,7 +601,42 @@ func (sm *ServiceManager) AutoConfigurePhpMyAdmin(ctx context.Context) {
 	_ = os.MkdirAll(tmpDir, 0777)
 	_ = os.Chmod(tmpDir, 0777)
 
-	// 4. Configure dual-server setup: Server 1 for Signon SSO, Server 2 for standard cookie login
+	// 4. Ensure required PHP extensions (mbstring, mysql, xml, etc.) are installed for all active PHP runtimes
+	extScript := `
+		export DEBIAN_FRONTEND=noninteractive
+		need_reload=0
+		for sock in /run/php/php*-fpm.sock; do
+			if [ -e "$sock" ]; then
+				ver=$(basename "$sock" | sed -E 's/php([0-9]+\.[0-9]+)-fpm\.sock/\1/')
+				need_pkg=0
+				for ext in mbstring mysql xml curl zip gd; do
+					if [ ! -f "/etc/php/$ver/fpm/conf.d/"*"$ext"*.ini ] && ! php$ver -m 2>/dev/null | grep -qi "^$ext$"; then
+						need_pkg=1
+						break
+					fi
+				done
+				if [ "$need_pkg" -eq 1 ]; then
+					apt-get update -y >/dev/null 2>&1 || true
+					apt-get install -y php$ver-mbstring php$ver-mysql php$ver-xml php$ver-curl php$ver-zip php$ver-gd || true
+					need_reload=1
+				fi
+			fi
+		done
+
+		# Also ensure metapackages if missing
+		if ! dpkg -s php-mbstring >/dev/null 2>&1 || ! dpkg -s php-mysql >/dev/null 2>&1; then
+			apt-get install -y php-mbstring php-mysql php-xml php-curl php-zip php-gd || true
+			need_reload=1
+		fi
+
+		if [ "$need_reload" -eq 1 ]; then
+			systemctl restart "php*-fpm" 2>/dev/null || true
+			systemctl reload nginx 2>/dev/null || true
+		fi
+	`
+	_ = exec.CommandContext(ctx, "bash", "-c", extScript).Run()
+
+	// 5. Configure dual-server setup: Server 1 for Signon SSO, Server 2 for standard cookie login
 	confFile := "/etc/phpmyadmin/conf.d/01-seintech.inc.php"
 	_ = os.MkdirAll("/etc/phpmyadmin/conf.d", 0755)
 	customConf := `<?php
@@ -689,7 +724,7 @@ func (sm *ServiceManager) AutoConfigurePhpPgAdmin(ctx context.Context) {
 	_ = os.MkdirAll("/var/lib/seintech/pma_tokens", 0777)
 	_ = os.Chmod("/var/lib/seintech/pma_tokens", 0777)
 
-	// 2. Ensure php-pgsql extensions are installed for active PHP runtimes
+	// 2. Ensure php-pgsql and php-mbstring extensions are installed for active PHP runtimes
 	script := `
 		export DEBIAN_FRONTEND=noninteractive
 		need_reload=0
@@ -697,16 +732,24 @@ func (sm *ServiceManager) AutoConfigurePhpPgAdmin(ctx context.Context) {
 		for sock in /run/php/php*-fpm.sock; do
 			if [ -e "$sock" ]; then
 				ver=$(basename "$sock" | sed -E 's/php([0-9]+\.[0-9]+)-fpm\.sock/\1/')
-				if ! php$ver -m 2>/dev/null | grep -qi pgsql; then
-					apt-get install -y php$ver-pgsql || true
+				need_pkg=0
+				for ext in pgsql mbstring; do
+					if [ ! -f "/etc/php/$ver/fpm/conf.d/"*"$ext"*.ini ] && ! php$ver -m 2>/dev/null | grep -qi "^$ext$"; then
+						need_pkg=1
+						break
+					fi
+				done
+				if [ "$need_pkg" -eq 1 ]; then
+					apt-get update -y >/dev/null 2>&1 || true
+					apt-get install -y php$ver-pgsql php$ver-mbstring || true
 					need_reload=1
 				fi
 			fi
 		done
 
-		# Also ensure generic php-pgsql package
-		if ! dpkg -s php-pgsql >/dev/null 2>&1; then
-			apt-get install -y php-pgsql || true
+		# Also ensure generic php-pgsql & php-mbstring packages
+		if ! dpkg -s php-pgsql >/dev/null 2>&1 || ! dpkg -s php-mbstring >/dev/null 2>&1; then
+			apt-get install -y php-pgsql php-mbstring || true
 			need_reload=1
 		fi
 

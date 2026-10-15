@@ -73,14 +73,13 @@ context / {
 }
 {{- else if not .IsStatic }}
 scripthandler  {
-  add                     lsapi:php-{{ .DomainName }} php
+  add                     fcgi:php-{{ .DomainName }} php
 }
 
 extprocessor php-{{ .DomainName }} {
-  type                    lsapi
+  type                    fcgi
   address                 uds://{{ .PHPSocket }}
   maxConns                35
-  env                     PHP_LSAPI_CHILDREN=35
   initTimeout             60
   retryTimeout            0
   persistConn             1

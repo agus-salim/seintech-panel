@@ -29,9 +29,16 @@ func (h *PHPHandler) List(w http.ResponseWriter, r *http.Request) {
 	settings, _ := h.repo.GetSettings()
 	versions, _ := h.phpMgr.ListVersions(r.Context())
 
+	var installed []php.PHPVersionInfo
+	for _, v := range versions {
+		if v.Installed {
+			installed = append(installed, v)
+		}
+	}
+
 	data := PHPPageData{
 		BasePageData: NewBaseData(r, "PHP Engines", "Multi-PHP Version Engine & FPM Pools", "php", settings.Hostname),
-		Versions:     versions,
+		Versions:     installed,
 	}
 
 	_ = web.RenderTemplate(w, "php.html", data)

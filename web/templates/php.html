@@ -3,14 +3,21 @@
 
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-            <h2 class="text-base font-bold text-slate-900">PHP Version Engines & Pools</h2>
-            <p class="text-xs text-slate-500 mt-0.5">Control PHP-FPM daemons (7.4 to 8.5) and per-domain execution parameters</p>
+            <h2 class="text-base font-bold text-slate-900">PHP Version Engines &amp; Pools</h2>
+            <p class="text-xs text-slate-500 mt-0.5">Kelola daemon PHP-FPM aktif dan parameter konfigurasi per versi</p>
+        </div>
+        <div class="flex items-center space-x-2">
+            <a href="/services" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-colors active:scale-95">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                <span>Pasang Versi PHP di Services</span>
+            </a>
         </div>
     </div>
 
     <!-- Supported PHP Engines Grid (3 Columns) -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {{ range .Versions }}
+        {{ if .Installed }}
         <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
             <div>
                 <div class="flex items-center justify-between mb-3">
@@ -19,13 +26,9 @@
                     <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-800">
                         <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 pulse-indicator"></span> Running
                     </span>
-                    {{ else if .Installed }}
-                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600">
-                        Installed
-                    </span>
                     {{ else }}
-                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-50 text-slate-400">
-                        Not Installed
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">
+                        <span class="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5"></span> Stopped
                     </span>
                     {{ end }}
                 </div>
@@ -70,6 +73,11 @@
                 </button>
                 {{ end }}
             </div>
+        </div>
+        {{ end }}
+        {{ else }}
+        <div class="col-span-full py-12 text-center text-xs text-slate-400 bg-white rounded-2xl border border-dashed border-slate-200">
+            Tidak ada versi PHP yang terpasang di sistem. Silakan pasang melalui menu <a href="/services" class="text-indigo-600 font-semibold underline">Services &amp; Packages</a>.
         </div>
         {{ end }}
     </div>

@@ -91,7 +91,7 @@ var Catalog = []ServiceDefinition{
 		Description: "Reliable, open-source HTTP server with modular proxy and rewrite capabilities.",
 		CheckPaths:  []string{"/usr/sbin/apache2"},
 		AptPackages: []string{"apache2", "apache2-utils"},
-		Ports:       "Backend :8080 (Proxied by Nginx :80/:443)",
+		Ports:       "Port :8080",
 	},
 
 	// Databases

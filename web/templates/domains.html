@@ -124,7 +124,7 @@
                                 <select onchange="updateWebEngine('{{ .ID }}', this.value, this)"
                                         class="text-xs font-mono font-medium rounded-lg border border-slate-200 bg-white hover:border-indigo-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 py-1.5 pl-2.5 pr-7 outline-none cursor-pointer text-slate-800 shadow-sm transition-all appearance-none">
                                     <option value="nginx" {{ if eq .WebServerType "nginx" }}selected{{ end }}>NGINX</option>
-                                    <option value="apache2" {{ if eq .WebServerType "apache2" }}selected{{ end }}>APACHE 2.4 (Nginx Proxy)</option>
+                                    <option value="apache2" {{ if eq .WebServerType "apache2" }}selected{{ end }}>APACHE 2.4</option>
                                 </select>
                                 <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1.5 text-slate-400">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
@@ -306,7 +306,7 @@
                             <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Webserver Engine</label>
                             <select name="webserver_type" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
                                 <option value="nginx">Nginx (Default Edge: Port 80 / 443)</option>
-                                <option value="apache2">Apache 2.4 (Nginx Reverse Proxy)</option>
+                                <option value="apache2">Apache 2.4</option>
                             </select>
                         </div>
 
@@ -377,7 +377,7 @@
                             <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Webserver Engine</label>
                             <select name="webserver_type" x-model="editData.webserver" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
                                 <option value="nginx">Nginx (Port 80 / 443)</option>
-                                <option value="apache2">Apache 2.4 (Nginx Reverse Proxy)</option>
+                                <option value="apache2">Apache 2.4</option>
                             </select>
                         </div>
 

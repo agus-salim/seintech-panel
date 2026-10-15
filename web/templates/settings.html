@@ -200,7 +200,7 @@
                     <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">Default Web Server Engine</label>
                     <select name="default_webserver" class="w-full px-3.5 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-white font-medium text-slate-800">
                         <option value="nginx" {{ if eq .Settings.DefaultWebServer "nginx" }}selected{{ end }}>Nginx (Reverse Proxy & FastCGI)</option>
-                        <option value="apache2" {{ if eq .Settings.DefaultWebServer "apache2" }}selected{{ end }}>Apache2 (Nginx Reverse Proxy Backend)</option>
+                        <option value="apache2" {{ if eq .Settings.DefaultWebServer "apache2" }}selected{{ end }}>Apache 2.4</option>
                     </select>
                 </div>
                 <div>

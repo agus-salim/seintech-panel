@@ -721,16 +721,28 @@ if (!$data || time() > $data['expires']) {
 
 chdir('/usr/share/phppgadmin');
 
-// Clear previous session cookies if any
-if (isset($_COOKIE['PPA_ID'])) {
-    session_name('PPA_ID');
-    @session_start();
-    $_SESSION = array();
-    @session_destroy();
+// Reset previous session data
+session_name('PPA_ID');
+@session_start();
+$_SESSION = array();
+
+// Read config to find exact configured server
+$conf = array();
+if (file_exists('/etc/phppgadmin/config.inc.php')) {
+    include('/etc/phppgadmin/config.inc.php');
+} elseif (file_exists('./conf/config.inc.php')) {
+    include('./conf/config.inc.php');
 }
 
-$server_id = 0;
-// Set POST and REQUEST credentials before loading phpPgAdmin core library
+$first_server = !empty($conf['servers']) ? reset($conf['servers']) : null;
+if (!$first_server) {
+    die("No PostgreSQL server configured in phpPgAdmin");
+}
+
+// In phpPgAdmin, server_id is strictly: host:port:sslmode
+$server_id = $first_server['host'] . ':' . $first_server['port'] . ':' . $first_server['sslmode'];
+
+// Set login request parameters before loading phpPgAdmin core library
 $_POST['loginServer'] = $server_id;
 $_POST['loginUsername'] = $data['user'];
 $_POST['loginPassword_' . md5($server_id)] = $data['pass'];
@@ -759,13 +771,32 @@ session_write_close();
 
 $db = urlencode($data['db'] ?? '');
 if ($db !== '') {
-    header("Location: /phppgadmin/database.php?server=" . $server_id . "&database=" . $db);
+    $detail = 'redirect.php?subject=database&server=' . urlencode($server_id) . '&database=' . $db;
 } else {
-    header("Location: /phppgadmin/redirect.php?subject=server&server=" . $server_id);
+    $detail = 'redirect.php?subject=server&server=' . urlencode($server_id);
 }
+
+// Redirect into frameset with the target detail page
+header("Location: /phppgadmin/index.php?detail=" . urlencode($detail));
 exit;
 `
 	_ = os.WriteFile(ssoScript, []byte(ssoContent), 0644)
+
+	// 5. Enhance index.php to support ?detail= query parameter so SSO lands in the correct frameset view
+	for _, indexPath := range []string{"/usr/share/phppgadmin/index.php"} {
+		if data, err := os.ReadFile(indexPath); err == nil {
+			str := string(data)
+			if !strings.Contains(str, "detail_src") {
+				oldMainframe := `$mainframe = '<frame src="intro.php" name="detail" id="detail" frameborder="0" />'`
+				newMainframe := `$detail_src = (!empty($_GET['detail'])) ? $_GET['detail'] : 'intro.php';
+	$mainframe = '<frame src="' . htmlspecialchars($detail_src) . '" name="detail" id="detail" frameborder="0" />'`
+				if strings.Contains(str, oldMainframe) {
+					str = strings.Replace(str, oldMainframe, newMainframe, 1)
+					_ = os.WriteFile(indexPath, []byte(str), 0644)
+				}
+			}
+		}
+	}
 }
 
 // EnsureDatabaseTools preseeds debconf and auto-configures both tools if present.

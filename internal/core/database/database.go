@@ -189,7 +189,7 @@ func (p *PostgresManager) GrantPrivileges(ctx context.Context, username, host, d
 GRANT ALL PRIVILEGES ON DATABASE "%s" TO "%s";`, dbName, username, dbName, username)
 	_, _ = p.runSQLInDB(ctx, "postgres", dbSQL)
 
-	// 2. Grant public schema ownership and permissions inside the specific database (fixes Postgres 15+ schema public permissions)
+	// 2. Grant public schema ownership, full permissions, and reassign ownership of all existing tables/views/sequences
 	schemaSQL := fmt.Sprintf(`ALTER SCHEMA public OWNER TO "%s";
 GRANT ALL ON SCHEMA public TO "%s";
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "%s";
@@ -198,7 +198,29 @@ GRANT ALL PRIVILEGES ON ALL ROUTINES IN SCHEMA public TO "%s";
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO "%s";
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO "%s";
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON ROUTINES TO "%s";
-`, username, username, username, username, username, username, username, username)
+
+DO $$
+DECLARE
+    r RECORD;
+BEGIN
+    -- Reassign table ownership (needed for ALTER TABLE during migrations)
+    FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
+        EXECUTE 'ALTER TABLE public.' || quote_ident(r.tablename) || ' OWNER TO ' || quote_ident('%s') || ';';
+    END LOOP;
+    -- Reassign sequence ownership
+    FOR r IN (SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = 'public') LOOP
+        EXECUTE 'ALTER SEQUENCE public.' || quote_ident(r.sequence_name) || ' OWNER TO ' || quote_ident('%s') || ';';
+    END LOOP;
+    -- Reassign view ownership
+    FOR r IN (SELECT table_name FROM information_schema.views WHERE table_schema = 'public') LOOP
+        EXECUTE 'ALTER VIEW public.' || quote_ident(r.table_name) || ' OWNER TO ' || quote_ident('%s') || ';';
+    END LOOP;
+    -- Reassign materialized view ownership
+    FOR r IN (SELECT matviewname FROM pg_matviews WHERE schemaname = 'public') LOOP
+        EXECUTE 'ALTER MATERIALIZED VIEW public.' || quote_ident(r.matviewname) || ' OWNER TO ' || quote_ident('%s') || ';';
+    END LOOP;
+END $$;
+`, username, username, username, username, username, username, username, username, username, username, username, username)
 
 	_, err := p.runSQLInDB(ctx, dbName, schemaSQL)
 	return err

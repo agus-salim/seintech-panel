@@ -669,37 +669,41 @@ func (sm *ServiceManager) AutoConfigurePhpPgAdmin(ctx context.Context) {
 	_ = exec.CommandContext(ctx, "bash", "-c", script).Run()
 
 	// 3. Adjust security settings and tuning in config.inc.php
-	confFile := "/etc/phppgadmin/config.inc.php"
-	if data, err := os.ReadFile(confFile); err == nil {
-		str := string(data)
-		modified := false
+	for _, confFile := range []string{"/etc/phppgadmin/config.inc.php", "/usr/share/phppgadmin/conf/config.inc.php"} {
+		if data, err := os.ReadFile(confFile); err == nil {
+			str := string(data)
 
-		// Disable extra login security so 'postgres' superuser and local users can log in
-		if strings.Contains(str, "$conf['extra_login_security'] = true;") {
+			// Clean up any previously leaked tuning that was outside PHP tags
+			if idx := strings.Index(str, "/* Seintech PHP8 Tuning */"); idx != -1 {
+				str = str[:idx]
+			}
+
+			// Remove any closing PHP tag ?> from the file so everything remains strictly inside PHP
+			str = strings.ReplaceAll(str, "?>", "")
+
+			// Disable extra login security so all local users can log in
 			str = strings.ReplaceAll(str, "$conf['extra_login_security'] = true;", "$conf['extra_login_security'] = false;")
-			modified = true
-		}
 
-		// Allow users to see all databases they have access to
-		if strings.Contains(str, "$conf['owned_only'] = true;") {
+			// Allow users to see all databases they have access to
 			str = strings.ReplaceAll(str, "$conf['owned_only'] = true;", "$conf['owned_only'] = false;")
-			modified = true
-		}
 
-		// Ensure host is set to localhost
-		if strings.Contains(str, "$conf['servers'][0]['host'] = '';") {
+			// Ensure host is set to localhost
 			str = strings.ReplaceAll(str, "$conf['servers'][0]['host'] = '';", "$conf['servers'][0]['host'] = 'localhost';")
-			modified = true
-		}
 
-		// Suppress PHP 8 deprecation notices and ensure server alias
-		if !strings.Contains(str, "Seintech PHP8 Tuning") {
-			tuning := "\n/* Seintech PHP8 Tuning */\n@ini_set('display_errors', '0');\n@error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT & ~E_NOTICE & ~E_WARNING);\n$conf['servers']['localhost:5432:allow'] = &$conf['servers'][0];\n$conf['servers']['localhost'] = &$conf['servers'][0];\n"
-			str = str + tuning
-			modified = true
-		}
+			// Append PHP tuning strictly inside PHP tags
+			tuning := "\n/* Seintech PHP8 Tuning */\n" +
+				"@ini_set('display_errors', '0');\n" +
+				"@error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT & ~E_NOTICE & ~E_WARNING);\n" +
+				"if (isset($conf['servers'][0])) {\n" +
+				"    $conf['servers'][0]['host'] = 'localhost';\n" +
+				"    $conf['servers'][0]['port'] = 5432;\n" +
+				"    $conf['servers'][0]['sslmode'] = 'allow';\n" +
+				"    $conf['servers']['0'] = &$conf['servers'][0];\n" +
+				"    $conf['servers']['localhost:5432:allow'] = &$conf['servers'][0];\n" +
+				"    $conf['servers']['localhost'] = &$conf['servers'][0];\n" +
+				"}\n"
 
-		if modified {
+			str = strings.TrimSpace(str) + "\n" + tuning
 			_ = os.WriteFile(confFile, []byte(str), 0644)
 		}
 	}

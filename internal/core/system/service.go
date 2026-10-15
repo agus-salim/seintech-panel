@@ -469,30 +469,72 @@ func (sm *ServiceManager) UninstallService(ctx context.Context, serviceName stri
 		return fmt.Errorf("unknown service: %s", serviceName)
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 
-	// Stop & disable service first (only for daemon services)
+	// Preseed debconf to avoid any interactive prompt during removal (e.g. dbconfig purge prompts)
+	sm.PreseedDebconf(ctx)
+
+	// Recover any locked/interrupted dpkg states
+	recoverCmd := exec.CommandContext(ctx, "dpkg", "--configure", "-a")
+	recoverCmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
+	_ = recoverCmd.Run()
+
+	// Stop & disable service first (for daemon services)
 	if targetDef.Category != "database_tool" {
 		_ = sm.Stop(ctx, targetDef.Name)
 		_, _ = sm.ExecuteSystemctl(ctx, "disable", targetDef.Name)
 	}
 
-	// apt-get purge -y <packages>
-	args := append([]string{"purge", "-y"}, targetDef.AptPackages...)
+	// 1. Try batch purge
+	args := append([]string{"purge", "-y", "--allow-change-held-packages"}, targetDef.AptPackages...)
 	purgeCmd := exec.CommandContext(ctx, "apt-get", args...)
 	purgeCmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
-	out, err := purgeCmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to purge service: %w (%s)", err, strings.TrimSpace(string(out)))
+	_ = purgeCmd.Run()
+
+	// 2. Fallback per-package purge in case one package in the list was not found
+	for _, pkg := range targetDef.AptPackages {
+		pCmd := exec.CommandContext(ctx, "apt-get", "purge", "-y", pkg)
+		pCmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
+		_ = pCmd.Run()
 	}
 
-	// apt-get autoremove -y
-	autoCmd := exec.CommandContext(ctx, "apt-get", "autoremove", "-y")
+	// 3. Autoremove unused dependencies
+	autoCmd := exec.CommandContext(ctx, "apt-get", "autoremove", "-y", "--purge")
 	autoCmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
 	_ = autoCmd.Run()
 
-	if targetDef.Category == "database_tool" {
+	// 4. Forcefully remove any residual check paths and custom files left behind
+	for _, p := range targetDef.CheckPaths {
+		_ = os.RemoveAll(p)
+	}
+
+	if serviceName == "phpmyadmin" {
+		_ = os.RemoveAll("/usr/share/phpmyadmin")
+		_ = os.RemoveAll("/etc/phpmyadmin")
+		_ = os.RemoveAll("/var/lib/phpmyadmin")
+		_ = os.RemoveAll("/var/lib/seintech/pma_tokens")
+		_ = os.Remove("/etc/nginx/snippets/phpmyadmin.conf")
+	} else if serviceName == "phppgadmin" {
+		_ = os.RemoveAll("/usr/share/phppgadmin")
+		_ = os.RemoveAll("/etc/phppgadmin")
+		_ = os.Remove("/etc/nginx/snippets/phppgadmin.conf")
+	} else if strings.HasPrefix(serviceName, "php") && strings.HasSuffix(serviceName, "-fpm") {
+		ver := strings.TrimPrefix(strings.TrimSuffix(serviceName, "-fpm"), "php")
+		_ = os.RemoveAll(filepath.Join("/etc/php", ver))
+		_ = os.Remove(fmt.Sprintf("/run/php/php%s-fpm.sock", ver))
+		_ = os.Remove(fmt.Sprintf("/run/php/php%s-fpm.pid", ver))
+		_ = os.Remove(fmt.Sprintf("/usr/sbin/php-fpm%s", ver))
+		_ = os.Remove(fmt.Sprintf("/usr/bin/php%s", ver))
+	}
+
+	_ = os.Remove(disabledFilePath(serviceName))
+
+	// Reset systemd failed state & reload daemon
+	_ = exec.CommandContext(ctx, "systemctl", "reset-failed", targetDef.Name).Run()
+	_ = exec.CommandContext(ctx, "systemctl", "daemon-reload").Run()
+
+	if targetDef.Category == "database_tool" || targetDef.Category == "webserver" {
 		_, _ = sm.ExecuteSystemctl(ctx, "reload", "nginx")
 	}
 
@@ -503,6 +545,9 @@ func (sm *ServiceManager) UninstallService(ctx context.Context, serviceName stri
 func (sm *ServiceManager) PreseedDebconf(ctx context.Context) {
 	preseeds := []string{
 		"phpmyadmin phpmyadmin/dbconfig-install boolean false",
+		"phpmyadmin phpmyadmin/dbconfig-reinstall boolean false",
+		"phpmyadmin phpmyadmin/dbconfig-remove boolean false",
+		"phpmyadmin phpmyadmin/purge boolean false",
 		"phpmyadmin phpmyadmin/reconfigure-webserver multiselect none",
 		"phpmyadmin phpmyadmin/app-password-confirm password",
 		"phpmyadmin phpmyadmin/mysql/admin-pass password",
@@ -514,8 +559,12 @@ func (sm *ServiceManager) PreseedDebconf(ctx context.Context) {
 		"dbconfig-common dbconfig-common/dbconfig-install boolean false",
 		"dbconfig-common dbconfig-common/dbconfig-reinstall boolean false",
 		"dbconfig-common dbconfig-common/dbconfig-upgrade boolean false",
+		"dbconfig-common dbconfig-common/dbconfig-remove boolean false",
+		"dbconfig-common dbconfig-common/purge boolean false",
 		"phppgadmin phppgadmin/reconfigure-webserver multiselect none",
 		"phppgadmin phppgadmin/dbconfig-install boolean false",
+		"phppgadmin phppgadmin/dbconfig-remove boolean false",
+		"phppgadmin phppgadmin/purge boolean false",
 	}
 
 	for _, ps := range preseeds {

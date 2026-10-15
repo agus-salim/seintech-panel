@@ -5,10 +5,14 @@
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
             <h2 class="text-base font-bold text-slate-900">Service Manager &amp; Package Installer</h2>
-            <p class="text-xs text-slate-500 mt-0.5">Install, remove, start, stop, restart, and reload webservers, databases, and PHP engines</p>
+            <p class="text-xs text-slate-500 mt-0.5">Kelola status, mulai, hentikan, restart, reload, dan uninstall layanan web server, database, dan engine PHP</p>
         </div>
         <div class="flex items-center space-x-2">
-            <span class="inline-flex items-center px-3 py-1 rounded-xl text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+            <button type="button" onclick="openCatalogModal()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-colors active:scale-95">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                <span>Pasang Layanan</span>
+            </button>
+            <span class="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
                 Debian 13 Native (APT &amp; Systemd)
             </span>
         </div>
@@ -16,86 +20,164 @@
 
     <!-- Section 1: Web Servers -->
     <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6">
-        <div class="flex items-center space-x-2.5 pb-4 border-b border-slate-100 mb-5">
-            <div class="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg>
-            </div>
-            <div>
-                <h3 class="text-sm font-bold text-slate-900">Web Servers (HTTP &amp; Reverse Proxy)</h3>
-                <p class="text-xs text-slate-500">Engines to serve static files, reverse proxy applications, and handle FastCGI routing</p>
+        <div class="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
+            <div class="flex items-center space-x-2.5">
+                <div class="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg>
+                </div>
+                <div>
+                    <h3 class="text-sm font-bold text-slate-900">Web Servers (HTTP &amp; Reverse Proxy)</h3>
+                    <p class="text-xs text-slate-500">Engines to serve static files, reverse proxy applications, and handle FastCGI routing</p>
+                </div>
             </div>
         </div>
 
+        {{ if .WebServers }}
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             {{ range .WebServers }}
             {{ template "service-card" . }}
             {{ end }}
         </div>
+        {{ else }}
+        <div class="py-8 text-center text-xs text-slate-400 bg-slate-50/60 rounded-xl border border-dashed border-slate-200">
+            Tidak ada Web Server yang terpasang. Klik <button type="button" onclick="openCatalogModal()" class="text-indigo-600 font-semibold underline">Pasang Layanan</button> untuk memasang.
+        </div>
+        {{ end }}
     </div>
 
     <!-- Section 2: Database Servers -->
     <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6">
-        <div class="flex items-center space-x-2.5 pb-4 border-b border-slate-100 mb-5">
-            <div class="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
-            </div>
-            <div>
-                <h3 class="text-sm font-bold text-slate-900">Database Servers</h3>
-                <p class="text-xs text-slate-500">Relational databases for web applications and persistent storage</p>
+        <div class="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
+            <div class="flex items-center space-x-2.5">
+                <div class="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
+                </div>
+                <div>
+                    <h3 class="text-sm font-bold text-slate-900">Database Servers</h3>
+                    <p class="text-xs text-slate-500">Relational databases for web applications and persistent storage</p>
+                </div>
             </div>
         </div>
 
+        {{ if .Databases }}
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             {{ range .Databases }}
             {{ template "service-card" . }}
             {{ end }}
         </div>
+        {{ else }}
+        <div class="py-8 text-center text-xs text-slate-400 bg-slate-50/60 rounded-xl border border-dashed border-slate-200">
+            Tidak ada Database Server yang terpasang. Klik <button type="button" onclick="openCatalogModal()" class="text-indigo-600 font-semibold underline">Pasang Layanan</button> untuk memasang.
+        </div>
+        {{ end }}
     </div>
 
     <!-- Section 3: Database Management Tools (phpMyAdmin & phpPgAdmin) -->
     <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6">
-        <div class="flex items-center space-x-2.5 pb-4 border-b border-slate-100 mb-5">
-            <div class="p-2 bg-amber-50 text-amber-600 rounded-xl">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
-            </div>
-            <div>
-                <h3 class="text-sm font-bold text-slate-900">Database Web Management Tools</h3>
-                <p class="text-xs text-slate-500">Web GUIs to inspect, query, manage and optimize MariaDB/MySQL &amp; PostgreSQL databases</p>
+        <div class="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
+            <div class="flex items-center space-x-2.5">
+                <div class="p-2 bg-amber-50 text-amber-600 rounded-xl">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                </div>
+                <div>
+                    <h3 class="text-sm font-bold text-slate-900">Database Web Management Tools</h3>
+                    <p class="text-xs text-slate-500">Web GUIs to inspect, query, manage and optimize MariaDB/MySQL &amp; PostgreSQL databases</p>
+                </div>
             </div>
         </div>
 
+        {{ if .DatabaseTools }}
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             {{ range .DatabaseTools }}
             {{ template "service-card" . }}
             {{ end }}
         </div>
+        {{ else }}
+        <div class="py-8 text-center text-xs text-slate-400 bg-slate-50/60 rounded-xl border border-dashed border-slate-200">
+            Tidak ada Tool Database yang terpasang. Klik <button type="button" onclick="openCatalogModal()" class="text-indigo-600 font-semibold underline">Pasang Layanan</button> untuk memasang phpMyAdmin atau phpPgAdmin.
+        </div>
+        {{ end }}
     </div>
 
     <!-- Section 4: PHP-FPM Engines -->
     <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6">
-        <div class="flex items-center space-x-2.5 pb-4 border-b border-slate-100 mb-5">
-            <div class="p-2 bg-purple-50 text-purple-600 rounded-xl">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
-            </div>
-            <div>
-                <h3 class="text-sm font-bold text-slate-900">PHP Execution Engines (7.4 to 8.5)</h3>
-                <p class="text-xs text-slate-500">FastCGI Process Managers with independent socket pools per version</p>
+        <div class="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
+            <div class="flex items-center space-x-2.5">
+                <div class="p-2 bg-purple-50 text-purple-600 rounded-xl">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+                </div>
+                <div>
+                    <h3 class="text-sm font-bold text-slate-900">PHP Execution Engines</h3>
+                    <p class="text-xs text-slate-500">FastCGI Process Managers with independent socket pools per version</p>
+                </div>
             </div>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {{ if .PHPEngines }}
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4">
             {{ range .PHPEngines }}
             {{ template "service-card" . }}
             {{ end }}
         </div>
+        {{ else }}
+        <div class="py-8 text-center text-xs text-slate-400 bg-slate-50/60 rounded-xl border border-dashed border-slate-200">
+            Tidak ada versi PHP-FPM yang terpasang. Klik <button type="button" onclick="openCatalogModal()" class="text-indigo-600 font-semibold underline">Pasang Layanan</button> untuk memasang.
+        </div>
+        {{ end }}
     </div>
 
+</div>
+
+<!-- ==================== CATALOG / INSTALL SERVICE MODAL ==================== -->
+<div id="catalogModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
+        <div class="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+            <div class="flex items-center gap-2.5">
+                <div class="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                </div>
+                <div>
+                    <h3 class="font-bold text-slate-900 text-sm">Pasang Paket / Layanan Baru</h3>
+                    <p class="text-xs text-slate-500">Pilih paket layanan sistem yang ingin dipasang di server</p>
+                </div>
+            </div>
+            <button type="button" onclick="closeCatalogModal()" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+
+        <div class="p-6 overflow-y-auto space-y-3">
+            {{ if .AvailableServices }}
+                {{ range .AvailableServices }}
+                <div class="p-4 rounded-xl border border-slate-200/80 bg-slate-50/50 hover:bg-slate-50 flex items-center justify-between gap-4 transition-colors">
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-2">
+                            <span class="font-bold text-xs text-slate-900">{{ .DisplayName }}</span>
+                            <span class="text-[10px] font-mono text-slate-400 bg-white border border-slate-200 px-1.5 py-0.5 rounded">{{ .Category }}</span>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-0.5 line-clamp-1">{{ .Description }}</p>
+                    </div>
+                    <button type="button"
+                        onclick="closeCatalogModal(); startInstallJob('{{ .Name }}', '{{ .DisplayName }}', 'install')"
+                        class="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors shadow-sm active:scale-95">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        <span>Pasang</span>
+                    </button>
+                </div>
+                {{ end }}
+            {{ else }}
+                <div class="py-12 text-center text-xs text-slate-500">
+                    Semua layanan pada katalog sudah terpasang di sistem.
+                </div>
+            {{ end }}
+        </div>
+    </div>
 </div>
 {{ end }}
 
 {{/* ===== Reusable Service Card Sub-Template ===== */}}
 {{ define "service-card" }}
-<div class="p-5 rounded-2xl border border-slate-200/70 bg-slate-50/50 flex flex-col justify-between space-y-4 transition-shadow hover:shadow-md">
+<div class="p-5 rounded-2xl border border-slate-200/70 bg-white flex flex-col justify-between space-y-4 transition-all duration-200 hover:shadow-md hover:border-slate-300/80">
     <div>
         <div class="flex items-center justify-between mb-2">
             <span class="font-bold text-sm text-slate-900">{{ .DisplayName }}</span>
@@ -120,80 +202,97 @@
         {{ if .Ports }}
         <div class="mt-1 text-[11px] font-mono text-slate-500 flex items-center gap-1.5">
             <span class="text-indigo-600 font-semibold">Access:</span>
-            <span class="text-slate-700 bg-slate-200/60 px-1.5 py-0.5 rounded text-[10px]">{{ .Ports }}</span>
+            <span class="text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded text-[10px]">{{ .Ports }}</span>
         </div>
         {{ end }}
     </div>
 
-    <div class="pt-3 border-t border-slate-200/60 flex items-center justify-between flex-wrap gap-2">
-        {{ if .Installed }}
-        <!-- Installed: show service control actions -->
+    <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
+        <!-- Control Action Icons (Start / Stop / Restart / Reload) -->
         <div class="flex items-center space-x-1.5">
             {{ if .Active }}
-            <!-- Running: show Stop / Restart / Reload -->
+            <!-- Stop Icon -->
             <form action="/services/action" method="POST" class="inline" onsubmit="showActionFeedback(this, '{{ .DisplayName }}', 'stop')">
                 <input type="hidden" name="service" value="{{ .Name }}">
                 <input type="hidden" name="action" value="stop">
                 <button type="submit"
-                    class="px-2.5 py-1.5 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl transition-colors">
-                    Stop
+                    title="Stop {{ .DisplayName }}"
+                    class="w-8 h-8 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-600 hover:text-amber-700 border border-amber-200/80 flex items-center justify-center transition-all shadow-sm active:scale-95">
+                    <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
                 </button>
             </form>
+            <!-- Restart Icon -->
             <form action="/services/action" method="POST" class="inline" onsubmit="showActionFeedback(this, '{{ .DisplayName }}', 'restart')">
                 <input type="hidden" name="service" value="{{ .Name }}">
                 <input type="hidden" name="action" value="restart">
                 <button type="submit"
-                    class="px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors">
-                    Restart
+                    title="Restart {{ .DisplayName }}"
+                    class="w-8 h-8 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-600 hover:text-indigo-700 border border-indigo-200/80 flex items-center justify-center transition-all shadow-sm active:scale-95">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                 </button>
             </form>
             {{ if ne .Category "database_tool" }}
+            <!-- Reload Icon -->
             <form action="/services/action" method="POST" class="inline" onsubmit="showActionFeedback(this, '{{ .DisplayName }}', 'reload')">
                 <input type="hidden" name="service" value="{{ .Name }}">
                 <input type="hidden" name="action" value="reload">
                 <button type="submit"
-                    class="px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors">
-                    Reload
+                    title="Reload {{ .DisplayName }}"
+                    class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-800 border border-slate-200 flex items-center justify-center transition-all shadow-sm active:scale-95">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v6h6M20 20v-6h-6M4 10l5-5a9 9 0 0113.6 2.3M20 14l-5 5a9 9 0 01-13.6-2.3"/></svg>
                 </button>
             </form>
             {{ end }}
             {{ else }}
-            <!-- Stopped: show Start -->
+            <!-- Start Icon -->
             <form action="/services/action" method="POST" class="inline" onsubmit="showActionFeedback(this, '{{ .DisplayName }}', 'start')">
                 <input type="hidden" name="service" value="{{ .Name }}">
                 <input type="hidden" name="action" value="start">
                 <button type="submit"
-                    class="px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-colors shadow-sm">
-                    Start Service
+                    title="Start {{ .DisplayName }}"
+                    class="w-8 h-8 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center transition-all shadow-sm active:scale-95">
+                    <svg class="w-3.5 h-3.5 fill-current ml-0.5" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                 </button>
             </form>
             {{ end }}
         </div>
 
-        <!-- Uninstall: async -->
+        <!-- Uninstall Icon Button -->
         <button type="button"
             onclick="confirmUninstall('{{ .Name }}', '{{ .DisplayName }}')"
-            class="text-xs font-semibold text-rose-600 hover:text-rose-800 hover:bg-rose-50 px-2 py-1 rounded-lg transition-colors">
-            Uninstall
+            title="Uninstall / Hapus {{ .DisplayName }}"
+            class="w-8 h-8 rounded-xl bg-white hover:bg-rose-50 text-rose-500 hover:text-rose-700 border border-slate-200 hover:border-rose-200 flex items-center justify-center transition-all shadow-sm active:scale-95">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
         </button>
-
-        {{ else }}
-        <!-- Not installed: Install button (async) -->
-        <button type="button"
-            onclick="startInstallJob('{{ .Name }}', '{{ .DisplayName }}', 'install')"
-            class="w-full py-2 px-3 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors shadow-sm flex items-center justify-center gap-1.5">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-            Install {{ .DisplayName }} {{ if eq .Category "database_tool" }}(Otomatis){{ end }}
-        </button>
-        {{ end }}
     </div>
 </div>
 {{ end }}
 
 <script>
+// Catalog modal open/close
+function openCatalogModal() {
+    const modal = document.getElementById('catalogModal');
+    if (modal) modal.classList.remove('hidden');
+}
+
+function closeCatalogModal() {
+    const modal = document.getElementById('catalogModal');
+    if (modal) modal.classList.add('hidden');
+}
+
+// Close catalog modal on backdrop click
+document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('catalogModal');
+    if (modal) {
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) closeCatalogModal();
+        });
+    }
+});
+
 // Confirm then start uninstall job
 function confirmUninstall(service, displayName) {
-    if (!confirm('Warning: Uninstalling ' + displayName + ' will purge its packages from the system. Proceed?')) return;
+    if (!confirm('Peringatan: Menghapus (uninstall) ' + displayName + ' akan membersihkan paket dan layanan ini dari server. Lanjutkan?')) return;
     startInstallJob(service, displayName, 'uninstall');
 }
 
@@ -202,7 +301,7 @@ function showActionFeedback(form, displayName, action) {
     const btn = form.querySelector('button[type="submit"]');
     if (btn) {
         btn.disabled = true;
-        btn.textContent = action.charAt(0).toUpperCase() + action.slice(1) + 'ing...';
+        btn.innerHTML = `<svg class="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
     }
 }
 </script>

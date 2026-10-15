@@ -24,22 +24,25 @@ func NewServicesHandler(repo *storage.Repository, sm *system.ServiceManager) *Se
 
 type ServicesPageData struct {
 	BasePageData
-	WebServers []system.ServiceDetail
-	Databases  []system.ServiceDetail
-	PHPEngines []system.ServiceDetail
+	WebServers    []system.ServiceDetail
+	Databases     []system.ServiceDetail
+	DatabaseTools []system.ServiceDetail
+	PHPEngines    []system.ServiceDetail
 }
 
 func (h *ServicesHandler) List(w http.ResponseWriter, r *http.Request) {
 	settings, _ := h.repo.GetSettings()
 	all := h.sm.GetAllServicesList(r.Context())
 
-	var webservers, databases, phps []system.ServiceDetail
+	var webservers, databases, databaseTools, phps []system.ServiceDetail
 	for _, s := range all {
 		switch s.Category {
 		case "webserver":
 			webservers = append(webservers, s)
 		case "database":
 			databases = append(databases, s)
+		case "database_tool":
+			databaseTools = append(databaseTools, s)
 		case "php":
 			phps = append(phps, s)
 		}
@@ -56,10 +59,11 @@ func (h *ServicesHandler) List(w http.ResponseWriter, r *http.Request) {
 	base.FlashType = flashType
 
 	data := ServicesPageData{
-		BasePageData: base,
-		WebServers:   webservers,
-		Databases:    databases,
-		PHPEngines:   phps,
+		BasePageData:  base,
+		WebServers:    webservers,
+		Databases:     databases,
+		DatabaseTools: databaseTools,
+		PHPEngines:    phps,
 	}
 
 	_ = web.RenderTemplate(w, "services.html", data)

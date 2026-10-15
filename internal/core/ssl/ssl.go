@@ -833,6 +833,8 @@ func (s *SSLManager) SyncPanelNginxReverseProxy(ctx context.Context) error {
 			backendPort = 8443
 		}
 
+		phpSock := findPanelPHPSocket()
+
 		block := fmt.Sprintf(`
 # HTTPS Reverse Proxy (Port 443) -> Seintech Panel (:%d)
 server {
@@ -856,6 +858,46 @@ server {
     client_max_body_size 2048M;
     client_body_buffer_size 128M;
 
+    # phpMyAdmin Direct Web Access
+    location ^~ /phpmyadmin/ {
+        root /usr/share/;
+        index index.php index.html index.htm;
+        location ~ ^/phpmyadmin/(.+\.php)$ {
+            try_files $uri =404;
+            root /usr/share/;
+            fastcgi_pass unix:%s;
+            fastcgi_index index.php;
+            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+            include /etc/nginx/fastcgi_params;
+        }
+        location ~* ^/phpmyadmin/(.+\.(jpg|jpeg|gif|css|png|js|ico|html|xml|txt))$ {
+            root /usr/share/;
+        }
+    }
+    location = /phpmyadmin {
+        return 301 /phpmyadmin/;
+    }
+
+    # phpPgAdmin Direct Web Access
+    location ^~ /phppgadmin/ {
+        root /usr/share/;
+        index index.php index.html index.htm;
+        location ~ ^/phppgadmin/(.+\.php)$ {
+            try_files $uri =404;
+            root /usr/share/;
+            fastcgi_pass unix:%s;
+            fastcgi_index index.php;
+            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+            include /etc/nginx/fastcgi_params;
+        }
+        location ~* ^/phppgadmin/(.+\.(jpg|jpeg|gif|css|png|js|ico|html|xml|txt))$ {
+            root /usr/share/;
+        }
+    }
+    location = /phppgadmin {
+        return 301 /phppgadmin/;
+    }
+
     # Reverse proxy to Seintech Panel
     location / {
         proxy_pass https://127.0.0.1:%d;
@@ -875,7 +917,7 @@ server {
         client_max_body_size 2048M;
     }
 }
-`, backendPort, h, certPath, keyPath, s.acmeRoot, backendPort)
+`, backendPort, h, certPath, keyPath, s.acmeRoot, phpSock, phpSock, backendPort)
 		httpsBlocks = append(httpsBlocks, block)
 	}
 
@@ -921,6 +963,27 @@ server {
 
 	_ = exec.CommandContext(ctx, "nginx", "-s", "reload").Run()
 	return nil
+}
+
+func findPanelPHPSocket() string {
+	candidates := []string{
+		"/run/php/php8.3-fpm.sock",
+		"/run/php/php8.2-fpm.sock",
+		"/run/php/php8.4-fpm.sock",
+		"/run/php/php8.1-fpm.sock",
+		"/run/php/php8.0-fpm.sock",
+		"/run/php/php7.4-fpm.sock",
+	}
+	for _, sock := range candidates {
+		if _, err := os.Stat(sock); err == nil {
+			return sock
+		}
+	}
+	matches, _ := filepath.Glob("/run/php/php*-fpm.sock")
+	if len(matches) > 0 {
+		return matches[0]
+	}
+	return "/run/php/php8.3-fpm.sock"
 }
 
 

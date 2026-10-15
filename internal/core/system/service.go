@@ -30,6 +30,8 @@ var AllowedServices = map[string]bool{
 	"php8.3-fpm":  true,
 	"php8.4-fpm":  true,
 	"php8.5-fpm":  true,
+	"phpmyadmin":  true,
+	"phppgadmin":  true,
 	"seintech":    true,
 }
 
@@ -169,6 +171,26 @@ var Catalog = []ServiceDefinition{
 		CheckPaths:  []string{"/usr/sbin/php-fpm8.5"},
 		AptPackages: []string{"php8.5-fpm", "php8.5-cli", "php8.5-mysql", "php8.5-curl", "php8.5-gd", "php8.5-mbstring", "php8.5-xml", "php8.5-zip"},
 	},
+
+	// Database Management Tools
+	{
+		Name:        "phpmyadmin",
+		DisplayName: "phpMyAdmin",
+		Category:    "database_tool",
+		Description: "Web-based administration interface for MySQL and MariaDB databases.",
+		CheckPaths:  []string{"/usr/share/phpmyadmin"},
+		AptPackages: []string{"phpmyadmin"},
+		Ports:       "URI: /phpmyadmin/",
+	},
+	{
+		Name:        "phppgadmin",
+		DisplayName: "phpPgAdmin",
+		Category:    "database_tool",
+		Description: "Web-based administration interface for PostgreSQL databases.",
+		CheckPaths:  []string{"/usr/share/phppgadmin"},
+		AptPackages: []string{"phppgadmin"},
+		Ports:       "URI: /phppgadmin/",
+	},
 }
 
 type ServiceManager struct{}
@@ -229,6 +251,21 @@ func (sm *ServiceManager) ExecuteSystemctl(ctx context.Context, action, serviceN
 
 // GetStatus checks if the service is currently running.
 func (sm *ServiceManager) GetStatus(ctx context.Context, serviceName string) (ServiceState, error) {
+	if serviceName == "phpmyadmin" || serviceName == "phppgadmin" {
+		if sm.IsInstalled(serviceName) {
+			return ServiceState{
+				Name:   serviceName,
+				Status: "running",
+				Active: true,
+			}, nil
+		}
+		return ServiceState{
+			Name:   serviceName,
+			Status: "not_installed",
+			Active: false,
+		}, nil
+	}
+
 	out, err := sm.ExecuteSystemctl(ctx, "is-active", serviceName)
 	state := ServiceState{
 		Name:   serviceName,
@@ -239,6 +276,10 @@ func (sm *ServiceManager) GetStatus(ctx context.Context, serviceName string) (Se
 }
 
 func (sm *ServiceManager) Start(ctx context.Context, serviceName string) error {
+	if serviceName == "phpmyadmin" || serviceName == "phppgadmin" {
+		_, err := sm.ExecuteSystemctl(ctx, "reload", "nginx")
+		return err
+	}
 	if serviceName == "apache2" {
 		sm.ensureApachePorts(ctx)
 	}
@@ -247,11 +288,18 @@ func (sm *ServiceManager) Start(ctx context.Context, serviceName string) error {
 }
 
 func (sm *ServiceManager) Stop(ctx context.Context, serviceName string) error {
+	if serviceName == "phpmyadmin" || serviceName == "phppgadmin" {
+		return nil
+	}
 	_, err := sm.ExecuteSystemctl(ctx, "stop", serviceName)
 	return err
 }
 
 func (sm *ServiceManager) Restart(ctx context.Context, serviceName string) error {
+	if serviceName == "phpmyadmin" || serviceName == "phppgadmin" {
+		_, err := sm.ExecuteSystemctl(ctx, "reload", "nginx")
+		return err
+	}
 	if serviceName == "apache2" {
 		sm.ensureApachePorts(ctx)
 	}
@@ -260,6 +308,10 @@ func (sm *ServiceManager) Restart(ctx context.Context, serviceName string) error
 }
 
 func (sm *ServiceManager) Reload(ctx context.Context, serviceName string) error {
+	if serviceName == "phpmyadmin" || serviceName == "phppgadmin" {
+		_, err := sm.ExecuteSystemctl(ctx, "reload", "nginx")
+		return err
+	}
 	_, err := sm.ExecuteSystemctl(ctx, "reload", serviceName)
 	return err
 }
@@ -327,6 +379,28 @@ func (sm *ServiceManager) InstallService(ctx context.Context, serviceName string
 		sm.ensureApachePorts(ctx)
 	}
 
+	// Preseed debconf for database tools so installation does not block or fail on prompts
+	if serviceName == "phpmyadmin" {
+		preseeds := []string{
+			"phpmyadmin phpmyadmin/dbconfig-install boolean false",
+			"phpmyadmin phpmyadmin/reconfigure-webserver multiselect none",
+		}
+		for _, ps := range preseeds {
+			pcmd := exec.CommandContext(ctx, "debconf-set-selections")
+			pcmd.Stdin = strings.NewReader(ps + "\n")
+			_ = pcmd.Run()
+		}
+	} else if serviceName == "phppgadmin" {
+		preseeds := []string{
+			"phppgadmin phppgadmin/reconfigure-webserver multiselect none",
+		}
+		for _, ps := range preseeds {
+			pcmd := exec.CommandContext(ctx, "debconf-set-selections")
+			pcmd.Stdin = strings.NewReader(ps + "\n")
+			_ = pcmd.Run()
+		}
+	}
+
 	// apt-get update
 	updateCmd := exec.CommandContext(ctx, "apt-get", "update", "-y")
 	updateCmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
@@ -347,8 +421,12 @@ func (sm *ServiceManager) InstallService(ctx context.Context, serviceName string
 	}
 
 	// Enable and start the installed service
-	_, _ = sm.ExecuteSystemctl(ctx, "enable", targetDef.Name)
-	_, _ = sm.ExecuteSystemctl(ctx, "start", targetDef.Name)
+	if targetDef.Category != "database_tool" {
+		_, _ = sm.ExecuteSystemctl(ctx, "enable", targetDef.Name)
+		_, _ = sm.ExecuteSystemctl(ctx, "start", targetDef.Name)
+	} else {
+		_, _ = sm.ExecuteSystemctl(ctx, "reload", "nginx")
+	}
 
 	return nil
 }
@@ -370,9 +448,11 @@ func (sm *ServiceManager) UninstallService(ctx context.Context, serviceName stri
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
 
-	// Stop & disable service first
-	_ = sm.Stop(ctx, targetDef.Name)
-	_, _ = sm.ExecuteSystemctl(ctx, "disable", targetDef.Name)
+	// Stop & disable service first (only for daemon services)
+	if targetDef.Category != "database_tool" {
+		_ = sm.Stop(ctx, targetDef.Name)
+		_, _ = sm.ExecuteSystemctl(ctx, "disable", targetDef.Name)
+	}
 
 	// apt-get purge -y <packages>
 	args := append([]string{"purge", "-y"}, targetDef.AptPackages...)
@@ -387,6 +467,10 @@ func (sm *ServiceManager) UninstallService(ctx context.Context, serviceName stri
 	autoCmd := exec.CommandContext(ctx, "apt-get", "autoremove", "-y")
 	autoCmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
 	_ = autoCmd.Run()
+
+	if targetDef.Category == "database_tool" {
+		_, _ = sm.ExecuteSystemctl(ctx, "reload", "nginx")
+	}
 
 	return nil
 }

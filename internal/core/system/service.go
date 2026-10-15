@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -212,7 +213,15 @@ func (sm *ServiceManager) ExecuteSystemctl(ctx context.Context, action, serviceN
 		if action == "is-active" {
 			return outStr, nil
 		}
-		return outStr, fmt.Errorf("systemctl %s %s failed: %w (%s)", action, serviceName, err, outStr)
+		// If service is apache2, capture apachectl -t for diagnostics
+		extra := ""
+		if serviceName == "apache2" {
+			testCmd := exec.CommandContext(ctx, "apachectl", "-t")
+			if tOut, _ := testCmd.CombinedOutput(); len(tOut) > 0 {
+				extra = fmt.Sprintf(" [apachectl: %s]", strings.TrimSpace(string(tOut)))
+			}
+		}
+		return outStr, fmt.Errorf("systemctl %s %s failed: %w (%s)%s", action, serviceName, err, outStr, extra)
 	}
 
 	return outStr, nil
@@ -470,12 +479,14 @@ func (sm *ServiceManager) ensureApachePorts(ctx context.Context) {
 	_ = os.MkdirAll("/etc/apache2/conf-available", 0755)
 	_ = os.MkdirAll("/etc/apache2/conf-enabled", 0755)
 
+	// Single Listen directive to avoid address binding conflict
 	portsConf := `# Configured by Seintech Panel for Nginx Reverse Proxy Backend
-Listen 127.0.0.1:8080
-Listen [::1]:8080
 Listen 8080
 `
 	_ = os.WriteFile("/etc/apache2/ports.conf", []byte(portsConf), 0644)
+
+	// Global ServerName to avoid AH00558 domain name warning
+	_ = os.WriteFile("/etc/apache2/conf-available/servername.conf", []byte("ServerName localhost\n"), 0644)
 
 	// RemoteIP configuration so Apache and PHP ($_SERVER['REMOTE_ADDR']) get real visitor IP from Nginx
 	remoteIPConf := `# Configured by Seintech Panel for Nginx Reverse Proxy
@@ -486,21 +497,41 @@ Listen 8080
 </IfModule>
 `
 	_ = os.WriteFile("/etc/apache2/conf-available/remoteip.conf", []byte(remoteIPConf), 0644)
-	_ = os.Symlink("/etc/apache2/conf-available/remoteip.conf", "/etc/apache2/conf-enabled/remoteip.conf")
 
-	// Update 000-default.conf if it exists so it doesn't bind to port 80
-	defaultConfPath := "/etc/apache2/sites-available/000-default.conf"
-	if data, err := os.ReadFile(defaultConfPath); err == nil {
-		updated := strings.ReplaceAll(string(data), "<VirtualHost *:80>", "<VirtualHost 127.0.0.1:8080 [::1]:8080 *:8080>")
-		_ = os.WriteFile(defaultConfPath, []byte(updated), 0644)
+	// Remove default Debian conflicting sites from sites-enabled
+	_ = os.Remove("/etc/apache2/sites-enabled/000-default.conf")
+	_ = os.Remove("/etc/apache2/sites-enabled/default-ssl.conf")
+
+	// Clean up / heal any sites-available files that had broken tags or port 80
+	if entries, err := os.ReadDir("/etc/apache2/sites-available"); err == nil {
+		for _, e := range entries {
+			if strings.HasSuffix(e.Name(), ".conf") {
+				p := filepath.Join("/etc/apache2/sites-available", e.Name())
+				if data, err := os.ReadFile(p); err == nil {
+					s := string(data)
+					if strings.Contains(s, "<VirtualHost 127.0.0.1:8080") || strings.Contains(s, "<VirtualHost *:80>") {
+						s = strings.ReplaceAll(s, "<VirtualHost 127.0.0.1:8080 [::1]:8080 *:8080>", "<VirtualHost *:8080>")
+						s = strings.ReplaceAll(s, "<VirtualHost 127.0.0.1:8080>", "<VirtualHost *:8080>")
+						s = strings.ReplaceAll(s, "<VirtualHost *:80>", "<VirtualHost *:8080>")
+						_ = os.WriteFile(p, []byte(s), 0644)
+					}
+				}
+			}
+		}
 	}
 
 	// Enable required Apache modules
 	if _, err := exec.LookPath("a2enmod"); err == nil {
 		cmd := exec.CommandContext(ctx, "a2enmod", "rewrite", "ssl", "proxy", "proxy_fcgi", "headers", "remoteip", "setenvif")
 		_ = cmd.Run()
-		cmdConf := exec.CommandContext(ctx, "a2enconf", "remoteip")
+	}
+	if _, err := exec.LookPath("a2enconf"); err == nil {
+		cmdConf := exec.CommandContext(ctx, "a2enconf", "remoteip", "servername")
 		_ = cmdConf.Run()
+	}
+	if _, err := exec.LookPath("a2dissite"); err == nil {
+		cmdDis := exec.CommandContext(ctx, "a2dissite", "000-default", "default-ssl")
+		_ = cmdDis.Run()
 	}
 }
 

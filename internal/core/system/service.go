@@ -122,7 +122,7 @@ var Catalog = []ServiceDefinition{
 		Category:    "php",
 		Description: "Legacy PHP FastCGI Process Manager for older web applications.",
 		CheckPaths:  []string{"/usr/sbin/php-fpm7.4"},
-		AptPackages: []string{"php7.4-fpm", "php7.4-cli", "php7.4-mysql", "php7.4-curl", "php7.4-gd", "php7.4-mbstring", "php7.4-xml", "php7.4-zip"},
+		AptPackages: []string{"php7.4-fpm", "php7.4-cli", "php7.4-mysql", "php7.4-pgsql", "php7.4-curl", "php7.4-gd", "php7.4-mbstring", "php7.4-xml", "php7.4-zip"},
 	},
 	{
 		Name:        "php8.0-fpm",
@@ -130,7 +130,7 @@ var Catalog = []ServiceDefinition{
 		Category:    "php",
 		Description: "PHP 8.0 FastCGI Process Manager with JIT compiler support.",
 		CheckPaths:  []string{"/usr/sbin/php-fpm8.0"},
-		AptPackages: []string{"php8.0-fpm", "php8.0-cli", "php8.0-mysql", "php8.0-curl", "php8.0-gd", "php8.0-mbstring", "php8.0-xml", "php8.0-zip"},
+		AptPackages: []string{"php8.0-fpm", "php8.0-cli", "php8.0-mysql", "php8.0-pgsql", "php8.0-curl", "php8.0-gd", "php8.0-mbstring", "php8.0-xml", "php8.0-zip"},
 	},
 	{
 		Name:        "php8.1-fpm",
@@ -138,7 +138,7 @@ var Catalog = []ServiceDefinition{
 		Category:    "php",
 		Description: "PHP 8.1 with enums, readonly properties, and first-class callables.",
 		CheckPaths:  []string{"/usr/sbin/php-fpm8.1"},
-		AptPackages: []string{"php8.1-fpm", "php8.1-cli", "php8.1-mysql", "php8.1-curl", "php8.1-gd", "php8.1-mbstring", "php8.1-xml", "php8.1-zip"},
+		AptPackages: []string{"php8.1-fpm", "php8.1-cli", "php8.1-mysql", "php8.1-pgsql", "php8.1-curl", "php8.1-gd", "php8.1-mbstring", "php8.1-xml", "php8.1-zip"},
 	},
 	{
 		Name:        "php8.2-fpm",
@@ -146,7 +146,7 @@ var Catalog = []ServiceDefinition{
 		Category:    "php",
 		Description: "PHP 8.2 stable release with readonly classes and performance improvements.",
 		CheckPaths:  []string{"/usr/sbin/php-fpm8.2"},
-		AptPackages: []string{"php8.2-fpm", "php8.2-cli", "php8.2-mysql", "php8.2-curl", "php8.2-gd", "php8.2-mbstring", "php8.2-xml", "php8.2-zip"},
+		AptPackages: []string{"php8.2-fpm", "php8.2-cli", "php8.2-mysql", "php8.2-pgsql", "php8.2-curl", "php8.2-gd", "php8.2-mbstring", "php8.2-xml", "php8.2-zip"},
 	},
 	{
 		Name:        "php8.3-fpm",
@@ -154,7 +154,7 @@ var Catalog = []ServiceDefinition{
 		Category:    "php",
 		Description: "PHP 8.3 current standard with typed class constants and json_validate.",
 		CheckPaths:  []string{"/usr/sbin/php-fpm8.3"},
-		AptPackages: []string{"php8.3-fpm", "php8.3-cli", "php8.3-mysql", "php8.3-curl", "php8.3-gd", "php8.3-mbstring", "php8.3-xml", "php8.3-zip"},
+		AptPackages: []string{"php8.3-fpm", "php8.3-cli", "php8.3-mysql", "php8.3-pgsql", "php8.3-curl", "php8.3-gd", "php8.3-mbstring", "php8.3-xml", "php8.3-zip"},
 	},
 	{
 		Name:        "php8.4-fpm",
@@ -162,7 +162,7 @@ var Catalog = []ServiceDefinition{
 		Category:    "php",
 		Description: "PHP 8.4 latest modern runtime with property hooks and asymmetric visibility.",
 		CheckPaths:  []string{"/usr/sbin/php-fpm8.4"},
-		AptPackages: []string{"php8.4-fpm", "php8.4-cli", "php8.4-mysql", "php8.4-curl", "php8.4-gd", "php8.4-mbstring", "php8.4-xml", "php8.4-zip"},
+		AptPackages: []string{"php8.4-fpm", "php8.4-cli", "php8.4-mysql", "php8.4-pgsql", "php8.4-curl", "php8.4-gd", "php8.4-mbstring", "php8.4-xml", "php8.4-zip"},
 	},
 	{
 		Name:        "php8.5-fpm",
@@ -170,7 +170,7 @@ var Catalog = []ServiceDefinition{
 		Category:    "php",
 		Description: "PHP 8.5 developer preview runtime for cutting edge evaluation.",
 		CheckPaths:  []string{"/usr/sbin/php-fpm8.5"},
-		AptPackages: []string{"php8.5-fpm", "php8.5-cli", "php8.5-mysql", "php8.5-curl", "php8.5-gd", "php8.5-mbstring", "php8.5-xml", "php8.5-zip"},
+		AptPackages: []string{"php8.5-fpm", "php8.5-cli", "php8.5-mysql", "php8.5-pgsql", "php8.5-curl", "php8.5-gd", "php8.5-mbstring", "php8.5-xml", "php8.5-zip"},
 	},
 
 	// Database Management Tools
@@ -189,7 +189,7 @@ var Catalog = []ServiceDefinition{
 		Category:    "database_tool",
 		Description: "Web-based administration interface for PostgreSQL databases.",
 		CheckPaths:  []string{"/usr/share/phppgadmin"},
-		AptPackages: []string{"phppgadmin"},
+		AptPackages: []string{"phppgadmin", "php-pgsql"},
 		Ports:       "URI: /phppgadmin/",
 	},
 }
@@ -599,7 +599,7 @@ exit;
 	_ = os.WriteFile(ssoScript, []byte(ssoContent), 0644)
 }
 
-// AutoConfigurePhpPgAdmin adjusts security settings and installs SSO bridge script.
+// AutoConfigurePhpPgAdmin adjusts security settings, installs php-pgsql, and installs SSO bridge script.
 func (sm *ServiceManager) AutoConfigurePhpPgAdmin(ctx context.Context) {
 	if !sm.IsInstalled("phppgadmin") {
 		return
@@ -609,7 +609,35 @@ func (sm *ServiceManager) AutoConfigurePhpPgAdmin(ctx context.Context) {
 	_ = os.MkdirAll("/var/lib/seintech/pma_tokens", 0777)
 	_ = os.Chmod("/var/lib/seintech/pma_tokens", 0777)
 
-	// 2. Adjust security settings in config.inc.php
+	// 2. Ensure php-pgsql extensions are installed for active PHP runtimes
+	script := `
+		export DEBIAN_FRONTEND=noninteractive
+		need_reload=0
+		# Detect active PHP version sockets
+		for sock in /run/php/php*-fpm.sock; do
+			if [ -e "$sock" ]; then
+				ver=$(basename "$sock" | sed -E 's/php([0-9]+\.[0-9]+)-fpm\.sock/\1/')
+				if ! php$ver -m 2>/dev/null | grep -qi pgsql; then
+					apt-get install -y php$ver-pgsql || true
+					need_reload=1
+				fi
+			fi
+		done
+
+		# Also ensure generic php-pgsql package
+		if ! dpkg -s php-pgsql >/dev/null 2>&1; then
+			apt-get install -y php-pgsql || true
+			need_reload=1
+		fi
+
+		if [ "$need_reload" -eq 1 ]; then
+			systemctl restart "php*-fpm" 2>/dev/null || true
+			systemctl reload nginx 2>/dev/null || true
+		fi
+	`
+	_ = exec.CommandContext(ctx, "bash", "-c", script).Run()
+
+	// 3. Adjust security settings and tuning in config.inc.php
 	confFile := "/etc/phppgadmin/config.inc.php"
 	if data, err := os.ReadFile(confFile); err == nil {
 		str := string(data)
@@ -627,12 +655,25 @@ func (sm *ServiceManager) AutoConfigurePhpPgAdmin(ctx context.Context) {
 			modified = true
 		}
 
+		// Ensure host is set to localhost
+		if strings.Contains(str, "$conf['servers'][0]['host'] = '';") {
+			str = strings.ReplaceAll(str, "$conf['servers'][0]['host'] = '';", "$conf['servers'][0]['host'] = 'localhost';")
+			modified = true
+		}
+
+		// Suppress PHP 8 deprecation notices and ensure server alias
+		if !strings.Contains(str, "Seintech PHP8 Tuning") {
+			tuning := "\n/* Seintech PHP8 Tuning */\n@ini_set('display_errors', '0');\n@error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT & ~E_NOTICE & ~E_WARNING);\n$conf['servers']['localhost:5432:allow'] = &$conf['servers'][0];\n$conf['servers']['localhost'] = &$conf['servers'][0];\n"
+			str = str + tuning
+			modified = true
+		}
+
 		if modified {
 			_ = os.WriteFile(confFile, []byte(str), 0644)
 		}
 	}
 
-	// 3. Install SSO bridge script in /usr/share/phppgadmin/sso.php
+	// 4. Install SSO bridge script in /usr/share/phppgadmin/sso.php
 	ssoScript := `/usr/share/phppgadmin/sso.php`
 	ssoContent := `<?php
 // Seintech Panel SSO Bridge for phpPgAdmin
@@ -672,7 +713,7 @@ $db = $data['db'];
 <body onload="document.forms[0].submit()">
     <form method="post" action="/phppgadmin/redirect.php">
         <input type="hidden" name="subject" value="server">
-        <input type="hidden" name="server" value="localhost:5432:allow">
+        <input type="hidden" name="server" value="0">
         <input type="hidden" name="database" value="<?php echo htmlspecialchars($db, ENT_QUOTES); ?>">
         <input type="hidden" name="loginUsername" value="<?php echo htmlspecialchars($user, ENT_QUOTES); ?>">
         <input type="hidden" name="loginPassword" value="<?php echo htmlspecialchars($pass, ENT_QUOTES); ?>">

@@ -356,6 +356,11 @@
     // ---- Async Install / Uninstall Engine ----
     let _pollInterval = null;
 
+    function confirmUninstall(service, displayName) {
+        if (!confirm('Peringatan: Menghapus (uninstall) ' + displayName + ' akan membersihkan paket dan layanan ini dari server. Lanjutkan?')) return;
+        startInstallJob(service, displayName, 'uninstall');
+    }
+
     function startInstallJob(service, displayName, action) {
         const endpoint = action === 'install' ? '/services/install' : '/services/uninstall';
         const title = action === 'install' ? 'Installing ' + displayName + '...' : 'Removing ' + displayName + '...';

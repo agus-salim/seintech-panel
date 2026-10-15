@@ -58,7 +58,7 @@ func NewRouter(
 	sslH := handler.NewSSLHandler(repo, sslMgr)
 	userH := handler.NewUserHandler(repo, cfg)
 	settingsH := handler.NewSettingsHandler(repo, sm, sslMgr)
-	servicesH := handler.NewServicesHandler(repo, sm)
+	servicesH := handler.NewServicesHandler(repo, sm, sslMgr)
 
 	// Public Routes
 	r.Get("/login", authH.ShowLogin)

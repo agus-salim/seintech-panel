@@ -8,18 +8,20 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/seintech/panel/internal/core/ssl"
 	"github.com/seintech/panel/internal/core/system"
 	"github.com/seintech/panel/internal/storage"
 	"github.com/seintech/panel/web"
 )
 
 type ServicesHandler struct {
-	repo *storage.Repository
-	sm   *system.ServiceManager
+	repo   *storage.Repository
+	sm     *system.ServiceManager
+	sslMgr *ssl.SSLManager
 }
 
-func NewServicesHandler(repo *storage.Repository, sm *system.ServiceManager) *ServicesHandler {
-	return &ServicesHandler{repo: repo, sm: sm}
+func NewServicesHandler(repo *storage.Repository, sm *system.ServiceManager, sslMgr *ssl.SSLManager) *ServicesHandler {
+	return &ServicesHandler{repo: repo, sm: sm, sslMgr: sslMgr}
 }
 
 type ServicesPageData struct {
@@ -103,6 +105,10 @@ func (h *ServicesHandler) ExecuteAction(w http.ResponseWriter, r *http.Request) 
 			msg = fmt.Sprintf("Error performing %s on %s: %v", action, service, err)
 		}
 		msgType = "error"
+	} else if service == "phpmyadmin" || service == "phppgadmin" {
+		if h.sslMgr != nil {
+			_ = h.sslMgr.SyncPanelNginxReverseProxy(ctx)
+		}
 	}
 
 	http.Redirect(w, r, fmt.Sprintf("/services?msg=%s&type=%s", url.QueryEscape(msg), msgType), http.StatusSeeOther)

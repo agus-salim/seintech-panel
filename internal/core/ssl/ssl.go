@@ -835,6 +835,58 @@ func (s *SSLManager) SyncPanelNginxReverseProxy(ctx context.Context) error {
 
 		phpSock := findPanelPHPSocket()
 
+		pmaLocation := ""
+		if _, err := os.Stat("/var/lib/seintech/services/phpmyadmin.disabled"); err == nil {
+			pmaLocation = `    # phpMyAdmin Direct Web Access (Stopped)
+    location ^~ /phpmyadmin/ {
+        default_type text/html;
+        return 503 '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Service Stopped</title></head><body style="font-family:sans-serif;text-align:center;padding:50px;"><h2>phpMyAdmin is Stopped</h2><p>You can start the service from Seintech Panel &gt; Services.</p></body></html>';
+    }`
+		} else {
+			pmaLocation = fmt.Sprintf(`    # phpMyAdmin Direct Web Access
+    location ^~ /phpmyadmin/ {
+        root /usr/share/;
+        index index.php index.html index.htm;
+        location ~ ^/phpmyadmin/(.+\.php)$ {
+            try_files $uri =404;
+            root /usr/share/;
+            fastcgi_pass unix:%s;
+            fastcgi_index index.php;
+            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+            include /etc/nginx/fastcgi_params;
+        }
+        location ~* ^/phpmyadmin/(.+\.(jpg|jpeg|gif|css|png|js|ico|html|xml|txt))$ {
+            root /usr/share/;
+        }
+    }`, phpSock)
+		}
+
+		pgLocation := ""
+		if _, err := os.Stat("/var/lib/seintech/services/phppgadmin.disabled"); err == nil {
+			pgLocation = `    # phpPgAdmin Direct Web Access (Stopped)
+    location ^~ /phppgadmin/ {
+        default_type text/html;
+        return 503 '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Service Stopped</title></head><body style="font-family:sans-serif;text-align:center;padding:50px;"><h2>phpPgAdmin is Stopped</h2><p>You can start the service from Seintech Panel &gt; Services.</p></body></html>';
+    }`
+		} else {
+			pgLocation = fmt.Sprintf(`    # phpPgAdmin Direct Web Access
+    location ^~ /phppgadmin/ {
+        root /usr/share/;
+        index index.php index.html index.htm;
+        location ~ ^/phppgadmin/(.+\.php)$ {
+            try_files $uri =404;
+            root /usr/share/;
+            fastcgi_pass unix:%s;
+            fastcgi_index index.php;
+            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+            include /etc/nginx/fastcgi_params;
+        }
+        location ~* ^/phppgadmin/(.+\.(jpg|jpeg|gif|css|png|js|ico|html|xml|txt))$ {
+            root /usr/share/;
+        }
+    }`, phpSock)
+		}
+
 		block := fmt.Sprintf(`
 # HTTPS Reverse Proxy (Port 443) -> Seintech Panel (:%d)
 server {
@@ -858,42 +910,12 @@ server {
     client_max_body_size 2048M;
     client_body_buffer_size 128M;
 
-    # phpMyAdmin Direct Web Access
-    location ^~ /phpmyadmin/ {
-        root /usr/share/;
-        index index.php index.html index.htm;
-        location ~ ^/phpmyadmin/(.+\.php)$ {
-            try_files $uri =404;
-            root /usr/share/;
-            fastcgi_pass unix:%s;
-            fastcgi_index index.php;
-            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-            include /etc/nginx/fastcgi_params;
-        }
-        location ~* ^/phpmyadmin/(.+\.(jpg|jpeg|gif|css|png|js|ico|html|xml|txt))$ {
-            root /usr/share/;
-        }
-    }
+%s
     location = /phpmyadmin {
         return 301 /phpmyadmin/;
     }
 
-    # phpPgAdmin Direct Web Access
-    location ^~ /phppgadmin/ {
-        root /usr/share/;
-        index index.php index.html index.htm;
-        location ~ ^/phppgadmin/(.+\.php)$ {
-            try_files $uri =404;
-            root /usr/share/;
-            fastcgi_pass unix:%s;
-            fastcgi_index index.php;
-            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-            include /etc/nginx/fastcgi_params;
-        }
-        location ~* ^/phppgadmin/(.+\.(jpg|jpeg|gif|css|png|js|ico|html|xml|txt))$ {
-            root /usr/share/;
-        }
-    }
+%s
     location = /phppgadmin {
         return 301 /phppgadmin/;
     }
@@ -917,7 +939,7 @@ server {
         client_max_body_size 2048M;
     }
 }
-`, backendPort, h, certPath, keyPath, s.acmeRoot, phpSock, phpSock, backendPort)
+`, backendPort, h, certPath, keyPath, s.acmeRoot, pmaLocation, pgLocation, backendPort)
 		httpsBlocks = append(httpsBlocks, block)
 	}
 

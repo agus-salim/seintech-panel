@@ -250,20 +250,36 @@ func (sm *ServiceManager) ExecuteSystemctl(ctx context.Context, action, serviceN
 	return outStr, nil
 }
 
+func disabledFilePath(serviceName string) string {
+	return filepath.Join("/var/lib/seintech/services", serviceName+".disabled")
+}
+
+func (sm *ServiceManager) isServiceDisabled(serviceName string) bool {
+	_, err := os.Stat(disabledFilePath(serviceName))
+	return err == nil
+}
+
 // GetStatus checks if the service is currently running.
 func (sm *ServiceManager) GetStatus(ctx context.Context, serviceName string) (ServiceState, error) {
 	if serviceName == "phpmyadmin" || serviceName == "phppgadmin" {
-		if sm.IsInstalled(serviceName) {
+		if !sm.IsInstalled(serviceName) {
 			return ServiceState{
 				Name:   serviceName,
-				Status: "running",
-				Active: true,
+				Status: "not_installed",
+				Active: false,
+			}, nil
+		}
+		if sm.isServiceDisabled(serviceName) {
+			return ServiceState{
+				Name:   serviceName,
+				Status: "stopped",
+				Active: false,
 			}, nil
 		}
 		return ServiceState{
 			Name:   serviceName,
-			Status: "not_installed",
-			Active: false,
+			Status: "running",
+			Active: true,
 		}, nil
 	}
 
@@ -278,6 +294,12 @@ func (sm *ServiceManager) GetStatus(ctx context.Context, serviceName string) (Se
 
 func (sm *ServiceManager) Start(ctx context.Context, serviceName string) error {
 	if serviceName == "phpmyadmin" || serviceName == "phppgadmin" {
+		_ = os.Remove(disabledFilePath(serviceName))
+		if serviceName == "phpmyadmin" {
+			sm.AutoConfigurePhpMyAdmin(ctx)
+		} else {
+			sm.AutoConfigurePhpPgAdmin(ctx)
+		}
 		_, err := sm.ExecuteSystemctl(ctx, "reload", "nginx")
 		return err
 	}
@@ -290,7 +312,10 @@ func (sm *ServiceManager) Start(ctx context.Context, serviceName string) error {
 
 func (sm *ServiceManager) Stop(ctx context.Context, serviceName string) error {
 	if serviceName == "phpmyadmin" || serviceName == "phppgadmin" {
-		return nil
+		_ = os.MkdirAll("/var/lib/seintech/services", 0755)
+		_ = os.WriteFile(disabledFilePath(serviceName), []byte("stopped"), 0644)
+		_, err := sm.ExecuteSystemctl(ctx, "reload", "nginx")
+		return err
 	}
 	_, err := sm.ExecuteSystemctl(ctx, "stop", serviceName)
 	return err
@@ -298,6 +323,12 @@ func (sm *ServiceManager) Stop(ctx context.Context, serviceName string) error {
 
 func (sm *ServiceManager) Restart(ctx context.Context, serviceName string) error {
 	if serviceName == "phpmyadmin" || serviceName == "phppgadmin" {
+		_ = os.Remove(disabledFilePath(serviceName))
+		if serviceName == "phpmyadmin" {
+			sm.AutoConfigurePhpMyAdmin(ctx)
+		} else {
+			sm.AutoConfigurePhpPgAdmin(ctx)
+		}
 		_, err := sm.ExecuteSystemctl(ctx, "reload", "nginx")
 		return err
 	}

@@ -136,10 +136,18 @@ func (p *PostgresManager) Type() model.DBType {
 }
 
 func (p *PostgresManager) runSQL(ctx context.Context, query string) (string, error) {
-	cmd := exec.CommandContext(ctx, "su", "-", "postgres", "-c", fmt.Sprintf("psql -t -c %q", query))
+	return p.runSQLInDB(ctx, "postgres", query)
+}
+
+func (p *PostgresManager) runSQLInDB(ctx context.Context, dbName, query string) (string, error) {
+	if dbName == "" {
+		dbName = "postgres"
+	}
+	cmd := exec.CommandContext(ctx, "su", "-", "postgres", "-c", fmt.Sprintf("psql -d %s -t", dbName))
+	cmd.Stdin = strings.NewReader(query)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return string(out), fmt.Errorf("postgres query failed: %w (%s)", err, strings.TrimSpace(string(out)))
+		return string(out), fmt.Errorf("postgres query failed in db %s: %w (%s)", dbName, err, strings.TrimSpace(string(out)))
 	}
 	return string(out), nil
 }
@@ -172,8 +180,27 @@ func (p *PostgresManager) DropUser(ctx context.Context, username, host string) e
 }
 
 func (p *PostgresManager) GrantPrivileges(ctx context.Context, username, host, dbName string) error {
-	q := fmt.Sprintf("GRANT ALL PRIVILEGES ON DATABASE \"%s\" TO \"%s\";", dbName, username)
-	_, err := p.runSQL(ctx, q)
+	if dbName == "" || username == "" {
+		return nil
+	}
+
+	// 1. Assign database ownership and grant cluster-level permissions
+	dbSQL := fmt.Sprintf(`ALTER DATABASE "%s" OWNER TO "%s";
+GRANT ALL PRIVILEGES ON DATABASE "%s" TO "%s";`, dbName, username, dbName, username)
+	_, _ = p.runSQLInDB(ctx, "postgres", dbSQL)
+
+	// 2. Grant public schema ownership and permissions inside the specific database (fixes Postgres 15+ schema public permissions)
+	schemaSQL := fmt.Sprintf(`ALTER SCHEMA public OWNER TO "%s";
+GRANT ALL ON SCHEMA public TO "%s";
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "%s";
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO "%s";
+GRANT ALL PRIVILEGES ON ALL ROUTINES IN SCHEMA public TO "%s";
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO "%s";
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO "%s";
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON ROUTINES TO "%s";
+`, username, username, username, username, username, username, username, username)
+
+	_, err := p.runSQLInDB(ctx, dbName, schemaSQL)
 	return err
 }
 

@@ -102,6 +102,15 @@ func main() {
 				}
 			}
 		}
+
+		// Ensure PostgreSQL user and schema permissions for all registered DBs
+		if dbs, err := repo.GetDatabases(); err == nil {
+			for _, db := range dbs {
+				if db.Type == model.DBTypePostgres && db.Username != "" && db.Name != "" {
+					_ = pgMgr.GrantPrivileges(repoCtx, db.Username, db.Host, db.Name)
+				}
+			}
+		}
 	}()
 
 	// Context for graceful shutdown & background workers

@@ -143,7 +143,6 @@ func main() {
 
 	// Ensure Nginx reverse proxy and global tuning are configured for panel domains (port 443 / 80)
 	sm.EnsureNginxConfiguration(ctx)
-	sm.EnsureDatabaseTools(ctx)
 	if err := sslMgr.SyncPanelNginxReverseProxy(ctx); err != nil {
 		log.Printf("[Seintech] Notice: Nginx reverse proxy sync: %v", err)
 	}

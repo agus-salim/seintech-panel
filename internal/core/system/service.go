@@ -639,7 +639,7 @@ func (sm *ServiceManager) AutoConfigurePhpMyAdmin(ctx context.Context) {
 			if [ -e "$sock" ]; then
 				ver=$(basename "$sock" | sed -E 's/php([0-9]+\.[0-9]+)-fpm\.sock/\1/')
 				need_pkg=0
-				for ext in mbstring mysql xml curl zip gd; do
+				for ext in mbstring mysqli xml curl zip gd; do
 					if [ ! -f "/etc/php/$ver/fpm/conf.d/"*"$ext"*.ini ] && ! php$ver -m 2>/dev/null | grep -qi "^$ext$"; then
 						need_pkg=1
 						break

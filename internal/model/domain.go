@@ -7,8 +7,6 @@ type WebServerType string
 const (
 	WebServerNginx  WebServerType = "nginx"
 	WebServerApache WebServerType = "apache2"
-	WebServerOLS    WebServerType = "openlitespeed"
-	WebServerCaddy  WebServerType = "caddy"
 )
 
 type SSLProvider string

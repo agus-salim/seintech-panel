@@ -17,7 +17,7 @@ type PanelSettings struct {
 	Port                   int         `json:"port"`
 	ListenAddr             string      `json:"listen_addr"`
 	Hosts                  []PanelHost `json:"hosts,omitempty"`
-	DefaultWebServer       string      `json:"default_webserver"` // nginx, apache2, openlitespeed, caddy
+	DefaultWebServer       string      `json:"default_webserver"` // nginx, apache2
 	DefaultPHPVersion      string      `json:"default_php_version"`
 	SessionTimeoutMinutes  int         `json:"session_timeout_minutes"`
 	SecurityHeadersEnabled bool        `json:"security_headers_enabled"`

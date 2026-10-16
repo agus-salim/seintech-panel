@@ -1,13 +1,18 @@
 # Seintech Hosting Panel 🚀
 
 **Seintech Hosting Panel** adalah web hosting control panel modern berbasis **single binary Go** yang ultra-ringan, modular, dan tangguh. Dirancang khusus untuk berjalan sebagai `systemd` service pada sistem operasi Linux (Ubuntu, Debian) tanpa memerlukan database eksternal untuk konfigurasi internalnya.
+<<<<<<< HEAD
+=======
+
+Repositori Resmi: **[https://github.com/seintechid/panel](https://github.com/seintechid/panel)**
+>>>>>>> 50da092 (docs: update directory structure and architecture to reflect actual Nginx and Apache2 stack)
 
 ---
 
 ## 🌟 Arsitektur & Keunggulan Utama
 
 1. **Standalone Single Binary Go (`embed.FS`):**
-   - Seluruh static assets (CSS, JS) dan Go HTML templates dibundle langsung ke dalam satu binary menggunakan fitur Go `embed.FS`.
+   - Seluruh static assets (CSS, JS, gambar logo) dan Go HTML templates dibundle langsung ke dalam satu binary menggunakan fitur Go `embed.FS`.
    - Tidak memerlukan dependensi Node.js, runtime Python, atau interpreter di host server.
    
 2. **Penyimpanan Flat-File JSON Berintegritas Tinggi:**
@@ -15,8 +20,8 @@
    - **Dual-Locking:** Dilindungi oleh `sync.RWMutex` (in-process concurrency safety) dan OS-level `flock` (advisory file locking) untuk mencegah race condition antar-proses.
    - **Atomic Write:** Menggunakan strategi penulisan ke temporary file kemudian `os.Rename` untuk mencegah kerusakan data jika terjadi pemadaman mendadak.
 
-3. **Multi-Webserver Management:**
-   - Abstraksi interface `WebServer` yang dapat mengendalikan **Nginx**, **Apache2**.
+3. **Multi-Webserver Management (Nginx & Apache2):**
+   - Abstraksi interface `WebServer` yang mengendalikan **Nginx** (High-Performance Engine / Reverse Proxy) dan **Apache2** (MPM Event & PHP-FPM).
    - Dilengkapi template generator vhost untuk reverse proxy, static site, dan PHP-FPM socket router.
 
 4. **Multi-PHP Version Engine (7.4 s/d 8.5):**
@@ -25,7 +30,7 @@
 
 5. **Multi-Database Engine:**
    - Mendukung **MariaDB/MySQL** dan **PostgreSQL**.
-   - Pengelolaan database, user privilege, dan monitoring ukuran database.
+   - Pengelolaan database, user privilege, monitoring ukuran database, dan integrasi Single Sign-On (SSO) instan ke **phpMyAdmin** dan **phpPgAdmin**.
 
 6. **Automasi SSL / Let's Encrypt ACME:**
    - HTTP-01 challenge otomatis, self-signed TLS bootstrap, dan cron worker auto-renewal tiap 12 jam (memperbarui sertifikat 30 hari sebelum kedaluwarsa).
@@ -38,7 +43,8 @@
 8. **RBAC 3 Tingkat & Quota Resource:**
    - Root Admin, Reseller, dan End-User.
    - Password terenkripsi dengan algoritma `bcrypt`.
-   - Pembatasan disk space, bandwidth, jumlah domain, dan database per user.
+   - Pembatasan Kuota Penyimpanan / Storage (MB), RAM proses Linux (MB), jumlah virtualhost, dan database per user.
+   - Isolasi ketat: End-User terkunci pada 1 situs, direktori miliknya, dan 1 database miliknya.
 
 ---
 
@@ -46,6 +52,9 @@
 
 ```text
 seintech-panel/
+├── bin/
+│   ├── seintech                    # Precompiled Linux standalone binary
+│   └── seintech-linux-amd64        # Salinan binary deployment Linux x86_64
 ├── cmd/
 │   └── seintech/
 │       └── main.go                 # Entrypoint aplikasi, CLI flags, bootstrap admin & graceful shutdown
@@ -53,6 +62,7 @@ seintech-panel/
 │   └── schema/                     # Contoh skema flat-file JSON
 │       ├── users.json
 │       ├── domains.json
+│       ├── databases.json
 │       ├── quotas.json
 │       └── settings.json
 ├── deploy/
@@ -76,18 +86,20 @@ seintech-panel/
 │   │   │   └── ssl.go              # ACME client, self-signed generator & auto-renewal
 │   │   ├── system/
 │   │   │   ├── metrics.go          # Pengambilan metrik CPU, RAM, Disk, LoadAvg
-│   │   │   └── service.go          # Wrapper aman systemctl dengan whitelist
+│   │   │   ├── metrics_linux.go    # Pengambilan metrik spesifik kernel Linux
+│   │   │   ├── quota.go            # Kalkulasi penggunaan Storage (MB) & RAM proses
+│   │   │   ├── service.go          # Wrapper aman systemctl dengan whitelist
+│   │   │   ├── user.go             # Linux user provisioning & home directory isolation
+│   │   │   └── jobs.go             # Background package installation & progress tracker
 │   │   └── webserver/
 │   │       ├── webserver.go        # Interface WebServer & Registry
 │   │       ├── nginx.go            # Implementasi Nginx vhost & reload
-│   │       ├── apache.go           # Implementasi Apache2 vhost & proxy_fcgi
-│   │       ├── openlitespeed.go    # Implementasi OpenLiteSpeed LSAPI
-│   │       └── caddy.go            # Implementasi Caddy vhost (Caddyfile)
+│   │       └── apache.go           # Implementasi Apache2 vhost & proxy_fcgi
 │   ├── http/
-│   │   ├── handler/                # HTTP Handlers (Dashboard, Domains, File Manager, dll.)
+│   │   ├── handler/                # HTTP Handlers (Dashboard, Domains, File Manager, DB, Users, dll.)
 │   │   ├── middleware/             # Security headers, RequireAuth, RequireRole
 │   │   └── router.go               # Routing Chi HTTP
-│   ├── model/                      # Struct data Go (User, Domain, Quota, Settings)
+│   ├── model/                      # Struct data Go (User, Domain, Quota, Database, Settings)
 │   └── storage/
 │       ├── flock.go                # Interface advisory file lock
 │       ├── flock_unix.go           # Implementasi flock Linux (unix.Flock)
@@ -97,17 +109,19 @@ seintech-panel/
 ├── web/
 │   ├── embed.go                    # embed.FS bundle untuk template & assets
 │   ├── static/
-│   │   └── css/style.css           # Styling Fira Sans & JetBrains Mono
+│   │   ├── css/style.css           # Styling Fira Sans & JetBrains Mono
+│   │   └── img/logo.jpg            # Logo resmi SEINTECH (Sekadau Innovation Technology)
 │   └── templates/
 │       ├── layout.html             # Base layout Tailwind CSS (Light Mode)
 │       ├── dashboard.html          # Halaman statistik & service status
 │       ├── domains.html            # Manajemen virtual host
-│       ├── filemanager.html        # Web file manager & code editor
-│       ├── databases.html          # Manajemen MySQL & PostgreSQL
+│       ├── filemanager.html        # Web file manager & code editor (chroot jailed)
+│       ├── databases.html          # Manajemen MySQL, PostgreSQL, & SSO phpMyAdmin
 │       ├── php.html                # Multi-PHP engine controller
-│       ├── ssl.html                # Manajemen sertifikat SSL
-│       ├── users.html              # Manajemen RBAC & Quota
-│       ├── settings.html           # Pengaturan port & service controller
+│       ├── ssl.html                # Manajemen sertifikat SSL Let's Encrypt
+│       ├── users.html              # Manajemen RBAC & Resource Quotas
+│       ├── services.html           # Manajemen packages & system services
+│       ├── settings.html           # Pengaturan port & hostname
 │       └── login.html              # Halaman login
 ├── Makefile
 ├── go.mod

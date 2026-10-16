@@ -1,0 +1,13 @@
+[
+  {
+    "id": "db_app_main",
+    "user_id": "usr_client_01",
+    "name": "app_db",
+    "type": "mysql",
+    "charset": "utf8mb4",
+    "username": "app_user",
+    "password": "",
+    "host": "localhost",
+    "created_at": "2026-10-14T10:00:00Z"
+  }
+]

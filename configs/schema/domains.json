@@ -25,7 +25,7 @@
     "user_id": "usr_client_01",
     "domain_name": "api.clientstore.com",
     "document_root": "/var/www/john_doe/api.clientstore.com",
-    "webserver_type": "caddy",
+    "webserver_type": "apache2",
     "php_version": "",
     "php_socket": "",
     "ssl_enabled": true,

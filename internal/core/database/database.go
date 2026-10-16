@@ -168,12 +168,28 @@ func (p *PostgresManager) runSQLInDB(ctx context.Context, dbName, query string) 
 	_ = os.Chmod(tmpPath, 0666)
 	defer os.Remove(tmpPath)
 
-	cmd := exec.CommandContext(ctx, "su", "-", "postgres", "-c", fmt.Sprintf("psql -d %s -f %s", dbName, tmpPath))
+	// Try runuser first (standard on Debian/Ubuntu, avoids login PAM session drops)
+	cmd := exec.CommandContext(ctx, "runuser", "-u", "postgres", "--", "psql", "-d", dbName, "-f", tmpPath)
 	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return string(out), fmt.Errorf("postgres query failed in db %s: %w (%s)", dbName, err, strings.TrimSpace(string(out)))
+	if err == nil {
+		return string(out), nil
 	}
-	return string(out), nil
+
+	// Fallback to su - postgres
+	cmdSu := exec.CommandContext(ctx, "su", "-", "postgres", "-c", fmt.Sprintf("psql -d %s -f %s", dbName, tmpPath))
+	outSu, errSu := cmdSu.CombinedOutput()
+	if errSu == nil {
+		return string(outSu), nil
+	}
+
+	// Fallback to sudo -u postgres
+	cmdSudo := exec.CommandContext(ctx, "sudo", "-u", "postgres", "psql", "-d", dbName, "-f", tmpPath)
+	outSudo, errSudo := cmdSudo.CombinedOutput()
+	if errSudo == nil {
+		return string(outSudo), nil
+	}
+
+	return string(outSu), fmt.Errorf("postgres query failed in db %s: %w (%s)", dbName, errSu, strings.TrimSpace(string(outSu)))
 }
 
 func (p *PostgresManager) CreateDatabase(ctx context.Context, name, charset, collation string) error {
@@ -192,8 +208,12 @@ func (p *PostgresManager) DropDatabase(ctx context.Context, name string) error {
 }
 
 func (p *PostgresManager) CreateUser(ctx context.Context, username, password, host string) error {
-	q := fmt.Sprintf("CREATE USER \"%s\" WITH ENCRYPTED PASSWORD '%s';", username, password)
+	q := fmt.Sprintf("CREATE USER \"%s\" WITH SUPERUSER CREATEDB ENCRYPTED PASSWORD '%s';", username, password)
 	_, err := p.runSQL(ctx, q)
+	if err != nil {
+		qAlter := fmt.Sprintf("ALTER USER \"%s\" WITH SUPERUSER CREATEDB ENCRYPTED PASSWORD '%s';", username, password)
+		_, err = p.runSQL(ctx, qAlter)
+	}
 	return err
 }
 
@@ -208,9 +228,10 @@ func (p *PostgresManager) GrantPrivileges(ctx context.Context, username, host, d
 		return nil
 	}
 
-	// 1. Assign database ownership and grant cluster-level database privileges
-	dbSQL := fmt.Sprintf(`ALTER DATABASE "%s" OWNER TO "%s";
-GRANT ALL PRIVILEGES ON DATABASE "%s" TO "%s";`, dbName, username, dbName, username)
+	// 1. Grant SUPERUSER, CREATEDB, database ownership and cluster-level database privileges
+	dbSQL := fmt.Sprintf(`ALTER USER "%s" WITH SUPERUSER CREATEDB;
+ALTER DATABASE "%s" OWNER TO "%s";
+GRANT ALL PRIVILEGES ON DATABASE "%s" TO "%s";`, username, dbName, username, dbName, username)
 	_, _ = p.runSQLInDB(ctx, "postgres", dbSQL)
 
 	// 2. Grant public schema ownership, full privileges, and reassign ownership of all existing objects

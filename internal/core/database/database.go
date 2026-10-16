@@ -228,10 +228,18 @@ func (p *PostgresManager) GrantPrivileges(ctx context.Context, username, host, d
 		return nil
 	}
 
-	// 1. Grant SUPERUSER, CREATEDB, database ownership and cluster-level database privileges
-	dbSQL := fmt.Sprintf(`ALTER USER "%s" WITH SUPERUSER CREATEDB;
+	// 1. Ensure user exists, grant SUPERUSER, CREATEDB, database ownership and cluster-level database privileges
+	dbSQL := fmt.Sprintf(`DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '%s') THEN
+        CREATE USER "%s" WITH SUPERUSER CREATEDB;
+    ELSE
+        ALTER USER "%s" WITH SUPERUSER CREATEDB;
+    END IF;
+END
+$$;
 ALTER DATABASE "%s" OWNER TO "%s";
-GRANT ALL PRIVILEGES ON DATABASE "%s" TO "%s";`, username, dbName, username, dbName, username)
+GRANT ALL PRIVILEGES ON DATABASE "%s" TO "%s";`, username, username, username, dbName, username, dbName, username)
 	_, _ = p.runSQLInDB(ctx, "postgres", dbSQL)
 
 	// 2. Grant public schema ownership, full privileges, and reassign ownership of all existing objects
@@ -284,6 +292,41 @@ END $$;
 
 	_, err := p.runSQLInDB(ctx, dbName, schemaSQL)
 	return err
+}
+
+// EnsureAllPermissions scans all PostgreSQL databases and automatically grants full ownership and permissions
+func (p *PostgresManager) EnsureAllPermissions(ctx context.Context) error {
+	q := "SELECT d.datname, pg_catalog.pg_get_userbyid(d.datdba) FROM pg_database d WHERE d.datistemplate = false AND d.datname NOT IN ('postgres');"
+	out, err := p.runSQL(ctx, q)
+	if err != nil {
+		return err
+	}
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "datname") || strings.HasPrefix(line, "-") || strings.Contains(line, "rows)") {
+			continue
+		}
+		parts := strings.Split(line, "|")
+		if len(parts) >= 1 {
+			dbName := strings.TrimSpace(parts[0])
+			if dbName == "" || dbName == "postgres" {
+				continue
+			}
+			var owner string
+			if len(parts) >= 2 {
+				owner = strings.TrimSpace(parts[1])
+			}
+			if owner == "" || owner == "postgres" {
+				owner = dbName
+			}
+			_ = p.GrantPrivileges(ctx, owner, "localhost", dbName)
+			if owner != dbName {
+				_ = p.GrantPrivileges(ctx, dbName, "localhost", dbName)
+			}
+		}
+	}
+	return nil
 }
 
 func (p *PostgresManager) ChangePassword(ctx context.Context, username, host, newPassword string) error {

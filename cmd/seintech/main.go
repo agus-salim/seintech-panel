@@ -103,7 +103,8 @@ func main() {
 			}
 		}
 
-		// Ensure PostgreSQL user and schema permissions for all registered DBs
+		// Ensure PostgreSQL user and schema permissions for all engine databases & registered DBs
+		_ = pgMgr.EnsureAllPermissions(repoCtx)
 		if dbs, err := repo.GetDatabases(); err == nil {
 			for _, db := range dbs {
 				if db.Type == model.DBTypePostgres && db.Username != "" && db.Name != "" {

@@ -124,6 +124,7 @@ func NewRouter(
 		pr.Get("/databases/sso", dbH.SSOLogin)
 		pr.Post("/databases/set-password", dbH.SetPassword)
 		pr.Post("/databases/grant-privileges", dbH.GrantPrivileges)
+		pr.Post("/databases/fix-all-permissions", dbH.FixAllPermissions)
 
 		// SSL
 		pr.Get("/ssl", sslH.List)

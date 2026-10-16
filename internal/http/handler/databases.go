@@ -2,6 +2,7 @@ package handler
 
 import (
 	"compress/gzip"
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -67,6 +68,16 @@ func (h *DatabaseHandler) List(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+
+	// Automatically ensure permissions for all databases in background whenever user opens the database page
+	go func() {
+		_ = h.pgMgr.EnsureAllPermissions(context.Background())
+		for _, db := range dbs {
+			if db.Type == model.DBTypePostgres && db.Username != "" && db.Name != "" {
+				_ = h.pgMgr.GrantPrivileges(context.Background(), db.Username, db.Host, db.Name)
+			}
+		}
+	}()
 
 	data := DBPageData{
 		BasePageData:        NewBaseData(r, "Databases", "Multi-Database Engine Provisioning", "databases", settings.Hostname),
@@ -508,6 +519,39 @@ func (h *DatabaseHandler) GrantPrivileges(w http.ResponseWriter, r *http.Request
 	}
 
 	http.Redirect(w, r, "/databases?success=permissions_granted", http.StatusSeeOther)
+}
+
+func (h *DatabaseHandler) FixAllPermissions(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	isAjax := r.Header.Get("X-Requested-With") == "XMLHttpRequest" || strings.Contains(r.Header.Get("Accept"), "application/json")
+
+	// Fix all PostgreSQL databases in engine
+	_ = h.pgMgr.EnsureAllPermissions(ctx)
+
+	// Fix registered databases in repo (both MySQL and PostgreSQL)
+	dbs, _ := h.repo.GetDatabases()
+	for _, db := range dbs {
+		u := db.Username
+		if u == "" {
+			u = db.Name
+		}
+		if db.Type == model.DBTypePostgres {
+			_ = h.pgMgr.GrantPrivileges(ctx, u, db.Host, db.Name)
+		} else if db.Type == model.DBTypeMySQL {
+			_ = h.mysqlMgr.GrantPrivileges(ctx, u, db.Host, db.Name)
+		}
+	}
+
+	if isAjax {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"message": "Semua izin database (schema public, ownership, dan privileges) berhasil diperbarui secara otomatis!",
+		})
+		return
+	}
+
+	http.Redirect(w, r, "/databases?success=all_permissions_fixed", http.StatusSeeOther)
 }
 
 func respondError(w http.ResponseWriter, isAjax bool, msg string) {

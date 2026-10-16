@@ -179,7 +179,7 @@ var Catalog = []ServiceDefinition{
 		DisplayName: "phpMyAdmin",
 		Category:    "database_tool",
 		Description: "Web-based administration interface for MySQL and MariaDB databases.",
-		CheckPaths:  []string{"/usr/share/phpmyadmin"},
+		CheckPaths:  []string{"/usr/share/phpmyadmin/index.php", "/usr/share/phpmyadmin"},
 		AptPackages: []string{"phpmyadmin"},
 		Ports:       "URI: /phpmyadmin/",
 	},
@@ -188,7 +188,7 @@ var Catalog = []ServiceDefinition{
 		DisplayName: "phpPgAdmin",
 		Category:    "database_tool",
 		Description: "Web-based administration interface for PostgreSQL databases.",
-		CheckPaths:  []string{"/usr/share/phppgadmin"},
+		CheckPaths:  []string{"/usr/share/phppgadmin/index.php", "/usr/share/phppgadmin"},
 		AptPackages: []string{"phppgadmin", "php-pgsql"},
 		Ports:       "URI: /phppgadmin/",
 	},
@@ -439,8 +439,9 @@ func (sm *ServiceManager) InstallService(ctx context.Context, serviceName string
 			export DEBIAN_FRONTEND=noninteractive
 			apt-get install -y curl wget tar php-mysql php-mbstring php-xml php-curl php-zip php-gd || true
 			mkdir -p /usr/share/phpmyadmin /var/lib/phpmyadmin/tmp /etc/phpmyadmin/conf.d
-			curl -fsSL https://www.phpmyadmin.net/downloads/phpMyAdmin-latest-all-languages.tar.gz -o /tmp/pma.tar.gz || \
-			wget -qO /tmp/pma.tar.gz https://files.phpmyadmin.net/phpMyAdmin/5.2.2/phpMyAdmin-5.2.2-all-languages.tar.gz || true
+			curl -fsSL https://files.phpmyadmin.net/phpMyAdmin/5.2.2/phpMyAdmin-5.2.2-all-languages.tar.gz -o /tmp/pma.tar.gz || \
+			wget -qO /tmp/pma.tar.gz https://files.phpmyadmin.net/phpMyAdmin/5.2.2/phpMyAdmin-5.2.2-all-languages.tar.gz || \
+			curl -fsSL https://files.phpmyadmin.net/phpMyAdmin/5.2.1/phpMyAdmin-5.2.1-all-languages.tar.gz -o /tmp/pma.tar.gz || true
 			if [ -f "/tmp/pma.tar.gz" ] && [ -s "/tmp/pma.tar.gz" ]; then
 				tar -xzf /tmp/pma.tar.gz -C /usr/share/phpmyadmin --strip-components=1
 				rm -f /tmp/pma.tar.gz
@@ -601,7 +602,7 @@ func (sm *ServiceManager) PreseedDebconf(ctx context.Context) {
 
 // AutoConfigurePhpMyAdmin creates blowfish secret, fixes permissions, and configures phpMyAdmin SSO.
 func (sm *ServiceManager) AutoConfigurePhpMyAdmin(ctx context.Context) {
-	if !sm.IsInstalled("phpmyadmin") {
+	if !sm.IsInstalled("phpmyadmin") && func() bool { _, err := os.Stat("/usr/share/phpmyadmin"); return err != nil }() {
 		return
 	}
 
@@ -621,211 +622,247 @@ func (sm *ServiceManager) AutoConfigurePhpMyAdmin(ctx context.Context) {
 		_ = exec.CommandContext(ctx, "chown", "-R", "www-data:www-data", "/var/lib/phpmyadmin").Run()
 	}
 
-	// 3. Ensure tmp directory exists for caching/sessions
-	tmpDir := "/var/lib/phpmyadmin/tmp"
-	_ = os.MkdirAll(tmpDir, 0777)
-	_ = os.Chmod(tmpDir, 0777)
-	_ = exec.CommandContext(ctx, "chown", "-R", "www-data:www-data", "/var/lib/phpmyadmin").Run()
-
+	// 3. Ensure tmp and session directories exist for caching/sessions
+	_ = os.MkdirAll("/var/lib/phpmyadmin/tmp", 0777)
+	_ = os.Chmod("/var/lib/phpmyadmin/tmp", 0777)
 	_ = os.MkdirAll("/usr/share/phpmyadmin/tmp", 0777)
 	_ = os.Chmod("/usr/share/phpmyadmin/tmp", 0777)
-	_ = exec.CommandContext(ctx, "chown", "-R", "www-data:www-data", "/usr/share/phpmyadmin/tmp").Run()
+	_ = os.MkdirAll("/var/lib/php/sessions", 0777)
+	_ = os.Chmod("/var/lib/php/sessions", 0777)
+	_ = os.MkdirAll("/etc/phpmyadmin/conf.d", 0755)
 
-	// 4. Ensure required PHP extensions (mbstring, mysql, xml, etc.) are installed and enabled for all active PHP runtimes
+	// 4. Ensure required PHP extensions and self-heal phpMyAdmin release if missing
 	extScript := `
 		export DEBIAN_FRONTEND=noninteractive
-		need_reload=0
-		for sock in /run/php/php*-fpm.sock; do
-			if [ -e "$sock" ]; then
-				ver=$(basename "$sock" | sed -E 's/php([0-9]+\.[0-9]+)-fpm\.sock/\1/')
-				need_pkg=0
-				for ext in mbstring mysqli xml curl zip gd; do
-					if [ ! -f "/etc/php/$ver/fpm/conf.d/"*"$ext"*.ini ] && ! php$ver -m 2>/dev/null | grep -qi "^$ext$"; then
-						need_pkg=1
-						break
-					fi
-				done
-				if [ "$need_pkg" -eq 1 ]; then
-					apt-get update -y >/dev/null 2>&1 || true
-					apt-get install -y php$ver-mbstring php$ver-mysql php$ver-xml php$ver-curl php$ver-zip php$ver-gd || true
-					phpenmod -v $ver mbstring mysqli mysql pdo_mysql xml curl zip gd 2>/dev/null || true
-					need_reload=1
-				fi
+		apt-get update -y >/dev/null 2>&1 || true
+		apt-get install -y php-mbstring php-mysql php-xml php-curl php-zip php-gd || true
+
+		for ver in 8.5 8.4 8.3 8.2 8.1 8.0 7.4; do
+			if [ -d "/etc/php/$ver" ]; then
+				apt-get install -y php$ver-mbstring php$ver-mysql php$ver-xml php$ver-curl php$ver-zip php$ver-gd >/dev/null 2>&1 || true
+				phpenmod -v $ver mbstring mysqli mysql pdo_mysql xml curl zip gd 2>/dev/null || true
 			fi
 		done
-
-		# Also ensure metapackages if missing
-		if ! dpkg -s php-mbstring >/dev/null 2>&1 || ! dpkg -s php-mysql >/dev/null 2>&1; then
-			apt-get install -y php-mbstring php-mysql php-xml php-curl php-zip php-gd || true
-			need_reload=1
-		fi
-
 		phpenmod mbstring mysqli mysql pdo_mysql xml curl zip gd 2>/dev/null || true
 
-		if [ "$need_reload" -eq 1 ]; then
-			for svc in $(systemctl list-unit-files --type=service | grep -oE 'php[0-9\.]+-fpm\.service'); do
-				systemctl restart "$svc" 2>/dev/null || true
-			done
-			systemctl reload nginx 2>/dev/null || true
+		# Self-heal phpmyadmin files if index.php is missing or corrupted
+		if [ ! -f /usr/share/phpmyadmin/index.php ]; then
+			mkdir -p /usr/share/phpmyadmin /var/lib/phpmyadmin/tmp /etc/phpmyadmin/conf.d
+			curl -fsSL https://files.phpmyadmin.net/phpMyAdmin/5.2.2/phpMyAdmin-5.2.2-all-languages.tar.gz -o /tmp/pma.tar.gz || \
+			wget -qO /tmp/pma.tar.gz https://files.phpmyadmin.net/phpMyAdmin/5.2.2/phpMyAdmin-5.2.2-all-languages.tar.gz || \
+			curl -fsSL https://files.phpmyadmin.net/phpMyAdmin/5.2.1/phpMyAdmin-5.2.1-all-languages.tar.gz -o /tmp/pma.tar.gz || true
+			if [ -f "/tmp/pma.tar.gz" ] && [ -s "/tmp/pma.tar.gz" ]; then
+				tar -xzf /tmp/pma.tar.gz -C /usr/share/phpmyadmin --strip-components=1
+				rm -f /tmp/pma.tar.gz
+			fi
 		fi
+
+		mkdir -p /var/lib/phpmyadmin/tmp /usr/share/phpmyadmin/tmp /var/lib/php/sessions /var/lib/seintech/pma_tokens
+		chown -R www-data:www-data /usr/share/phpmyadmin /var/lib/phpmyadmin /var/lib/seintech/pma_tokens 2>/dev/null || true
+		chmod -R a+rX /usr/share/phpmyadmin /etc/phpmyadmin 2>/dev/null || true
+		chmod 0777 /var/lib/phpmyadmin/tmp /usr/share/phpmyadmin/tmp /var/lib/seintech/pma_tokens 2>/dev/null || true
+		chmod 01733 /var/lib/php/sessions 2>/dev/null || chmod 0777 /var/lib/php/sessions 2>/dev/null || true
+
+		for svc in $(systemctl list-unit-files --type=service | grep -oE 'php[0-9\.]+-fpm\.service'); do
+			systemctl restart "$svc" 2>/dev/null || true
+		done
+		systemctl reload nginx 2>/dev/null || true
 	`
 	_ = exec.CommandContext(ctx, "bash", "-c", extScript).Run()
 
-	// 5. Configure dual-server setup: Server 1 for Standard Cookie login, Server 2 for Seintech SSO
-	confFile := "/etc/phpmyadmin/conf.d/01-seintech.inc.php"
-	_ = os.MkdirAll("/etc/phpmyadmin/conf.d", 0755)
+	// 5. Configure master phpMyAdmin configuration (supporting standard Cookie & SignonSession SSO)
 	customConf := `<?php
-/* Auto-generated by Seintech Panel */
+/**
+ * Seintech Panel - phpMyAdmin Master Configuration
+ */
+declare(strict_types=1);
 
-if (empty($cfg['blowfish_secret']) || strlen($cfg['blowfish_secret']) < 32) {
-    $cfg['blowfish_secret'] = 's31nt3chP4n3lS3cur3Bl0wf1shS3cr3tK3y!';
+// 1. Secret key for cookie encryption (32+ bytes)
+$cfg['blowfish_secret'] = 's31nt3chP4n3lS3cur3Bl0wf1shS3cr3tK3y!2026';
+if (file_exists('/var/lib/phpmyadmin/blowfish_secret.inc.php')) {
+    @include '/var/lib/phpmyadmin/blowfish_secret.inc.php';
 }
 
-$sock = file_exists('/run/mysqld/mysqld.sock') ? '/run/mysqld/mysqld.sock' : (file_exists('/var/run/mysqld/mysqld.sock') ? '/var/run/mysqld/mysqld.sock' : '');
+// 2. Temp and cache directories for Twig template engine & session caching
+$cfg['TempDir'] = '/var/lib/phpmyadmin/tmp';
+if (!is_dir($cfg['TempDir']) || !is_writable($cfg['TempDir'])) {
+    $cfg['TempDir'] = '/usr/share/phpmyadmin/tmp';
+}
 
-// Server 1: Standard Login (Cookie) - Default
+// 3. MySQL / MariaDB connection detection
+$sock = '';
+foreach (['/run/mysqld/mysqld.sock', '/var/run/mysqld/mysqld.sock', '/tmp/mysql.sock'] as $candidate) {
+    if (file_exists($candidate)) {
+        $sock = $candidate;
+        break;
+    }
+}
+
+// Server 1: Standard Cookie Authentication (Default)
 $cfg['Servers'][1]['auth_type'] = 'cookie';
+$cfg['Servers'][1]['host'] = 'localhost';
 if (!empty($sock)) {
-    $cfg['Servers'][1]['host'] = 'localhost';
     $cfg['Servers'][1]['socket'] = $sock;
-    $cfg['Servers'][1]['connect_type'] = 'socket';
-} else {
-    $cfg['Servers'][1]['host'] = '127.0.0.1';
-    $cfg['Servers'][1]['port'] = 3306;
-    $cfg['Servers'][1]['connect_type'] = 'tcp';
 }
 $cfg['Servers'][1]['compress'] = false;
 $cfg['Servers'][1]['AllowNoPassword'] = false;
-$cfg['Servers'][1]['verbose'] = 'MariaDB / MySQL (Cookie)';
+$cfg['Servers'][1]['verbose'] = 'MariaDB / MySQL (Standard Login)';
 
-// Server 2: Single Sign-On (SignonScript)
+// Server 2: Seintech Panel Auto-Login (Single Sign-On via SignonSession)
 $cfg['Servers'][2]['auth_type'] = 'signon';
-$cfg['Servers'][2]['SignonScript'] = '/usr/share/phpmyadmin/signon_auth.php';
-$cfg['Servers'][2]['SignonURL'] = '/phpmyadmin/index.php';
+$cfg['Servers'][2]['SignonSession'] = 'SignonSession';
+$cfg['Servers'][2]['SignonURL'] = '/databases';
+$cfg['Servers'][2]['LogoutURL'] = '/databases';
+$cfg['Servers'][2]['host'] = 'localhost';
 if (!empty($sock)) {
-    $cfg['Servers'][2]['host'] = 'localhost';
     $cfg['Servers'][2]['socket'] = $sock;
-    $cfg['Servers'][2]['connect_type'] = 'socket';
-} else {
-    $cfg['Servers'][2]['host'] = '127.0.0.1';
-    $cfg['Servers'][2]['port'] = 3306;
-    $cfg['Servers'][2]['connect_type'] = 'tcp';
 }
 $cfg['Servers'][2]['compress'] = false;
 $cfg['Servers'][2]['AllowNoPassword'] = false;
-$cfg['Servers'][2]['verbose'] = 'Seintech SSO';
+$cfg['Servers'][2]['verbose'] = 'Seintech Panel Auto-Login (SSO)';
 
+// General settings
+$cfg['UploadDir'] = '';
+$cfg['SaveDir'] = '';
 $cfg['SendErrorReports'] = 'never';
+$cfg['CheckConfigurationPermissions'] = false;
+
+// Include Debian / custom conf.d overrides if present
+if (is_dir('/etc/phpmyadmin/conf.d/')) {
+    foreach (glob('/etc/phpmyadmin/conf.d/*.php') as $filename) {
+        if (basename($filename) !== '01-seintech.inc.php') {
+            @include $filename;
+        }
+    }
+}
 `
-	_ = os.WriteFile(confFile, []byte(customConf), 0644)
-
-	// Ensure /usr/share/phpmyadmin/config.inc.php links to configuration
+	// Write configuration to all standard locations
 	usrConf := "/usr/share/phpmyadmin/config.inc.php"
-	if _, err := os.Stat(usrConf); os.IsNotExist(err) {
-		if _, err := os.Stat("/etc/phpmyadmin/config.inc.php"); err == nil {
-			_ = os.Symlink("/etc/phpmyadmin/config.inc.php", usrConf)
-		} else {
-			stub := "<?php\nif (file_exists('/etc/phpmyadmin/conf.d/01-seintech.inc.php')) {\n    include('/etc/phpmyadmin/conf.d/01-seintech.inc.php');\n}\n"
-			_ = os.WriteFile(usrConf, []byte(stub), 0644)
-		}
+	if fi, err := os.Lstat(usrConf); err == nil && (fi.Mode()&os.ModeSymlink != 0) {
+		_ = os.Remove(usrConf)
 	}
+	_ = os.WriteFile(usrConf, []byte(customConf), 0644)
+	_ = os.WriteFile("/etc/phpmyadmin/config.inc.php", []byte(customConf), 0644)
+	_ = os.WriteFile("/etc/phpmyadmin/conf.d/01-seintech.inc.php", []byte(customConf), 0644)
+	_ = exec.CommandContext(ctx, "chown", "www-data:www-data", usrConf).Run()
 
-	// 6. Install native SignonScript in /usr/share/phpmyadmin/signon_auth.php and /etc/phpmyadmin/signon_auth.php
+	// 6. Install SignonScript compatibility handler
 	signonAuthCode := `<?php
-declare(strict_types=1);
-
 /**
- * Seintech Panel SSO Authentication Script for phpMyAdmin
- * Uses official SignonScript interface get_login_credentials
+ * Seintech Panel SSO Compatibility Handler for phpMyAdmin
  */
-function get_login_credentials(string $user): array
-{
-    $token = $_COOKIE['seintech_pma_token'] ?? '';
-    if (empty($token) && isset($_GET['token'])) {
-        $token = $_GET['token'];
-    }
-
-    if (!is_string($token) || !preg_match('/^[a-f0-9]{32,64}$/', $token)) {
+if (!function_exists('get_login_credentials')) {
+    function get_login_credentials(string $user): array
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_name('SignonSession');
+            @session_start();
+        }
+        $u = (string)($_SESSION['PMA_single_signon_user'] ?? '');
+        $p = (string)($_SESSION['PMA_single_signon_password'] ?? '');
+        if ($u !== '') {
+            return [$u, $p];
+        }
         return ['', ''];
     }
-
-    $tokenFile = '/var/lib/seintech/pma_tokens/' . $token . '.json';
-    if (!file_exists($tokenFile)) {
-        return ['', ''];
-    }
-
-    $raw = @file_get_contents($tokenFile);
-    if (!$raw) {
-        return ['', ''];
-    }
-
-    $data = @json_decode($raw, true);
-    if (!$data || time() > ($data['expires'] ?? 0)) {
-        @unlink($tokenFile);
-        return ['', ''];
-    }
-
-    $u = (string)($data['user'] ?? '');
-    $p = (string)($data['pass'] ?? '');
-
-    if ($u === '') {
-        return ['', ''];
-    }
-
-    return [$u, $p];
 }
 `
 	_ = os.WriteFile("/usr/share/phpmyadmin/signon_auth.php", []byte(signonAuthCode), 0644)
 	_ = os.WriteFile("/etc/phpmyadmin/signon_auth.php", []byte(signonAuthCode), 0644)
 	_ = exec.CommandContext(ctx, "chown", "www-data:www-data", "/usr/share/phpmyadmin/signon_auth.php").Run()
 
-	// 7. Install SSO bridge script in /usr/share/phpmyadmin/sso.php
+	// 7. Install SSO bridge script in /usr/share/phpmyadmin/sso.php using official SignonSession
 	ssoScript := `/usr/share/phpmyadmin/sso.php`
 	ssoContent := `<?php
 // Seintech Panel SSO Bridge for phpMyAdmin
+declare(strict_types=1);
+
 $token = $_GET['token'] ?? '';
 if (!is_string($token) || !preg_match('/^[a-f0-9]{32,64}$/', $token)) {
-    die("Invalid token format");
+    header("Location: /databases?error=invalid_token");
+    exit;
 }
+
 $tokenFile = "/var/lib/seintech/pma_tokens/" . $token . ".json";
 if (!file_exists($tokenFile)) {
-    die("Token not found or already used");
+    header("Location: /databases?error=token_not_found");
+    exit;
 }
+
 $raw = @file_get_contents($tokenFile);
 $data = @json_decode($raw, true);
 if (!$data || time() > ($data['expires'] ?? 0)) {
     @unlink($tokenFile);
-    die("Token expired");
+    header("Location: /databases?error=token_expired");
+    exit;
 }
+@unlink($tokenFile);
+
+$u = (string)($data['user'] ?? '');
+$p = (string)($data['pass'] ?? '');
+$db = (string)($data['db'] ?? '');
 
 $isHttps = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') || 
-           (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+           (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') ||
+           (isset($_SERVER['SERVER_PORT']) && (int)$_SERVER['SERVER_PORT'] === 443);
 
-// Set token cookie so SignonScript get_login_credentials can read it
-if (PHP_VERSION_ID >= 70300) {
-    setcookie('seintech_pma_token', $token, [
-        'expires' => time() + 180,
-        'path' => '/phpmyadmin/',
-        'httponly' => true,
-        'secure' => $isHttps,
-        'samesite' => 'Lax'
-    ]);
-} else {
-    setcookie('seintech_pma_token', $token, time() + 180, '/phpmyadmin/', '', $isHttps, true);
+// Destroy existing session to prevent stale session conflicts
+if (session_status() === PHP_SESSION_ACTIVE) {
+    session_destroy();
 }
 
-// Clear any stale phpMyAdmin session cookie so fresh login takes effect
+// Clear stale phpMyAdmin cookies so old login/server selection doesn't conflict
 foreach ($_COOKIE as $name => $val) {
     if (stripos($name, 'pma') !== false || stripos($name, 'phpmyadmin') !== false) {
-        if ($name !== 'seintech_pma_token') {
-            setcookie($name, '', time() - 3600, '/');
-            setcookie($name, '', time() - 3600, '/phpmyadmin/');
-        }
+        setcookie($name, '', time() - 3600, '/');
+        setcookie($name, '', time() - 3600, '/phpmyadmin/');
     }
 }
 
-$db = urlencode($data['db'] ?? '');
-header("Location: /phpmyadmin/index.php?server=2&db=" . $db . "&token=" . $token);
+// Start SignonSession for phpMyAdmin
+ini_set('session.use_cookies', '1');
+ini_set('session.use_only_cookies', '1');
+
+$cookieParams = [
+    'lifetime' => 0,
+    'path'     => '/',
+    'domain'   => '',
+    'secure'   => $isHttps,
+    'httponly' => true,
+    'samesite' => 'Lax'
+];
+
+if (PHP_VERSION_ID >= 70300) {
+    session_set_cookie_params($cookieParams);
+} else {
+    session_set_cookie_params(0, '/', '', $isHttps, true);
+}
+
+session_name('SignonSession');
+@session_start();
+
+$_SESSION['PMA_single_signon_user'] = $u;
+$_SESSION['PMA_single_signon_password'] = $p;
+$_SESSION['PMA_single_signon_host'] = 'localhost';
+
+$sock = '';
+foreach (['/run/mysqld/mysqld.sock', '/var/run/mysqld/mysqld.sock', '/tmp/mysql.sock'] as $candidate) {
+    if (file_exists($candidate)) {
+        $sock = $candidate;
+        break;
+    }
+}
+if (!empty($sock)) {
+    $_SESSION['PMA_single_signon_socket'] = $sock;
+}
+
+@session_write_close();
+
+$target = '/phpmyadmin/index.php?server=2';
+if (!empty($db)) {
+    $target .= '&db=' . urlencode($db);
+}
+header("Location: " . $target);
 exit;
 `
 	_ = os.WriteFile(ssoScript, []byte(ssoContent), 0644)

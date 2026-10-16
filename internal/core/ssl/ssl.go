@@ -847,14 +847,21 @@ func (s *SSLManager) SyncPanelNginxReverseProxy(ctx context.Context) error {
     location ^~ /phpmyadmin/ {
         root /usr/share/;
         index index.php index.html index.htm;
-        location ~ ^/phpmyadmin/(.+\.php)$ {
-            try_files $uri =404;
+        location ~ ^/phpmyadmin/(.+\.php)(/.*)?$ {
+            fastcgi_split_path_info ^/phpmyadmin/(.+\.php)(/.*)$;
+            try_files /phpmyadmin/$1 =404;
             root /usr/share/;
             fastcgi_pass unix:%s;
             fastcgi_index index.php;
             include /etc/nginx/fastcgi_params;
-            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+            fastcgi_param SCRIPT_FILENAME /usr/share/phpmyadmin/$1;
+            fastcgi_param PATH_INFO $fastcgi_path_info;
             fastcgi_param HTTPS on;
+            fastcgi_param HTTP_PROXY "";
+            fastcgi_read_timeout 300s;
+            fastcgi_buffer_size 128k;
+            fastcgi_buffers 4 256k;
+            fastcgi_busy_buffers_size 256k;
         }
         location ~* ^/phpmyadmin/(.+\.(jpg|jpeg|gif|css|png|js|ico|html|xml|txt|svg|woff|woff2|ttf|webp|map))$ {
             root /usr/share/;
@@ -876,14 +883,21 @@ func (s *SSLManager) SyncPanelNginxReverseProxy(ctx context.Context) error {
     location ^~ /phppgadmin/ {
         root /usr/share/;
         index index.php index.html index.htm;
-        location ~ ^/phppgadmin/(.+\.php)$ {
-            try_files $uri =404;
+        location ~ ^/phppgadmin/(.+\.php)(/.*)?$ {
+            fastcgi_split_path_info ^/phppgadmin/(.+\.php)(/.*)$;
+            try_files /phppgadmin/$1 =404;
             root /usr/share/;
             fastcgi_pass unix:%s;
             fastcgi_index index.php;
             include /etc/nginx/fastcgi_params;
-            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+            fastcgi_param SCRIPT_FILENAME /usr/share/phppgadmin/$1;
+            fastcgi_param PATH_INFO $fastcgi_path_info;
             fastcgi_param HTTPS on;
+            fastcgi_param HTTP_PROXY "";
+            fastcgi_read_timeout 300s;
+            fastcgi_buffer_size 128k;
+            fastcgi_buffers 4 256k;
+            fastcgi_busy_buffers_size 256k;
         }
         location ~* ^/phppgadmin/(.+\.(jpg|jpeg|gif|css|png|js|ico|html|xml|txt|svg|woff|woff2|ttf|webp|map))$ {
             root /usr/share/;
@@ -998,9 +1012,16 @@ func findPanelPHPSocket() string {
 		"/run/php/php8.3-fpm.sock",
 		"/run/php/php8.2-fpm.sock",
 		"/run/php/php8.4-fpm.sock",
+		"/run/php/php8.5-fpm.sock",
 		"/run/php/php8.1-fpm.sock",
 		"/run/php/php8.0-fpm.sock",
 		"/run/php/php7.4-fpm.sock",
+		"/run/php/php-fpm.sock",
+		"/var/run/php/php8.3-fpm.sock",
+		"/var/run/php/php8.2-fpm.sock",
+		"/var/run/php/php8.4-fpm.sock",
+		"/var/run/php/php8.1-fpm.sock",
+		"/var/run/php/php-fpm.sock",
 	}
 	for _, sock := range candidates {
 		if _, err := os.Stat(sock); err == nil {
@@ -1010,6 +1031,10 @@ func findPanelPHPSocket() string {
 	matches, _ := filepath.Glob("/run/php/php*-fpm.sock")
 	if len(matches) > 0 {
 		return matches[0]
+	}
+	varMatches, _ := filepath.Glob("/var/run/php/php*-fpm.sock")
+	if len(varMatches) > 0 {
+		return varMatches[0]
 	}
 	return "/run/php/php8.3-fpm.sock"
 }

@@ -23,57 +23,57 @@
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body class="h-full flex items-center justify-center p-4 bg-slate-50 font-sans antialiased">
-    <div class="w-full max-w-md">
+    <div class="w-full max-w-[360px]">
         <!-- Logo & Header -->
-        <div class="text-center mb-8">
-            <div class="inline-flex w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-indigo-500 items-center justify-center text-white font-bold text-2xl shadow-lg shadow-indigo-200 mb-3">
+        <div class="text-center mb-6">
+            <div class="inline-flex w-11 h-11 rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-500 items-center justify-center text-white font-bold text-xl shadow-md shadow-indigo-200 mb-2.5">
                 S
             </div>
-            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Seintech<span class="text-indigo-600">.</span></h1>
-            <p class="text-xs text-slate-500 mt-1">Lightweight, Modular Web Hosting Control Panel</p>
+            <h1 class="text-xl font-bold text-slate-900 tracking-tight">Seintech<span class="text-indigo-600">.</span></h1>
+            <p class="text-xs text-slate-500 mt-0.5">Lightweight, Modular Web Hosting Control Panel</p>
         </div>
 
         <!-- Login Card -->
-        <div class="bg-white rounded-3xl border border-slate-200/80 shadow-sm p-8">
+        <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 sm:p-7">
             {{ if .Error }}
-            <div class="mb-5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+            <div class="mb-4 p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
                 {{ .Error }}
             </div>
             {{ end }}
 
             <form action="/login" method="POST" class="space-y-4">
                 <div>
-                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5">Username</label>
-                    <input type="text" name="username" required autofocus placeholder="admin" class="w-full px-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all">
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">Username</label>
+                    <input type="text" name="username" required autofocus placeholder="admin" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all">
                 </div>
 
                 <div>
-                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5">Password</label>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">Password</label>
                     <div class="relative">
-                        <input id="passwordInput" type="password" name="password" required placeholder="••••••••" class="w-full pl-4 pr-11 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all">
-                        <button type="button" id="togglePasswordBtn" onclick="togglePasswordVisibility()" class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none transition-colors" title="Lihat password" aria-label="Toggle password visibility">
+                        <input id="passwordInput" type="password" name="password" required placeholder="••••••••" class="w-full pl-3.5 pr-10 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all">
+                        <button type="button" id="togglePasswordBtn" onclick="togglePasswordVisibility()" class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none transition-colors" title="Lihat password" aria-label="Toggle password visibility">
                             <!-- Eye Icon (Password hidden) -->
-                            <svg id="eyeIcon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg id="eyeIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                             </svg>
                             <!-- Eye Slash Icon (Password shown) -->
-                            <svg id="eyeSlashIcon" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg id="eyeSlashIcon" class="w-4 h-4 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
                             </svg>
                         </button>
                     </div>
                 </div>
 
-                <div class="pt-2">
-                    <button type="submit" class="w-full py-3 px-4 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm shadow-indigo-200 transition-colors">
+                <div class="pt-1.5">
+                    <button type="submit" class="w-full py-2.5 px-4 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm shadow-indigo-200 transition-colors">
                         Sign In to Dashboard
                     </button>
                 </div>
             </form>
         </div>
 
-        <div class="text-center mt-6 text-xs text-slate-400 font-mono">
+        <div class="text-center mt-5 text-[11px] text-slate-400 font-mono">
             Go 1.27 • Single Binary Architecture
         </div>
     </div>

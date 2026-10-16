@@ -634,6 +634,7 @@ func (sm *ServiceManager) AutoConfigurePhpMyAdmin(ctx context.Context) {
 	// 4. Ensure required PHP extensions and self-heal phpMyAdmin release if missing
 	extScript := `
 		export DEBIAN_FRONTEND=noninteractive
+		dpkg --configure -a 2>/dev/null || true
 		apt-get update -y >/dev/null 2>&1 || true
 		apt-get install -y php-common php-ctype php-mbstring php-mysql php-xml php-curl php-zip php-gd php-intl php-bcmath || true
 
@@ -642,22 +643,25 @@ func (sm *ServiceManager) AutoConfigurePhpMyAdmin(ctx context.Context) {
 				apt-get install -y php$ver-common php$ver-ctype php$ver-mbstring php$ver-mysql php$ver-xml php$ver-curl php$ver-zip php$ver-gd php$ver-intl php$ver-bcmath >/dev/null 2>&1 || true
 
 				mkdir -p "/etc/php/$ver/mods-available" "/etc/php/$ver/fpm/conf.d" "/etc/php/$ver/cli/conf.d"
+				echo "extension=pdo.so" > "/etc/php/$ver/mods-available/pdo.ini"
 				echo "extension=mysqlnd.so" > "/etc/php/$ver/mods-available/mysqlnd.ini"
 				echo "extension=mysqli.so" > "/etc/php/$ver/mods-available/mysqli.ini"
 				echo "extension=pdo_mysql.so" > "/etc/php/$ver/mods-available/pdo_mysql.ini"
 
+				ln -sf "/etc/php/$ver/mods-available/pdo.ini" "/etc/php/$ver/fpm/conf.d/10-pdo.ini"
 				ln -sf "/etc/php/$ver/mods-available/mysqlnd.ini" "/etc/php/$ver/fpm/conf.d/10-mysqlnd.ini"
 				ln -sf "/etc/php/$ver/mods-available/mysqli.ini" "/etc/php/$ver/fpm/conf.d/20-mysqli.ini"
 				ln -sf "/etc/php/$ver/mods-available/pdo_mysql.ini" "/etc/php/$ver/fpm/conf.d/20-pdo_mysql.ini"
 
+				ln -sf "/etc/php/$ver/mods-available/pdo.ini" "/etc/php/$ver/cli/conf.d/10-pdo.ini"
 				ln -sf "/etc/php/$ver/mods-available/mysqlnd.ini" "/etc/php/$ver/cli/conf.d/10-mysqlnd.ini"
 				ln -sf "/etc/php/$ver/mods-available/mysqli.ini" "/etc/php/$ver/cli/conf.d/20-mysqli.ini"
 				ln -sf "/etc/php/$ver/mods-available/pdo_mysql.ini" "/etc/php/$ver/cli/conf.d/20-pdo_mysql.ini"
 
-				phpenmod -v $ver -s ALL mysqlnd mysqli pdo_mysql ctype mbstring xml curl zip gd intl bcmath 2>/dev/null || true
+				phpenmod -v $ver -s ALL pdo mysqlnd mysqli pdo_mysql pdo_pgsql ctype mbstring xml curl zip gd intl bcmath 2>/dev/null || true
 			fi
 		done
-		phpenmod -s ALL mysqlnd mysqli pdo_mysql ctype mbstring xml curl zip gd intl bcmath 2>/dev/null || true
+		phpenmod -s ALL pdo mysqlnd mysqli pdo_mysql pdo_pgsql ctype mbstring xml curl zip gd intl bcmath 2>/dev/null || true
 
 		# Self-heal phpmyadmin files if index.php is missing or corrupted
 		if [ ! -f /usr/share/phpmyadmin/index.php ]; then

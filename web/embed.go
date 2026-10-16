@@ -37,22 +37,32 @@ var funcMap = template.FuncMap{
 func RenderTemplate(w http.ResponseWriter, tmplName string, data any) error {
 	tmpl, err := template.New("layout.html").Funcs(funcMap).ParseFS(EmbeddedFiles, "templates/layout.html", "templates/"+tmplName)
 	if err != nil {
+		http.Error(w, fmt.Sprintf("Template Parse Error (%s): %v", tmplName, err), http.StatusInternalServerError)
 		return fmt.Errorf("error parsing template %s: %w", tmplName, err)
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	return tmpl.Execute(w, data)
+	if err := tmpl.Execute(w, data); err != nil {
+		http.Error(w, fmt.Sprintf("Template Execute Error (%s): %v", tmplName, err), http.StatusInternalServerError)
+		return err
+	}
+	return nil
 }
 
 // RenderSingleTemplate renders a standalone template without the standard layout (e.g. login.html).
 func RenderSingleTemplate(w http.ResponseWriter, tmplName string, data any) error {
 	tmpl, err := template.New(tmplName).Funcs(funcMap).ParseFS(EmbeddedFiles, "templates/"+tmplName)
 	if err != nil {
+		http.Error(w, fmt.Sprintf("Template Parse Error (%s): %v", tmplName, err), http.StatusInternalServerError)
 		return fmt.Errorf("error parsing standalone template %s: %w", tmplName, err)
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	return tmpl.Execute(w, data)
+	if err := tmpl.Execute(w, data); err != nil {
+		http.Error(w, fmt.Sprintf("Template Execute Error (%s): %v", tmplName, err), http.StatusInternalServerError)
+		return err
+	}
+	return nil
 }
 
 // GetStaticFS returns an http.Handler that serves embedded static assets.

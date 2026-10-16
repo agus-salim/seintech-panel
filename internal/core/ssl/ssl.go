@@ -1009,17 +1009,18 @@ server {
 
 func findPanelPHPSocket() string {
 	candidates := []string{
+		"/run/php/php8.5-fpm.sock",
+		"/run/php/php8.4-fpm.sock",
 		"/run/php/php8.3-fpm.sock",
 		"/run/php/php8.2-fpm.sock",
-		"/run/php/php8.4-fpm.sock",
-		"/run/php/php8.5-fpm.sock",
 		"/run/php/php8.1-fpm.sock",
 		"/run/php/php8.0-fpm.sock",
 		"/run/php/php7.4-fpm.sock",
 		"/run/php/php-fpm.sock",
+		"/var/run/php/php8.5-fpm.sock",
+		"/var/run/php/php8.4-fpm.sock",
 		"/var/run/php/php8.3-fpm.sock",
 		"/var/run/php/php8.2-fpm.sock",
-		"/var/run/php/php8.4-fpm.sock",
 		"/var/run/php/php8.1-fpm.sock",
 		"/var/run/php/php-fpm.sock",
 	}

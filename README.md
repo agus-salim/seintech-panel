@@ -1,6 +1,7 @@
 # Seintech Hosting Panel 🚀
 
 **Seintech Hosting Panel** adalah web hosting control panel modern berbasis **single binary Go** yang ultra-ringan, modular, dan tangguh. Dirancang khusus untuk berjalan sebagai `systemd` service pada sistem operasi Linux (Ubuntu, Debian) tanpa memerlukan database eksternal untuk konfigurasi internalnya.
+**Panel ini dipindah ke https://github.com/seintechid/panel**
 
 ---
 

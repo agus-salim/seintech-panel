@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/seintech/panel/internal/core/auth"
 	"github.com/seintech/panel/internal/core/database"
 	"github.com/seintech/panel/internal/core/system"
 	"github.com/seintech/panel/internal/model"
@@ -44,14 +45,25 @@ type DBPageData struct {
 	Databases           []model.Database
 	PhpMyAdminInstalled bool
 	PhpPgAdminInstalled bool
+	CanCreateDB         bool
 }
 
 func (h *DatabaseHandler) List(w http.ResponseWriter, r *http.Request) {
+	sess := GetSession(r)
+	accessibleIDs := GetAccessibleUserIDs(sess, h.repo)
+
 	settings, _ := h.repo.GetSettings()
 
-	dbs, err := h.repo.GetDatabases()
-	if err != nil || len(dbs) == 0 {
-		dbs = []model.Database{}
+	allDBs, err := h.repo.GetDatabases()
+	if err != nil || len(allDBs) == 0 {
+		allDBs = []model.Database{}
+	}
+
+	var dbs []model.Database
+	for _, db := range allDBs {
+		if accessibleIDs == nil || accessibleIDs[db.UserID] {
+			dbs = append(dbs, db)
+		}
 	}
 
 	ctx := r.Context()
@@ -69,7 +81,7 @@ func (h *DatabaseHandler) List(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Automatically ensure permissions for all databases in background whenever user opens the database page
+	// Automatically ensure permissions for accessible databases in background
 	go func() {
 		_ = h.pgMgr.EnsureAllPermissions(context.Background())
 		for _, db := range dbs {
@@ -79,11 +91,22 @@ func (h *DatabaseHandler) List(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
+	canCreate := true
+	if sess.Role == model.RoleUser && len(dbs) >= 1 {
+		canCreate = false
+	} else if sess.Role == model.RoleReseller {
+		rq, _ := h.repo.GetQuota(sess.UserID)
+		if rq != nil && rq.MaxDatabases > 0 && len(dbs) >= rq.MaxDatabases {
+			canCreate = false
+		}
+	}
+
 	data := DBPageData{
 		BasePageData:        NewBaseData(r, "Databases", "Multi-Database Engine Provisioning", "databases", settings.Hostname),
 		Databases:           dbs,
 		PhpMyAdminInstalled: h.sm.IsInstalled("phpmyadmin"),
 		PhpPgAdminInstalled: h.sm.IsInstalled("phppgadmin"),
+		CanCreateDB:         canCreate,
 	}
 
 	_ = web.RenderTemplate(w, "databases.html", data)
@@ -91,6 +114,39 @@ func (h *DatabaseHandler) List(w http.ResponseWriter, r *http.Request) {
 
 func (h *DatabaseHandler) Create(w http.ResponseWriter, r *http.Request) {
 	isAjax := r.Header.Get("X-Requested-With") == "XMLHttpRequest"
+	sess := GetSession(r)
+
+	// Check DB quota limits
+	if sess.Role == model.RoleUser {
+		allDBs, _ := h.repo.GetDatabases()
+		count := 0
+		for _, d := range allDBs {
+			if d.UserID == sess.UserID {
+				count++
+			}
+		}
+		if count >= 1 {
+			respondError(w, isAjax, "End-User hanya diperbolehkan memiliki 1 database.")
+			return
+		}
+	} else if sess.Role == model.RoleReseller {
+		rq, _ := h.repo.GetQuota(sess.UserID)
+		if rq != nil && rq.MaxDatabases > 0 {
+			accessibleIDs := GetAccessibleUserIDs(sess, h.repo)
+			allDBs, _ := h.repo.GetDatabases()
+			count := 0
+			for _, d := range allDBs {
+				if accessibleIDs[d.UserID] {
+					count++
+				}
+			}
+			if count >= rq.MaxDatabases {
+				respondError(w, isAjax, fmt.Sprintf("Batas kuota database reseller (%d database) telah tercapai.", rq.MaxDatabases))
+				return
+			}
+		}
+	}
+
 	name := strings.TrimSpace(r.FormValue("name"))
 	dbType := model.DBType(r.FormValue("type"))
 	if dbType == "" {
@@ -98,13 +154,7 @@ func (h *DatabaseHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if name == "" {
-		if isAjax {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": "Nama database tidak boleh kosong"})
-			return
-		}
-		http.Redirect(w, r, "/databases?error=empty_name", http.StatusSeeOther)
+		respondError(w, isAjax, "Nama database tidak boleh kosong")
 		return
 	}
 
@@ -119,18 +169,13 @@ func (h *DatabaseHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		if isAjax {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusInternalServerError)
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": err.Error()})
-			return
-		}
-		http.Redirect(w, r, "/databases?error="+err.Error(), http.StatusSeeOther)
+		respondError(w, isAjax, err.Error())
 		return
 	}
 
 	_ = h.repo.UpsertDatabase(model.Database{
 		ID:        "db_" + name,
+		UserID:    sess.UserID,
 		Name:      name,
 		Type:      dbType,
 		Charset:   charset,
@@ -148,6 +193,39 @@ func (h *DatabaseHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 func (h *DatabaseHandler) Setup(w http.ResponseWriter, r *http.Request) {
 	isAjax := r.Header.Get("X-Requested-With") == "XMLHttpRequest"
+	sess := GetSession(r)
+
+	// Check DB quota limits
+	if sess.Role == model.RoleUser {
+		allDBs, _ := h.repo.GetDatabases()
+		count := 0
+		for _, d := range allDBs {
+			if d.UserID == sess.UserID {
+				count++
+			}
+		}
+		if count >= 1 {
+			respondError(w, isAjax, "End-User hanya diperbolehkan memiliki 1 database.")
+			return
+		}
+	} else if sess.Role == model.RoleReseller {
+		rq, _ := h.repo.GetQuota(sess.UserID)
+		if rq != nil && rq.MaxDatabases > 0 {
+			accessibleIDs := GetAccessibleUserIDs(sess, h.repo)
+			allDBs, _ := h.repo.GetDatabases()
+			count := 0
+			for _, d := range allDBs {
+				if accessibleIDs[d.UserID] {
+					count++
+				}
+			}
+			if count >= rq.MaxDatabases {
+				respondError(w, isAjax, fmt.Sprintf("Batas kuota database reseller (%d database) telah tercapai.", rq.MaxDatabases))
+				return
+			}
+		}
+	}
+
 	name := strings.TrimSpace(r.FormValue("name"))
 	username := strings.TrimSpace(r.FormValue("username"))
 	password := strings.TrimSpace(r.FormValue("password"))
@@ -157,13 +235,7 @@ func (h *DatabaseHandler) Setup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if name == "" || username == "" || password == "" {
-		if isAjax {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": "Database, User, dan Password wajib diisi"})
-			return
-		}
-		http.Redirect(w, r, "/domains?error=missing_fields", http.StatusSeeOther)
+		respondError(w, isAjax, "Database, User, dan Password wajib diisi")
 		return
 	}
 
@@ -194,6 +266,7 @@ func (h *DatabaseHandler) Setup(w http.ResponseWriter, r *http.Request) {
 
 	_ = h.repo.UpsertDatabase(model.Database{
 		ID:        "db_" + name,
+		UserID:    sess.UserID,
 		Name:      name,
 		Type:      dbType,
 		Username:  username,
@@ -217,7 +290,21 @@ func (h *DatabaseHandler) Setup(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/databases?success=setup_complete", http.StatusSeeOther)
 }
 
+func (h *DatabaseHandler) isDBAccessible(sess *auth.Session, dbName string) bool {
+	if sess == nil || sess.Role == model.RoleAdmin {
+		return true
+	}
+	dbs, _ := h.repo.GetDatabases()
+	for _, d := range dbs {
+		if strings.EqualFold(d.Name, dbName) {
+			return IsUserAccessible(sess, h.repo, d.UserID)
+		}
+	}
+	return false
+}
+
 func (h *DatabaseHandler) Export(w http.ResponseWriter, r *http.Request) {
+	sess := GetSession(r)
 	name := strings.TrimSpace(r.URL.Query().Get("name"))
 	dbType := model.DBType(r.URL.Query().Get("type"))
 	if dbType == "" {
@@ -226,6 +313,11 @@ func (h *DatabaseHandler) Export(w http.ResponseWriter, r *http.Request) {
 
 	if name == "" {
 		http.Error(w, "Nama database tidak valid", http.StatusBadRequest)
+		return
+	}
+
+	if !h.isDBAccessible(sess, name) {
+		http.Error(w, "Akses ditolak: Anda tidak memiliki akses ke database ini", http.StatusForbidden)
 		return
 	}
 
@@ -246,6 +338,7 @@ func (h *DatabaseHandler) Export(w http.ResponseWriter, r *http.Request) {
 
 func (h *DatabaseHandler) Import(w http.ResponseWriter, r *http.Request) {
 	isAjax := r.Header.Get("X-Requested-With") == "XMLHttpRequest"
+	sess := GetSession(r)
 	name := strings.TrimSpace(r.FormValue("name"))
 	dbType := model.DBType(r.FormValue("type"))
 	if dbType == "" {
@@ -254,6 +347,11 @@ func (h *DatabaseHandler) Import(w http.ResponseWriter, r *http.Request) {
 
 	if name == "" {
 		respondError(w, isAjax, "Nama database tidak ditentukan")
+		return
+	}
+
+	if !h.isDBAccessible(sess, name) {
+		respondError(w, isAjax, "Akses ditolak: Anda tidak memiliki izin untuk mengimpor ke database ini")
 		return
 	}
 
@@ -301,10 +399,16 @@ func (h *DatabaseHandler) Import(w http.ResponseWriter, r *http.Request) {
 
 func (h *DatabaseHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	isAjax := r.Header.Get("X-Requested-With") == "XMLHttpRequest"
+	sess := GetSession(r)
 	name := strings.TrimSpace(r.FormValue("name"))
 	dbType := model.DBType(r.FormValue("type"))
 
 	if name != "" {
+		if !h.isDBAccessible(sess, name) {
+			respondError(w, isAjax, "Akses ditolak: Anda tidak memiliki izin untuk menghapus database ini")
+			return
+		}
+
 		ctx := r.Context()
 		if dbType == model.DBTypePostgres {
 			_ = h.pgMgr.DropDatabase(ctx, name)
@@ -324,10 +428,21 @@ func (h *DatabaseHandler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *DatabaseHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
+	sess := GetSession(r)
 	username := strings.TrimSpace(r.FormValue("username"))
 	password := strings.TrimSpace(r.FormValue("password"))
 	dbName := strings.TrimSpace(r.FormValue("database"))
 	dbType := model.DBType(r.FormValue("type"))
+
+	if sess.Role != model.RoleAdmin && dbName == "" {
+		http.Error(w, "Akses ditolak: Database harus ditentukan", http.StatusBadRequest)
+		return
+	}
+
+	if dbName != "" && !h.isDBAccessible(sess, dbName) {
+		http.Error(w, "Akses ditolak: Anda tidak memiliki akses ke database ini", http.StatusForbidden)
+		return
+	}
 
 	if username != "" && password != "" {
 		ctx := r.Context()
@@ -361,7 +476,13 @@ func (h *DatabaseHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 
 // SSOLogin generates a secure one-time token and redirects the browser directly into phpMyAdmin or phpPgAdmin.
 func (h *DatabaseHandler) SSOLogin(w http.ResponseWriter, r *http.Request) {
+	sess := GetSession(r)
 	name := strings.TrimSpace(r.URL.Query().Get("name"))
+
+	if !h.isDBAccessible(sess, name) {
+		http.Redirect(w, r, "/databases?error=access_denied", http.StatusSeeOther)
+		return
+	}
 
 	dbs, _ := h.repo.GetDatabases()
 	var targetDB *model.Database
@@ -414,6 +535,7 @@ func (h *DatabaseHandler) SSOLogin(w http.ResponseWriter, r *http.Request) {
 
 // SetPassword updates database password in database system and repository for seamless auto-login.
 func (h *DatabaseHandler) SetPassword(w http.ResponseWriter, r *http.Request) {
+	sess := GetSession(r)
 	name := strings.TrimSpace(r.FormValue("name"))
 	username := strings.TrimSpace(r.FormValue("username"))
 	password := strings.TrimSpace(r.FormValue("password"))
@@ -421,6 +543,11 @@ func (h *DatabaseHandler) SetPassword(w http.ResponseWriter, r *http.Request) {
 
 	if name == "" || password == "" {
 		http.Error(w, "Nama database dan password wajib diisi", http.StatusBadRequest)
+		return
+	}
+
+	if !h.isDBAccessible(sess, name) {
+		http.Error(w, "Akses ditolak: Anda tidak memiliki akses ke database ini", http.StatusForbidden)
 		return
 	}
 
@@ -467,8 +594,14 @@ func (h *DatabaseHandler) SetPassword(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *DatabaseHandler) GrantPrivileges(w http.ResponseWriter, r *http.Request) {
+	sess := GetSession(r)
 	name := strings.TrimSpace(r.FormValue("name"))
 	isAjax := r.Header.Get("X-Requested-With") == "XMLHttpRequest" || strings.Contains(r.Header.Get("Accept"), "application/json")
+
+	if !h.isDBAccessible(sess, name) {
+		respondError(w, isAjax, "Akses ditolak: Anda tidak memiliki akses ke database ini")
+		return
+	}
 
 	dbs, err := h.repo.GetDatabases()
 	if err != nil {
@@ -520,8 +653,15 @@ func (h *DatabaseHandler) GrantPrivileges(w http.ResponseWriter, r *http.Request
 }
 
 func (h *DatabaseHandler) FixAllPermissions(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	sess := GetSession(r)
 	isAjax := r.Header.Get("X-Requested-With") == "XMLHttpRequest" || strings.Contains(r.Header.Get("Accept"), "application/json")
+
+	if sess.Role != model.RoleAdmin {
+		respondError(w, isAjax, "Akses ditolak: Hanya Administrator yang dapat menjalankan Fix All Permissions")
+		return
+	}
+
+	ctx := r.Context()
 
 	// Fix all PostgreSQL databases in engine
 	_ = h.pgMgr.EnsureAllPermissions(ctx)

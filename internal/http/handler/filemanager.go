@@ -6,6 +6,7 @@ import (
 	"log"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/seintech/panel/internal/config"
 	"github.com/seintech/panel/internal/core/filemanager"
+	"github.com/seintech/panel/internal/model"
 	"github.com/seintech/panel/internal/storage"
 	"github.com/seintech/panel/web"
 )
@@ -33,26 +35,101 @@ type Breadcrumb struct {
 
 type FMPageData struct {
 	BasePageData
-	CurrentPath string
-	ParentPath  string
-	Breadcrumbs []Breadcrumb
-	Files       []filemanager.FileItem
+	CurrentPath     string
+	ParentPath      string
+	Breadcrumbs     []Breadcrumb
+	Files           []filemanager.FileItem
+	ActiveSite      string
+	AccessibleSites []model.Domain
 }
 
-func (h *FileManagerHandler) getFMForUser(r *http.Request) (*filemanager.FileManager, error) {
+func (h *FileManagerHandler) getFMForUser(r *http.Request) (*filemanager.FileManager, string, []model.Domain, error) {
 	sess := GetSession(r)
-	jailRoot := h.cfg.WebRoot
+	accessibleIDs := GetAccessibleUserIDs(sess, h.repo)
 
-	// If regular user, jail to user's directory
-	if sess.Role == "user" {
-		jailRoot = filepath.Join(h.cfg.WebRoot, sess.Username)
+	allDomains, _ := h.repo.GetDomains()
+	var accessibleDomains []model.Domain
+	for _, d := range allDomains {
+		if accessibleIDs == nil || accessibleIDs[d.UserID] {
+			accessibleDomains = append(accessibleDomains, d)
+		}
 	}
 
-	return filemanager.NewFileManager(jailRoot)
+	reqSite := strings.TrimSpace(r.URL.Query().Get("site"))
+	if reqSite == "" {
+		reqSite = strings.TrimSpace(r.FormValue("site"))
+	}
+
+	jailRoot := h.cfg.WebRoot
+	activeSite := ""
+
+	if sess.Role == model.RoleUser {
+		// End user is strictly jailed to their own 1 site's DocumentRoot
+		if len(accessibleDomains) > 0 {
+			target := accessibleDomains[0]
+			activeSite = target.DomainName
+			if target.DocumentRoot != "" {
+				if _, err := os.Stat(target.DocumentRoot); err == nil {
+					jailRoot = target.DocumentRoot
+				} else if target.SiteUser != "" {
+					siteHome := filepath.Join(h.cfg.WebRoot, target.SiteUser)
+					if _, err := os.Stat(siteHome); err == nil {
+						jailRoot = siteHome
+					}
+				}
+			}
+		} else {
+			jailRoot = filepath.Join(h.cfg.WebRoot, sess.Username)
+		}
+	} else if sess.Role == model.RoleReseller {
+		// Reseller is jailed to the sites they created or their end-users' sites
+		var chosenDomain *model.Domain
+		for i := range accessibleDomains {
+			if reqSite != "" && strings.EqualFold(accessibleDomains[i].DomainName, reqSite) {
+				chosenDomain = &accessibleDomains[i]
+				break
+			}
+		}
+		if chosenDomain == nil && len(accessibleDomains) > 0 {
+			chosenDomain = &accessibleDomains[0]
+		}
+
+		if chosenDomain != nil {
+			activeSite = chosenDomain.DomainName
+			if chosenDomain.DocumentRoot != "" {
+				if _, err := os.Stat(chosenDomain.DocumentRoot); err == nil {
+					jailRoot = chosenDomain.DocumentRoot
+				} else if chosenDomain.SiteUser != "" {
+					siteHome := filepath.Join(h.cfg.WebRoot, chosenDomain.SiteUser)
+					if _, err := os.Stat(siteHome); err == nil {
+						jailRoot = siteHome
+					}
+				}
+			}
+		} else {
+			jailRoot = filepath.Join(h.cfg.WebRoot, sess.Username)
+		}
+	} else {
+		// Admin: can optionally switch site or view all /var/www
+		if reqSite != "" {
+			for i := range accessibleDomains {
+				if strings.EqualFold(accessibleDomains[i].DomainName, reqSite) {
+					activeSite = accessibleDomains[i].DomainName
+					if accessibleDomains[i].DocumentRoot != "" {
+						jailRoot = accessibleDomains[i].DocumentRoot
+					}
+					break
+				}
+			}
+		}
+	}
+
+	fm, err := filemanager.NewFileManager(jailRoot)
+	return fm, activeSite, accessibleDomains, err
 }
 
 func (h *FileManagerHandler) List(w http.ResponseWriter, r *http.Request) {
-	fm, err := h.getFMForUser(r)
+	fm, activeSite, accessibleSites, err := h.getFMForUser(r)
 	if err != nil {
 		http.Error(w, "File manager initialization error", http.StatusInternalServerError)
 		return
@@ -93,18 +170,27 @@ func (h *FileManagerHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := FMPageData{
-		BasePageData: NewBaseData(r, "File Manager", "Web File Manager & Code Editor", "filemanager", settings.Hostname),
-		CurrentPath:  cleanPath,
-		ParentPath:   parent,
-		Breadcrumbs:  crumbs,
-		Files:        items,
+		BasePageData:    NewBaseData(r, "File Manager", "Web File Manager & Code Editor", "filemanager", settings.Hostname),
+		CurrentPath:     cleanPath,
+		ParentPath:      parent,
+		Breadcrumbs:     crumbs,
+		Files:           items,
+		ActiveSite:      activeSite,
+		AccessibleSites: accessibleSites,
 	}
 
 	_ = web.RenderTemplate(w, "filemanager.html", data)
 }
 
+func redirectFMPath(path, site string) string {
+	if site != "" {
+		return fmt.Sprintf("/filemanager?path=%s&site=%s", url.QueryEscape(path), url.QueryEscape(site))
+	}
+	return fmt.Sprintf("/filemanager?path=%s", url.QueryEscape(path))
+}
+
 func (h *FileManagerHandler) Read(w http.ResponseWriter, r *http.Request) {
-	fm, err := h.getFMForUser(r)
+	fm, _, _, err := h.getFMForUser(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -122,7 +208,7 @@ func (h *FileManagerHandler) Read(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *FileManagerHandler) Save(w http.ResponseWriter, r *http.Request) {
-	fm, err := h.getFMForUser(r)
+	fm, _, _, err := h.getFMForUser(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -141,7 +227,7 @@ func (h *FileManagerHandler) Save(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *FileManagerHandler) Download(w http.ResponseWriter, r *http.Request) {
-	fm, err := h.getFMForUser(r)
+	fm, _, _, err := h.getFMForUser(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -163,7 +249,7 @@ func (h *FileManagerHandler) Download(w http.ResponseWriter, r *http.Request) {
 func (h *FileManagerHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	isAjax := r.Header.Get("X-Requested-With") == "XMLHttpRequest" || strings.Contains(r.Header.Get("Accept"), "application/json")
 
-	fm, err := h.getFMForUser(r)
+	fm, activeSite, _, err := h.getFMForUser(r)
 	if err != nil {
 		if isAjax {
 			w.Header().Set("Content-Type", "application/json")
@@ -254,11 +340,11 @@ func (h *FileManagerHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/filemanager?path="+destPath, http.StatusSeeOther)
+	http.Redirect(w, r, redirectFMPath(destPath, activeSite), http.StatusSeeOther)
 }
 
 func (h *FileManagerHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	fm, err := h.getFMForUser(r)
+	fm, activeSite, _, err := h.getFMForUser(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -268,31 +354,31 @@ func (h *FileManagerHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	parent := filepath.ToSlash(filepath.Dir(path))
 	_ = fm.Delete(path)
 
-	http.Redirect(w, r, "/filemanager?path="+parent, http.StatusSeeOther)
+	http.Redirect(w, r, redirectFMPath(parent, activeSite), http.StatusSeeOther)
 }
 
 func (h *FileManagerHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
-	fm, _ := h.getFMForUser(r)
+	fm, activeSite, _, _ := h.getFMForUser(r)
 	path := r.FormValue("path")
 	filename := r.FormValue("filename")
 	target := filepath.Join(path, filename)
 	_ = fm.WriteFile(target, []byte(""))
 
-	http.Redirect(w, r, "/filemanager?path="+path, http.StatusSeeOther)
+	http.Redirect(w, r, redirectFMPath(path, activeSite), http.StatusSeeOther)
 }
 
 func (h *FileManagerHandler) CreateDir(w http.ResponseWriter, r *http.Request) {
-	fm, _ := h.getFMForUser(r)
+	fm, activeSite, _, _ := h.getFMForUser(r)
 	path := r.FormValue("path")
 	dirname := r.FormValue("dirname")
 	target := filepath.Join(path, dirname)
 	_ = fm.CreateDir(target)
 
-	http.Redirect(w, r, "/filemanager?path="+path, http.StatusSeeOther)
+	http.Redirect(w, r, redirectFMPath(path, activeSite), http.StatusSeeOther)
 }
 
 func (h *FileManagerHandler) Chmod(w http.ResponseWriter, r *http.Request) {
-	fm, _ := h.getFMForUser(r)
+	fm, activeSite, _, _ := h.getFMForUser(r)
 	path := r.FormValue("path")
 	modeStr := r.FormValue("mode")
 
@@ -302,23 +388,23 @@ func (h *FileManagerHandler) Chmod(w http.ResponseWriter, r *http.Request) {
 	}
 
 	parent := filepath.ToSlash(filepath.Dir(path))
-	http.Redirect(w, r, "/filemanager?path="+parent, http.StatusSeeOther)
+	http.Redirect(w, r, redirectFMPath(parent, activeSite), http.StatusSeeOther)
 }
 
 func (h *FileManagerHandler) Rename(w http.ResponseWriter, r *http.Request) {
-	fm, _ := h.getFMForUser(r)
+	fm, activeSite, _, _ := h.getFMForUser(r)
 	oldPath := r.FormValue("old_path")
 	newName := r.FormValue("new_name")
 	parent := filepath.ToSlash(filepath.Dir(oldPath))
 	newPath := filepath.Join(parent, newName)
 	_ = fm.Rename(oldPath, newPath)
 
-	http.Redirect(w, r, "/filemanager?path="+parent, http.StatusSeeOther)
+	http.Redirect(w, r, redirectFMPath(parent, activeSite), http.StatusSeeOther)
 }
 
 func (h *FileManagerHandler) Extract(w http.ResponseWriter, r *http.Request) {
 	isAjax := r.Header.Get("X-Requested-With") == "XMLHttpRequest"
-	fm, err := h.getFMForUser(r)
+	fm, activeSite, _, err := h.getFMForUser(r)
 	if err != nil {
 		if isAjax {
 			w.Header().Set("Content-Type", "application/json")
@@ -353,12 +439,12 @@ func (h *FileManagerHandler) Extract(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/filemanager?path="+dest, http.StatusSeeOther)
+	http.Redirect(w, r, redirectFMPath(dest, activeSite), http.StatusSeeOther)
 }
 
 func (h *FileManagerHandler) Compress(w http.ResponseWriter, r *http.Request) {
 	isAjax := r.Header.Get("X-Requested-With") == "XMLHttpRequest"
-	fm, err := h.getFMForUser(r)
+	fm, activeSite, _, err := h.getFMForUser(r)
 	if err != nil {
 		if isAjax {
 			w.Header().Set("Content-Type", "application/json")
@@ -419,12 +505,12 @@ func (h *FileManagerHandler) Compress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/filemanager?path="+destDir, http.StatusSeeOther)
+	http.Redirect(w, r, redirectFMPath(destDir, activeSite), http.StatusSeeOther)
 }
 
 func (h *FileManagerHandler) BulkDelete(w http.ResponseWriter, r *http.Request) {
 	isAjax := r.Header.Get("X-Requested-With") == "XMLHttpRequest"
-	fm, err := h.getFMForUser(r)
+	fm, activeSite, _, err := h.getFMForUser(r)
 	if err != nil {
 		if isAjax {
 			w.Header().Set("Content-Type", "application/json")
@@ -468,12 +554,12 @@ func (h *FileManagerHandler) BulkDelete(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	http.Redirect(w, r, "/filemanager?path="+currentPath, http.StatusSeeOther)
+	http.Redirect(w, r, redirectFMPath(currentPath, activeSite), http.StatusSeeOther)
 }
 
 func (h *FileManagerHandler) FixPermissions(w http.ResponseWriter, r *http.Request) {
 	isAjax := r.Header.Get("X-Requested-With") == "XMLHttpRequest"
-	fm, err := h.getFMForUser(r)
+	fm, activeSite, _, err := h.getFMForUser(r)
 	if err != nil {
 		if isAjax {
 			w.Header().Set("Content-Type", "application/json")
@@ -507,6 +593,6 @@ func (h *FileManagerHandler) FixPermissions(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	http.Redirect(w, r, "/filemanager?path="+path, http.StatusSeeOther)
+	http.Redirect(w, r, redirectFMPath(path, activeSite), http.StatusSeeOther)
 }
 

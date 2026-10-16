@@ -98,13 +98,6 @@ func NewRouter(
 		pr.Post("/filemanager/chmod", fmH.Chmod)
 		pr.Post("/filemanager/fix-permissions", fmH.FixPermissions)
 
-		// Services & Package Installer
-		pr.Get("/services", servicesH.List)
-		pr.Post("/services/action", servicesH.ExecuteAction)
-		pr.Post("/services/install", servicesH.StartInstallJob)
-		pr.Post("/services/uninstall", servicesH.StartUninstallJob)
-		pr.Get("/services/job/{jobID}", servicesH.GetJobStatus)
-
 		// PHP Engines & Extensions & Configuration
 		pr.Get("/php", phpH.List)
 		pr.Get("/php/extensions", phpH.GetExtensions)
@@ -133,10 +126,19 @@ func NewRouter(
 		// Users & Resellers
 		pr.Get("/users", userH.List)
 		pr.Post("/users/create", userH.Create)
+		pr.Post("/users/quota", userH.UpdateQuota)
+		pr.Post("/users/delete", userH.Delete)
 
 		// Admin-Only Routes
 		pr.Group(func(admin chi.Router) {
 			admin.Use(middleware.RequireRole(model.RoleAdmin))
+
+			// Services & Package Installer
+			admin.Get("/services", servicesH.List)
+			admin.Post("/services/action", servicesH.ExecuteAction)
+			admin.Post("/services/install", servicesH.StartInstallJob)
+			admin.Post("/services/uninstall", servicesH.StartUninstallJob)
+			admin.Get("/services/job/{jobID}", servicesH.GetJobStatus)
 
 			admin.Get("/settings", settingsH.View)
 			admin.Post("/settings/save", settingsH.Save)

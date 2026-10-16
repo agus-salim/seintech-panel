@@ -52,13 +52,25 @@ type DomainViewItem struct {
 
 type DomainsPageData struct {
 	BasePageData
-	Domains     []DomainViewItem
-	PHPVersions []string
-	WebServers  []model.WebServerType
+	Domains         []DomainViewItem
+	PHPVersions     []string
+	WebServers      []model.WebServerType
+	CanCreateDomain bool
+	UserAccounts    []model.User
 }
 
 func (h *DomainHandler) List(w http.ResponseWriter, r *http.Request) {
-	domains, _ := h.repo.GetDomains()
+	sess := GetSession(r)
+	accessibleIDs := GetAccessibleUserIDs(sess, h.repo)
+
+	allDomains, _ := h.repo.GetDomains()
+	var domains []model.Domain
+	for _, d := range allDomains {
+		if accessibleIDs == nil || accessibleIDs[d.UserID] {
+			domains = append(domains, d)
+		}
+	}
+
 	settings, _ := h.repo.GetSettings()
 
 	// Authentically verify each domain's SSL certificate on disk
@@ -116,10 +128,33 @@ func (h *DomainHandler) List(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	// User Accounts for assigning domain ownership (admin / reseller)
+	var manageableUsers []model.User
+	if sess.Role != model.RoleUser {
+		allUsers, _ := h.repo.GetUsers()
+		for _, u := range allUsers {
+			if accessibleIDs == nil || accessibleIDs[u.ID] {
+				manageableUsers = append(manageableUsers, u)
+			}
+		}
+	}
+
+	canCreate := true
+	if sess.Role == model.RoleUser && len(domainViews) >= 1 {
+		canCreate = false
+	} else if sess.Role == model.RoleReseller {
+		rq, _ := h.repo.GetQuota(sess.UserID)
+		if rq != nil && rq.MaxDomains > 0 && len(domainViews) >= rq.MaxDomains {
+			canCreate = false
+		}
+	}
+
 	data := DomainsPageData{
-		BasePageData: NewBaseData(r, "Virtual Hosts", "Virtual Hosts & Web Routing", "domains", settings.Hostname),
-		Domains:      domainViews,
-		PHPVersions:  fallbackVersions,
+		BasePageData:    NewBaseData(r, "Virtual Hosts", "Virtual Hosts & Web Routing", "domains", settings.Hostname),
+		Domains:         domainViews,
+		PHPVersions:     fallbackVersions,
+		CanCreateDomain: canCreate,
+		UserAccounts:    manageableUsers,
 		WebServers: []model.WebServerType{
 			model.WebServerNginx,
 			model.WebServerApache,
@@ -135,6 +170,35 @@ func (h *DomainHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	sess := GetSession(r)
+	accessibleIDs := GetAccessibleUserIDs(sess, h.repo)
+
+	// Check domain quota limits:
+	// 1. End-User can only have exactly 1 domain
+	if sess.Role == model.RoleUser {
+		userDomains, _ := h.repo.GetDomainsByUser(sess.UserID)
+		if len(userDomains) >= 1 {
+			http.Redirect(w, r, "/domains?msg="+url.QueryEscape("End-User hanya diperbolehkan memiliki 1 situs virtual host.")+"&type=error", http.StatusSeeOther)
+			return
+		}
+	} else if sess.Role == model.RoleReseller {
+		// Reseller domain quota check
+		rq, _ := h.repo.GetQuota(sess.UserID)
+		if rq != nil && rq.MaxDomains > 0 {
+			allDomains, _ := h.repo.GetDomains()
+			count := 0
+			for _, d := range allDomains {
+				if accessibleIDs[d.UserID] {
+					count++
+				}
+			}
+			if count >= rq.MaxDomains {
+				http.Redirect(w, r, "/domains?msg="+url.QueryEscape(fmt.Sprintf("Batas kuota domain reseller (%d domain) telah tercapai.", rq.MaxDomains))+"&type=error", http.StatusSeeOther)
+				return
+			}
+		}
+	}
+
 	domainName := strings.TrimSpace(r.FormValue("domain_name"))
 	wsType := model.WebServerType(strings.TrimSpace(r.FormValue("webserver_type")))
 	phpVer := strings.TrimSpace(r.FormValue("php_version"))
@@ -145,6 +209,15 @@ func (h *DomainHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if domainName == "" {
 		http.Redirect(w, r, "/domains?msg=Nama+domain+wajib+diisi&type=error", http.StatusSeeOther)
 		return
+	}
+
+	// Determine owner user ID
+	targetUserID := sess.UserID
+	if sess.Role != model.RoleUser && r.FormValue("owner_id") != "" {
+		reqOwner := strings.TrimSpace(r.FormValue("owner_id"))
+		if IsUserAccessible(sess, h.repo, reqOwner) {
+			targetUserID = reqOwner
+		}
 	}
 
 	// 1. FastPanel-style dedicated user & group per virtualhost
@@ -172,13 +245,11 @@ func (h *DomainHandler) Create(w http.ResponseWriter, r *http.Request) {
 	_, _ = rand.Read(idBytes)
 	domainID := hex.EncodeToString(idBytes)
 
-	sess := GetSession(r)
-
 	phpSocket := h.phpMgr.GetSocketPath(phpVer)
 
 	domain := model.Domain{
 		ID:             domainID,
-		UserID:         sess.UserID,
+		UserID:         targetUserID,
 		DomainName:     domainName,
 		DocumentRoot:   docRoot,
 		WebServerType:  wsType,
@@ -239,6 +310,12 @@ func (h *DomainHandler) UpdateEngine(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	sess := GetSession(r)
+	if !IsUserAccessible(sess, h.repo, domain.UserID) {
+		h.respondJSON(w, false, "Akses ditolak: Anda tidak memiliki izin untuk domain ini")
+		return
+	}
+
 	if domain.WebServerType == newEngine {
 		h.respondJSON(w, true, "Web engine tidak berubah")
 		return
@@ -282,6 +359,12 @@ func (h *DomainHandler) UpdatePHP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	sess := GetSession(r)
+	if !IsUserAccessible(sess, h.repo, domain.UserID) {
+		h.respondJSON(w, false, "Akses ditolak: Anda tidak memiliki izin untuk domain ini")
+		return
+	}
+
 	domain.PHPVersion = phpVer
 	domain.PHPSocket = h.phpMgr.GetSocketPath(phpVer)
 
@@ -320,6 +403,12 @@ func (h *DomainHandler) FixPermissions(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	sess := GetSession(r)
+	if !IsUserAccessible(sess, h.repo, domain.UserID) {
+		h.respondJSON(w, false, "Akses ditolak: Anda tidak memiliki izin untuk domain ini")
+		return
+	}
+
 	targetDir := domain.DocumentRoot
 	if domain.SiteUser != "" {
 		userHome := filepath.Join(h.cfg.WebRoot, domain.SiteUser)
@@ -351,6 +440,12 @@ func (h *DomainHandler) Update(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/domains?msg=Domain+tidak+ditemukan&type=error", http.StatusSeeOther)
 			return
 		}
+	}
+
+	sess := GetSession(r)
+	if !IsUserAccessible(sess, h.repo, domain.UserID) {
+		http.Redirect(w, r, "/domains?msg=Akses+ditolak:+Anda+tidak+memiliki+izin+untuk+domain+ini&type=error", http.StatusSeeOther)
+		return
 	}
 
 	newWsType := model.WebServerType(strings.TrimSpace(r.FormValue("webserver_type")))
@@ -415,6 +510,12 @@ func (h *DomainHandler) GetLogs(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	sess := GetSession(r)
+	if !IsUserAccessible(sess, h.repo, domain.UserID) {
+		http.Error(w, "Akses ditolak: Anda tidak memiliki izin untuk melihat log domain ini", http.StatusForbidden)
+		return
+	}
+
 	var logPath string
 	switch domain.WebServerType {
 	case model.WebServerNginx:
@@ -473,6 +574,14 @@ func (h *DomainHandler) ClearLogs(w http.ResponseWriter, r *http.Request) {
 			_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": "Domain tidak ditemukan"})
 			return
 		}
+	}
+
+	sess := GetSession(r)
+	if !IsUserAccessible(sess, h.repo, domain.UserID) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": "Akses ditolak"})
+		return
 	}
 
 	var logPath string
@@ -535,6 +644,12 @@ func (h *DomainHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if domain != nil {
+		sess := GetSession(r)
+		if !IsUserAccessible(sess, h.repo, domain.UserID) {
+			http.Redirect(w, r, "/domains?msg=Akses+ditolak:+Anda+tidak+memiliki+izin+untuk+menghapus+domain+ini&type=error", http.StatusSeeOther)
+			return
+		}
+
 		h.removeDomainVHosts(r.Context(), domain, domain.WebServerType)
 		_ = h.repo.DeleteDomain(domain.ID)
 		http.Redirect(w, r, fmt.Sprintf("/domains?msg=Virtual+host+%s+berhasil+dihapus&type=success", domain.DomainName), http.StatusSeeOther)

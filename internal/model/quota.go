@@ -4,6 +4,8 @@ type Quota struct {
 	UserID          string `json:"user_id"`
 	MaxDiskMB       int64  `json:"max_disk_mb"`       // 0 = unlimited
 	UsedDiskMB      int64  `json:"used_disk_mb"`
+	MaxRamMB        int64  `json:"max_ram_mb"`        // 0 = unlimited
+	UsedRamMB       int64  `json:"used_ram_mb"`
 	MaxBandwidthMB  int64  `json:"max_bandwidth_mb"`  // 0 = unlimited
 	UsedBandwidthMB int64  `json:"used_bandwidth_mb"`
 	MaxDomains      int    `json:"max_domains"`       // 0 = unlimited

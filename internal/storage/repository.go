@@ -114,6 +114,19 @@ func (r *Repository) UpsertUser(user model.User) error {
 	return r.SaveUsers(users)
 }
 
+func (r *Repository) DeleteUser(id string) error {
+	users, _ := r.GetUsers()
+	var updated []model.User
+	cleanID := strings.TrimSpace(id)
+	for _, u := range users {
+		if u.ID != cleanID && u.Username != cleanID {
+			updated = append(updated, u)
+		}
+	}
+	_ = r.DeleteQuota(cleanID)
+	return r.SaveUsers(updated)
+}
+
 // Domain methods
 func (r *Repository) GetDomains() ([]model.Domain, error) {
 	var domains []model.Domain
@@ -270,6 +283,25 @@ func (r *Repository) SaveQuota(quota model.Quota) error {
 	}
 	quotas[quota.UserID] = quota
 	return r.quotaStore.Write(quotas)
+}
+
+func (r *Repository) GetAllQuotas() (map[string]model.Quota, error) {
+	var quotas map[string]model.Quota
+	err := r.quotaStore.Read(&quotas)
+	if err != nil || quotas == nil {
+		return make(map[string]model.Quota), nil
+	}
+	return quotas, nil
+}
+
+func (r *Repository) DeleteQuota(userID string) error {
+	var quotas map[string]model.Quota
+	_ = r.quotaStore.Read(&quotas)
+	if quotas != nil {
+		delete(quotas, userID)
+		return r.quotaStore.Write(quotas)
+	}
+	return nil
 }
 
 // Settings methods

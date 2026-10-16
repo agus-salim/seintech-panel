@@ -143,10 +143,17 @@
             <h2 class="text-base font-bold text-slate-900">Virtual Host &amp; Domain Configurations</h2>
             <p class="text-xs text-slate-500 mt-0.5">Manage reverse proxies, PHP-FPM routing, and webserver configurations</p>
         </div>
+        {{ if .CanCreateDomain }}
         <button @click="createModal = true" class="inline-flex items-center justify-center px-4 py-2.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm transition-colors">
             <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
             Create Virtual Host
         </button>
+        {{ else }}
+        <div class="inline-flex items-center px-3.5 py-2 rounded-xl text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200/80 shadow-sm">
+            <span class="w-2 h-2 rounded-full bg-amber-500 mr-2"></span>
+            Batas Kuota Situs Tercapai
+        </div>
+        {{ end }}
     </div>
 
     <!-- Domains List Card -->
@@ -358,6 +365,17 @@
                         }
                     }
                 }">
+                    {{ if .UserAccounts }}
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Pemilik Situs (Account Owner)</label>
+                        <select name="owner_id" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                            {{ range .UserAccounts }}
+                            <option value="{{ .ID }}">{{ .Username }} ({{ .Role }})</option>
+                            {{ end }}
+                        </select>
+                    </div>
+                    {{ end }}
+
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Primary Domain Name</label>
                         <input type="text" name="domain_name" x-model="domainName" @input="updateSiteUser()" required placeholder="example.com" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">

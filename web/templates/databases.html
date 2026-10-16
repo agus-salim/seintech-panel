@@ -183,7 +183,7 @@
                 <svg class="w-3.5 h-3.5 mr-1.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l4-4m0 0l-4-4m4 4H3m6 4v1a3 3 0 003 3h6a3 3 0 003-3V7a3 3 0 00-3-3h-6a3 3 0 00-3 3v1"/></svg>
                 phpMyAdmin
             </a>
-            {{ else }}
+            {{ else if eq .UserRole "admin" }}
             <button type="button" onclick="startInstallJob('phpmyadmin', 'phpMyAdmin', 'install')" title="Klik untuk menginstal &amp; konfigurasi phpMyAdmin otomatis" class="px-3 py-2 text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-xl transition-colors inline-flex items-center shadow-sm">
                 <svg class="w-3.5 h-3.5 mr-1.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                 Install phpMyAdmin (Auto)
@@ -195,12 +195,14 @@
                 <svg class="w-3.5 h-3.5 mr-1.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l4-4m0 0l-4-4m4 4H3m6 4v1a3 3 0 003 3h6a3 3 0 003-3V7a3 3 0 00-3-3h-6a3 3 0 00-3 3v1"/></svg>
                 phpPgAdmin
             </a>
-            {{ else }}
+            {{ else if eq .UserRole "admin" }}
             <button type="button" onclick="startInstallJob('phppgadmin', 'phpPgAdmin', 'install')" title="Klik untuk menginstal &amp; konfigurasi phpPgAdmin otomatis" class="px-3 py-2 text-xs font-semibold text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-300 rounded-xl transition-colors inline-flex items-center shadow-sm">
                 <svg class="w-3.5 h-3.5 mr-1.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                 Install phpPgAdmin (Auto)
             </button>
             {{ end }}
+
+            {{ if .CanCreateDB }}
             <button @click="dbModal = true" class="px-3.5 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm transition-colors inline-flex items-center">
                 <svg class="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                 New DB
@@ -209,6 +211,14 @@
                 <svg class="w-3.5 h-3.5 mr-1.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/></svg>
                 New User
             </button>
+            {{ else }}
+            <span class="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                <svg class="w-3.5 h-3.5 mr-1.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                Quota Database Tercapai
+            </span>
+            {{ end }}
+
+            {{ if eq .UserRole "admin" }}
             <button type="button" 
                     @click="fixAllPermissions()" 
                     :disabled="fixLoading"
@@ -217,6 +227,7 @@
                 <svg class="w-3.5 h-3.5 mr-1.5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
                 <span x-text="fixLoading ? 'Fixing...' : 'Fix Permission'"></span>
             </button>
+            {{ end }}
         </div>
     </div>
 
@@ -290,12 +301,14 @@
                                     {{ end }}
                                     {{ else }}
                                     <!-- Quick Auto-Install phpPgAdmin Icon -->
+                                    {{ if eq $.UserRole "admin" }}
                                     <button type="button"
                                             onclick="startInstallJob('phppgadmin', 'phpPgAdmin', 'install')"
                                             title="phpPgAdmin belum terpasang (Klik untuk Pasang Otomatis)"
                                             class="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/20">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                                     </button>
+                                    {{ end }}
                                     {{ end }}
                                 {{ else }}
                                     {{ if $.PhpMyAdminInstalled }}
@@ -323,12 +336,14 @@
                                     {{ end }}
                                     {{ else }}
                                     <!-- Quick Auto-Install phpMyAdmin Icon -->
+                                    {{ if eq $.UserRole "admin" }}
                                     <button type="button"
                                             onclick="startInstallJob('phpmyadmin', 'phpMyAdmin', 'install')"
                                             title="phpMyAdmin belum terpasang (Klik untuk Pasang Otomatis)"
                                             class="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-amber-500/20">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                                     </button>
+                                    {{ end }}
                                     {{ end }}
                                 {{ end }}
 
@@ -485,8 +500,10 @@
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Assign to Database</label>
-                    <select name="database" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-white font-mono">
+                    <select name="database" {{ if ne .UserRole "admin" }}required{{ end }} class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-white font-mono">
+                        {{ if eq .UserRole "admin" }}
                         <option value="">None (Global)</option>
+                        {{ end }}
                         {{ range .Databases }}
                         <option value="{{ .Name }}">{{ .Name }} ({{ .Type }})</option>
                         {{ end }}

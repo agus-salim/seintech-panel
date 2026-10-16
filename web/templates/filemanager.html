@@ -349,14 +349,33 @@
 
     <!-- File Manager Action Bar -->
     <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <!-- Breadcrumbs -->
-        <div class="flex items-center space-x-1.5 text-xs font-mono text-slate-600 overflow-x-auto py-1">
-            <span class="text-slate-400 font-sans font-semibold text-[11px] uppercase mr-1">Root:</span>
-            <a href="/filemanager?path=/" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded text-slate-700">/</a>
-            {{ range .Breadcrumbs }}
-            <span class="text-slate-300">/</span>
-            <a href="/filemanager?path={{ .Path }}" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded text-slate-700 truncate max-w-xs">{{ .Name }}</a>
+        <div class="flex flex-wrap items-center gap-3">
+            <!-- Site Selector / Indicator -->
+            {{ if gt (len .AccessibleSites) 1 }}
+            <div class="flex items-center space-x-1.5 flex-shrink-0">
+                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Situs:</span>
+                <select onchange="window.location.href='/filemanager?site=' + encodeURIComponent(this.value)" class="text-xs font-semibold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 focus:ring-2 focus:ring-indigo-500 outline-none">
+                    {{ range .AccessibleSites }}
+                    <option value="{{ .DomainName }}" {{ if eq $.ActiveSite .DomainName }}selected{{ end }}>{{ .DomainName }}</option>
+                    {{ end }}
+                </select>
+            </div>
+            {{ else if eq (len .AccessibleSites) 1 }}
+            <div class="flex items-center space-x-1.5 text-xs flex-shrink-0">
+                <span class="font-semibold text-slate-400 uppercase tracking-wider text-[11px]">Situs:</span>
+                <span class="font-bold text-indigo-600 bg-indigo-50 border border-indigo-200/80 px-2.5 py-1 rounded-lg">{{ (index .AccessibleSites 0).DomainName }}</span>
+            </div>
             {{ end }}
+
+            <!-- Breadcrumbs -->
+            <div class="flex items-center space-x-1.5 text-xs font-mono text-slate-600 overflow-x-auto py-1">
+                <span class="text-slate-400 font-sans font-semibold text-[11px] uppercase mr-1">Root:</span>
+                <a href="/filemanager?path=/{{ if $.ActiveSite }}&site={{ $.ActiveSite }}{{ end }}" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded text-slate-700">/</a>
+                {{ range .Breadcrumbs }}
+                <span class="text-slate-300">/</span>
+                <a href="/filemanager?path={{ .Path }}{{ if $.ActiveSite }}&site={{ $.ActiveSite }}{{ end }}" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded text-slate-700 truncate max-w-xs">{{ .Name }}</a>
+                {{ end }}
+            </div>
         </div>
 
         <!-- Buttons Toolbar (Compact Icons) -->
@@ -794,6 +813,7 @@
         <div class="bg-white rounded-2xl p-6 w-full max-w-md border border-slate-200">
             <h3 class="text-sm font-bold text-slate-900 mb-3">Create New File</h3>
             <form action="/filemanager/create-file" method="POST">
+                <input type="hidden" name="site" value="{{ .ActiveSite }}">
                 <input type="hidden" name="path" value="{{ .CurrentPath }}">
                 <input type="text" name="filename" required placeholder="index.php" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none mb-4">
                 <div class="flex justify-end space-x-2">
@@ -808,6 +828,7 @@
         <div class="bg-white rounded-2xl p-6 w-full max-w-md border border-slate-200">
             <h3 class="text-sm font-bold text-slate-900 mb-3">Create New Directory</h3>
             <form action="/filemanager/create-dir" method="POST">
+                <input type="hidden" name="site" value="{{ .ActiveSite }}">
                 <input type="hidden" name="path" value="{{ .CurrentPath }}">
                 <input type="text" name="dirname" required placeholder="assets" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none mb-4">
                 <div class="flex justify-end space-x-2">
@@ -823,6 +844,7 @@
         <div class="bg-white rounded-2xl p-6 w-full max-w-md border border-slate-200">
             <h3 class="text-sm font-bold text-slate-900 mb-3">Rename Item</h3>
             <form action="/filemanager/rename" method="POST">
+                <input type="hidden" name="site" value="{{ .ActiveSite }}">
                 <input type="hidden" name="old_path" x-model="renameOld">
                 <div class="mb-4">
                     <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">New Name</label>
@@ -841,6 +863,7 @@
         <div class="bg-white rounded-2xl p-6 w-full max-w-md border border-slate-200">
             <h3 class="text-sm font-bold text-slate-900 mb-3">Change Permissions (chmod)</h3>
             <form action="/filemanager/chmod" method="POST">
+                <input type="hidden" name="site" value="{{ .ActiveSite }}">
                 <input type="hidden" name="path" x-model="chmodTarget">
                 <div class="mb-4">
                     <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Octal Mode (e.g. 0755, 0644)</label>

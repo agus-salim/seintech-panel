@@ -7,6 +7,7 @@ import (
 	"github.com/seintech/panel/internal/core/auth"
 	"github.com/seintech/panel/internal/http/middleware"
 	"github.com/seintech/panel/internal/model"
+	"github.com/seintech/panel/internal/storage"
 )
 
 type BasePageData struct {
@@ -48,4 +49,38 @@ func NewBaseData(r *http.Request, title, pageTitle, activeNav, hostname string) 
 		UsernameInitial: initial,
 		UserRole:        string(sess.Role),
 	}
+}
+
+// GetAccessibleUserIDs returns a map of user IDs that the current session is authorized to view or manage.
+// Returns nil if session is Admin (meaning all users are accessible).
+func GetAccessibleUserIDs(sess *auth.Session, repo *storage.Repository) map[string]bool {
+	if sess == nil || sess.Role == model.RoleAdmin {
+		return nil
+	}
+
+	allowed := make(map[string]bool)
+	allowed[sess.UserID] = true
+
+	if sess.Role == model.RoleReseller {
+		allUsers, _ := repo.GetUsers()
+		for _, u := range allUsers {
+			if u.ResellerID == sess.UserID {
+				allowed[u.ID] = true
+			}
+		}
+	}
+
+	return allowed
+}
+
+// IsUserAccessible verifies if the session has permission to access resources belonging to targetUserID.
+func IsUserAccessible(sess *auth.Session, repo *storage.Repository, targetUserID string) bool {
+	if sess == nil || sess.Role == model.RoleAdmin {
+		return true
+	}
+	if targetUserID == "" {
+		return false
+	}
+	allowed := GetAccessibleUserIDs(sess, repo)
+	return allowed[targetUserID]
 }

@@ -398,182 +398,192 @@
     </div>
 
     <!-- Import SQL Modal -->
-    <div x-show="importModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" style="display: none;">
-        <div class="bg-white rounded-2xl p-6 w-full max-w-md border border-slate-200 shadow-2xl">
-            <div class="flex items-center space-x-3 mb-3">
-                <div class="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+    <template x-teleport="body">
+        <div x-show="importModal" x-cloak @click.self="importModal = false" class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" style="display: none;">
+            <div class="bg-white rounded-2xl p-6 w-full max-w-md border border-slate-200 shadow-2xl">
+                <div class="flex items-center space-x-3 mb-3">
+                    <div class="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-900">Import SQL Database</h3>
+                        <p class="text-xs text-slate-500 font-mono">Database target: <span class="font-bold text-indigo-600" x-text="importDbName"></span></p>
+                    </div>
                 </div>
-                <div>
-                    <h3 class="text-sm font-bold text-slate-900">Import SQL Database</h3>
-                    <p class="text-xs text-slate-500 font-mono">Database target: <span class="font-bold text-indigo-600" x-text="importDbName"></span></p>
-                </div>
+
+                <form action="/databases/import" method="POST" enctype="multipart/form-data" @submit.prevent="submitImport($event)" class="mt-4 space-y-4">
+                    <input type="hidden" name="name" x-model="importDbName">
+                    <input type="hidden" name="type" x-model="importDbType">
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Pilih File SQL (.sql atau .sql.gz)</label>
+                        <input type="file" name="file" required accept=".sql,.gz" class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 border border-slate-200 rounded-xl p-1 cursor-pointer">
+                    </div>
+
+                    <div class="pt-2 flex justify-end space-x-2">
+                        <button type="button" @click="importModal = false" class="px-3.5 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-xl">Batal</button>
+                        <button type="submit" 
+                                :disabled="importLoading"
+                                class="px-4 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 rounded-xl shadow-sm transition-all inline-flex items-center">
+                            <svg x-show="importLoading" class="animate-spin -ml-1 mr-1.5 h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                            </svg>
+                            <span>Mulai Import</span>
+                        </button>
+                    </div>
+                </form>
             </div>
-
-            <form action="/databases/import" method="POST" enctype="multipart/form-data" @submit.prevent="submitImport($event)" class="mt-4 space-y-4">
-                <input type="hidden" name="name" x-model="importDbName">
-                <input type="hidden" name="type" x-model="importDbType">
-
-                <div>
-                    <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Pilih File SQL (.sql atau .sql.gz)</label>
-                    <input type="file" name="file" required accept=".sql,.gz" class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 border border-slate-200 rounded-xl p-1 cursor-pointer">
-                </div>
-
-                <div class="pt-2 flex justify-end space-x-2">
-                    <button type="button" @click="importModal = false" class="px-3.5 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-xl">Batal</button>
-                    <button type="submit" 
-                            :disabled="importLoading"
-                            class="px-4 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 rounded-xl shadow-sm transition-all inline-flex items-center">
-                        <svg x-show="importLoading" class="animate-spin -ml-1 mr-1.5 h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-                        </svg>
-                        <span>Mulai Import</span>
-                    </button>
-                </div>
-            </form>
         </div>
-    </div>
+    </template>
 
     <!-- Drop Database Modal -->
-    <div x-show="deleteModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" style="display: none;">
-        <div class="bg-white rounded-2xl p-6 w-full max-w-md border border-slate-200 shadow-2xl">
-            <div class="flex items-center space-x-3 mb-3">
-                <div class="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+    <template x-teleport="body">
+        <div x-show="deleteModal" x-cloak @click.self="deleteModal = false" class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" style="display: none;">
+            <div class="bg-white rounded-2xl p-6 w-full max-w-md border border-slate-200 shadow-2xl">
+                <div class="flex items-center space-x-3 mb-3">
+                    <div class="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-900">Hapus Database?</h3>
+                        <p class="text-xs text-slate-500">Database: <span class="font-bold text-rose-600 font-mono" x-text="deleteDbName"></span></p>
+                    </div>
                 </div>
-                <div>
-                    <h3 class="text-sm font-bold text-slate-900">Hapus Database?</h3>
-                    <p class="text-xs text-slate-500">Database: <span class="font-bold text-rose-600 font-mono" x-text="deleteDbName"></span></p>
-                </div>
+                <p class="text-xs text-slate-600 mb-4 bg-rose-50/70 border border-rose-100 rounded-xl p-3">
+                    Peringatan: Seluruh tabel dan data di dalam database ini akan dihapus secara permanen dari server.
+                </p>
+                <form action="/databases/delete" method="POST">
+                    <input type="hidden" name="name" x-model="deleteDbName">
+                    <input type="hidden" name="type" x-model="deleteDbType">
+                    <div class="flex justify-end space-x-2">
+                        <button type="button" @click="deleteModal = false" class="px-3.5 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-xl">Batal</button>
+                        <button type="submit" class="px-4 py-1.5 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-sm transition-colors">Ya, Hapus Database</button>
+                    </div>
+                </form>
             </div>
-            <p class="text-xs text-slate-600 mb-4 bg-rose-50/70 border border-rose-100 rounded-xl p-3">
-                Peringatan: Seluruh tabel dan data di dalam database ini akan dihapus secara permanen dari server.
-            </p>
-            <form action="/databases/delete" method="POST">
-                <input type="hidden" name="name" x-model="deleteDbName">
-                <input type="hidden" name="type" x-model="deleteDbType">
-                <div class="flex justify-end space-x-2">
-                    <button type="button" @click="deleteModal = false" class="px-3.5 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-xl">Batal</button>
-                    <button type="submit" class="px-4 py-1.5 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-sm transition-colors">Ya, Hapus Database</button>
-                </div>
-            </form>
         </div>
-    </div>
+    </template>
 
     <!-- Create Database Modal -->
-    <div x-show="dbModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" style="display: none;">
-        <div class="bg-white rounded-2xl p-6 w-full max-w-md border border-slate-200 shadow-2xl">
-            <h3 class="text-sm font-bold text-slate-900 mb-3">Create Database</h3>
-            <form action="/databases/create" method="POST" class="space-y-3">
-                <div>
-                    <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Database Name</label>
-                    <input type="text" name="name" required placeholder="app_db" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-mono">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Engine</label>
-                    <select name="type" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
-                        <option value="mysql">MariaDB / MySQL</option>
-                        <option value="postgres">PostgreSQL</option>
-                    </select>
-                </div>
-                <div class="pt-2 flex justify-end space-x-2">
-                    <button type="button" @click="dbModal = false" class="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-xl">Cancel</button>
-                    <button type="submit" class="px-4 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl">Create</button>
-                </div>
-            </form>
+    <template x-teleport="body">
+        <div x-show="dbModal" x-cloak @click.self="dbModal = false" class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" style="display: none;">
+            <div class="bg-white rounded-2xl p-6 w-full max-w-md border border-slate-200 shadow-2xl">
+                <h3 class="text-sm font-bold text-slate-900 mb-3">Create Database</h3>
+                <form action="/databases/create" method="POST" class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Database Name</label>
+                        <input type="text" name="name" required placeholder="app_db" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-mono">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Engine</label>
+                        <select name="type" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                            <option value="mysql">MariaDB / MySQL</option>
+                            <option value="postgres">PostgreSQL</option>
+                        </select>
+                    </div>
+                    <div class="pt-2 flex justify-end space-x-2">
+                        <button type="button" @click="dbModal = false" class="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-xl">Cancel</button>
+                        <button type="submit" class="px-4 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl">Create</button>
+                    </div>
+                </form>
+            </div>
         </div>
-    </div>
+    </template>
 
     <!-- Create Database User Modal -->
-    <div x-show="userModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" style="display: none;">
-        <div class="bg-white rounded-2xl p-6 w-full max-w-md border border-slate-200 shadow-2xl">
-            <h3 class="text-sm font-bold text-slate-900 mb-3">Create Database User</h3>
-            <form action="/databases/create-user" method="POST" class="space-y-3">
-                <div>
-                    <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Username</label>
-                    <input type="text" name="username" required placeholder="db_user" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-mono">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Password</label>
-                    <input type="password" name="password" required placeholder="••••••••" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-mono">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Assign to Database</label>
-                    <select name="database" {{ if ne .UserRole "admin" }}required{{ end }} class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-white font-mono">
-                        {{ if eq .UserRole "admin" }}
-                        <option value="">None (Global)</option>
-                        {{ end }}
-                        {{ range .Databases }}
-                        <option value="{{ .Name }}">{{ .Name }} ({{ .Type }})</option>
-                        {{ end }}
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Engine</label>
-                    <select name="type" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
-                        <option value="mysql">MariaDB / MySQL</option>
-                        <option value="postgres">PostgreSQL</option>
-                    </select>
-                </div>
-                <div class="pt-2 flex justify-end space-x-2">
-                    <button type="button" @click="userModal = false" class="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-xl">Cancel</button>
-                    <button type="submit" class="px-4 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl">Create User</button>
-                </div>
-            </form>
+    <template x-teleport="body">
+        <div x-show="userModal" x-cloak @click.self="userModal = false" class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" style="display: none;">
+            <div class="bg-white rounded-2xl p-6 w-full max-w-md border border-slate-200 shadow-2xl">
+                <h3 class="text-sm font-bold text-slate-900 mb-3">Create Database User</h3>
+                <form action="/databases/create-user" method="POST" class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Username</label>
+                        <input type="text" name="username" required placeholder="db_user" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-mono">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Password</label>
+                        <input type="password" name="password" required placeholder="••••••••" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-mono">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Assign to Database</label>
+                        <select name="database" {{ if ne .UserRole "admin" }}required{{ end }} class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-white font-mono">
+                            {{ if eq .UserRole "admin" }}
+                            <option value="">None (Global)</option>
+                            {{ end }}
+                            {{ range .Databases }}
+                            <option value="{{ .Name }}">{{ .Name }} ({{ .Type }})</option>
+                            {{ end }}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Engine</label>
+                        <select name="type" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                            <option value="mysql">MariaDB / MySQL</option>
+                            <option value="postgres">PostgreSQL</option>
+                        </select>
+                    </div>
+                    <div class="pt-2 flex justify-end space-x-2">
+                        <button type="button" @click="userModal = false" class="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-xl">Cancel</button>
+                        <button type="submit" class="px-4 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl">Create User</button>
+                    </div>
+                </form>
+            </div>
         </div>
-    </div>
+    </template>
 
     <!-- Set Password & Auto-Login Modal -->
-    <div x-show="pwdModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" style="display: none;">
-        <div class="bg-white rounded-2xl p-6 w-full max-w-md border border-slate-200 shadow-2xl">
-            <div class="flex items-center space-x-3 mb-3">
-                <div class="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+    <template x-teleport="body">
+        <div x-show="pwdModal" x-cloak @click.self="pwdModal = false" class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" style="display: none;">
+            <div class="bg-white rounded-2xl p-6 w-full max-w-md border border-slate-200 shadow-2xl">
+                <div class="flex items-center space-x-3 mb-3">
+                    <div class="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-900">Konfigurasi Auto-Login Database</h3>
+                        <p class="text-xs text-slate-500">Database: <span class="font-bold text-indigo-600 font-mono" x-text="pwdDbName"></span></p>
+                    </div>
                 </div>
-                <div>
-                    <h3 class="text-sm font-bold text-slate-900">Konfigurasi Auto-Login Database</h3>
-                    <p class="text-xs text-slate-500">Database: <span class="font-bold text-indigo-600 font-mono" x-text="pwdDbName"></span></p>
-                </div>
+
+                <p class="text-xs text-slate-600 mb-4 bg-slate-50 border border-slate-200/80 rounded-xl p-3">
+                    Masukkan password untuk database ini sekali saja agar sistem Seintech Panel dapat melakukan <strong>Auto-Login (SSO)</strong> secara instan tanpa perlu memasukkan password lagi.
+                </p>
+
+                <form @submit.prevent="submitSetPassword($event)" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Username Database</label>
+                        <input type="text" x-model="pwdUsername" required class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-mono bg-slate-50">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Password Database</label>
+                        <input type="password" x-model="pwdVal" required placeholder="Masukkan password database" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-mono">
+                    </div>
+
+                    <div class="flex items-center space-x-2 pt-1">
+                        <input type="checkbox" id="pwdSync" x-model="pwdSync" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
+                        <label for="pwdSync" class="text-xs text-slate-600 cursor-pointer">
+                            Perbarui &amp; sinkronkan password ini ke server database sekarang
+                        </label>
+                    </div>
+
+                    <div class="pt-2 flex justify-end space-x-2">
+                        <button type="button" @click="pwdModal = false" class="px-3.5 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-xl">Batal</button>
+                        <button type="submit" 
+                                :disabled="pwdLoading"
+                                class="px-4 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 rounded-xl shadow-sm transition-all inline-flex items-center">
+                            <svg x-show="pwdLoading" class="animate-spin -ml-1 mr-1.5 h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                            </svg>
+                            <span>Simpan &amp; Buka GUI</span>
+                        </button>
+                    </div>
+                </form>
             </div>
-
-            <p class="text-xs text-slate-600 mb-4 bg-slate-50 border border-slate-200/80 rounded-xl p-3">
-                Masukkan password untuk database ini sekali saja agar sistem Seintech Panel dapat melakukan <strong>Auto-Login (SSO)</strong> secara instan tanpa perlu memasukkan password lagi.
-            </p>
-
-            <form @submit.prevent="submitSetPassword($event)" class="space-y-4">
-                <div>
-                    <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Username Database</label>
-                    <input type="text" x-model="pwdUsername" required class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-mono bg-slate-50">
-                </div>
-
-                <div>
-                    <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Password Database</label>
-                    <input type="password" x-model="pwdVal" required placeholder="Masukkan password database" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-mono">
-                </div>
-
-                <div class="flex items-center space-x-2 pt-1">
-                    <input type="checkbox" id="pwdSync" x-model="pwdSync" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
-                    <label for="pwdSync" class="text-xs text-slate-600 cursor-pointer">
-                        Perbarui &amp; sinkronkan password ini ke server database sekarang
-                    </label>
-                </div>
-
-                <div class="pt-2 flex justify-end space-x-2">
-                    <button type="button" @click="pwdModal = false" class="px-3.5 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-xl">Batal</button>
-                    <button type="submit" 
-                            :disabled="pwdLoading"
-                            class="px-4 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 rounded-xl shadow-sm transition-all inline-flex items-center">
-                        <svg x-show="pwdLoading" class="animate-spin -ml-1 mr-1.5 h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-                        </svg>
-                        <span>Simpan &amp; Buka GUI</span>
-                    </button>
-                </div>
-            </form>
         </div>
-    </div>
+    </template>
 
 </div>
 {{ end }}

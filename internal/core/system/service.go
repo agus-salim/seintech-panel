@@ -640,10 +640,24 @@ func (sm *ServiceManager) AutoConfigurePhpMyAdmin(ctx context.Context) {
 		for ver in 8.5 8.4 8.3 8.2 8.1 8.0 7.4; do
 			if [ -d "/etc/php/$ver" ]; then
 				apt-get install -y php$ver-common php$ver-ctype php$ver-mbstring php$ver-mysql php$ver-xml php$ver-curl php$ver-zip php$ver-gd php$ver-intl php$ver-bcmath >/dev/null 2>&1 || true
-				phpenmod -v $ver ctype mbstring mysqli mysql pdo_mysql xml curl zip gd intl bcmath 2>/dev/null || true
+
+				mkdir -p "/etc/php/$ver/mods-available" "/etc/php/$ver/fpm/conf.d" "/etc/php/$ver/cli/conf.d"
+				echo "extension=mysqlnd.so" > "/etc/php/$ver/mods-available/mysqlnd.ini"
+				echo "extension=mysqli.so" > "/etc/php/$ver/mods-available/mysqli.ini"
+				echo "extension=pdo_mysql.so" > "/etc/php/$ver/mods-available/pdo_mysql.ini"
+
+				ln -sf "/etc/php/$ver/mods-available/mysqlnd.ini" "/etc/php/$ver/fpm/conf.d/10-mysqlnd.ini"
+				ln -sf "/etc/php/$ver/mods-available/mysqli.ini" "/etc/php/$ver/fpm/conf.d/20-mysqli.ini"
+				ln -sf "/etc/php/$ver/mods-available/pdo_mysql.ini" "/etc/php/$ver/fpm/conf.d/20-pdo_mysql.ini"
+
+				ln -sf "/etc/php/$ver/mods-available/mysqlnd.ini" "/etc/php/$ver/cli/conf.d/10-mysqlnd.ini"
+				ln -sf "/etc/php/$ver/mods-available/mysqli.ini" "/etc/php/$ver/cli/conf.d/20-mysqli.ini"
+				ln -sf "/etc/php/$ver/mods-available/pdo_mysql.ini" "/etc/php/$ver/cli/conf.d/20-pdo_mysql.ini"
+
+				phpenmod -v $ver -s ALL mysqlnd mysqli pdo_mysql ctype mbstring xml curl zip gd intl bcmath 2>/dev/null || true
 			fi
 		done
-		phpenmod ctype mbstring mysqli mysql pdo_mysql xml curl zip gd intl bcmath 2>/dev/null || true
+		phpenmod -s ALL mysqlnd mysqli pdo_mysql ctype mbstring xml curl zip gd intl bcmath 2>/dev/null || true
 
 		# Self-heal phpmyadmin files if index.php is missing or corrupted
 		if [ ! -f /usr/share/phpmyadmin/index.php ]; then

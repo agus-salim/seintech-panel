@@ -643,10 +643,15 @@ func (sm *ServiceManager) AutoConfigurePhpMyAdmin(ctx context.Context) {
 				apt-get install -y php$ver-common php$ver-ctype php$ver-mbstring php$ver-mysql php$ver-xml php$ver-curl php$ver-zip php$ver-gd php$ver-intl php$ver-bcmath >/dev/null 2>&1 || true
 
 				mkdir -p "/etc/php/$ver/mods-available" "/etc/php/$ver/fpm/conf.d" "/etc/php/$ver/cli/conf.d"
-				echo "extension=pdo.so" > "/etc/php/$ver/mods-available/pdo.ini"
-				echo "extension=mysqlnd.so" > "/etc/php/$ver/mods-available/mysqlnd.ini"
-				echo "extension=mysqli.so" > "/etc/php/$ver/mods-available/mysqli.ini"
-				echo "extension=pdo_mysql.so" > "/etc/php/$ver/mods-available/pdo_mysql.ini"
+				rm -f "/etc/php/$ver/fpm/conf.d/mysqlnd.ini" "/etc/php/$ver/cli/conf.d/mysqlnd.ini"
+				rm -f "/etc/php/$ver/fpm/conf.d/pdo.ini" "/etc/php/$ver/cli/conf.d/pdo.ini"
+				rm -f "/etc/php/$ver/fpm/conf.d/mysqli.ini" "/etc/php/$ver/cli/conf.d/mysqli.ini"
+				rm -f "/etc/php/$ver/fpm/conf.d/pdo_mysql.ini" "/etc/php/$ver/cli/conf.d/pdo_mysql.ini"
+
+				printf "; priority=10\nextension=pdo.so\n" > "/etc/php/$ver/mods-available/pdo.ini"
+				printf "; priority=10\nextension=mysqlnd.so\n" > "/etc/php/$ver/mods-available/mysqlnd.ini"
+				printf "; priority=20\nextension=mysqli.so\n" > "/etc/php/$ver/mods-available/mysqli.ini"
+				printf "; priority=20\nextension=pdo_mysql.so\n" > "/etc/php/$ver/mods-available/pdo_mysql.ini"
 
 				ln -sf "/etc/php/$ver/mods-available/pdo.ini" "/etc/php/$ver/fpm/conf.d/10-pdo.ini"
 				ln -sf "/etc/php/$ver/mods-available/mysqlnd.ini" "/etc/php/$ver/fpm/conf.d/10-mysqlnd.ini"

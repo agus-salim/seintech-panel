@@ -635,15 +635,15 @@ func (sm *ServiceManager) AutoConfigurePhpMyAdmin(ctx context.Context) {
 	extScript := `
 		export DEBIAN_FRONTEND=noninteractive
 		apt-get update -y >/dev/null 2>&1 || true
-		apt-get install -y php-mbstring php-mysql php-xml php-curl php-zip php-gd || true
+		apt-get install -y php-common php-ctype php-mbstring php-mysql php-xml php-curl php-zip php-gd php-intl php-bcmath || true
 
 		for ver in 8.5 8.4 8.3 8.2 8.1 8.0 7.4; do
 			if [ -d "/etc/php/$ver" ]; then
-				apt-get install -y php$ver-mbstring php$ver-mysql php$ver-xml php$ver-curl php$ver-zip php$ver-gd >/dev/null 2>&1 || true
-				phpenmod -v $ver mbstring mysqli mysql pdo_mysql xml curl zip gd 2>/dev/null || true
+				apt-get install -y php$ver-common php$ver-ctype php$ver-mbstring php$ver-mysql php$ver-xml php$ver-curl php$ver-zip php$ver-gd php$ver-intl php$ver-bcmath >/dev/null 2>&1 || true
+				phpenmod -v $ver ctype mbstring mysqli mysql pdo_mysql xml curl zip gd intl bcmath 2>/dev/null || true
 			fi
 		done
-		phpenmod mbstring mysqli mysql pdo_mysql xml curl zip gd 2>/dev/null || true
+		phpenmod ctype mbstring mysqli mysql pdo_mysql xml curl zip gd intl bcmath 2>/dev/null || true
 
 		# Self-heal phpmyadmin files if index.php is missing or corrupted
 		if [ ! -f /usr/share/phpmyadmin/index.php ]; then

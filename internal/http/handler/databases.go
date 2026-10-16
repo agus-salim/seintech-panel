@@ -406,10 +406,8 @@ func (h *DatabaseHandler) SSOLogin(w http.ResponseWriter, r *http.Request) {
 	_ = os.Chmod(tokenFile, 0666)
 
 	if targetDB.Type == model.DBTypePostgres {
-		h.sm.AutoConfigurePhpPgAdmin(r.Context())
 		http.Redirect(w, r, fmt.Sprintf("/phppgadmin/sso.php?token=%s", token), http.StatusSeeOther)
 	} else {
-		h.sm.AutoConfigurePhpMyAdmin(r.Context())
 		http.Redirect(w, r, fmt.Sprintf("/phpmyadmin/sso.php?token=%s", token), http.StatusSeeOther)
 	}
 }

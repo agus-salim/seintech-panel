@@ -382,7 +382,7 @@ func (h *DatabaseHandler) SSOLogin(w http.ResponseWriter, r *http.Request) {
 		"pass":    targetDB.Password,
 		"db":      targetDB.Name,
 		"type":    string(targetDB.Type),
-		"expires": time.Now().Add(60 * time.Second).Unix(),
+		"expires": time.Now().Add(180 * time.Second).Unix(),
 	}
 
 	tokenDir := "/var/lib/seintech/pma_tokens"

@@ -698,9 +698,9 @@ $cfg['Servers'][1]['compress'] = false;
 $cfg['Servers'][1]['AllowNoPassword'] = false;
 $cfg['Servers'][1]['verbose'] = 'MariaDB / MySQL (Cookie)';
 
-// Server 2: One-Click Auto Login (Signon)
+// Server 2: Single Sign-On (SignonScript)
 $cfg['Servers'][2]['auth_type'] = 'signon';
-$cfg['Servers'][2]['SignonSession'] = 'SeintechSignon';
+$cfg['Servers'][2]['SignonScript'] = '/usr/share/phpmyadmin/signon_auth.php';
 $cfg['Servers'][2]['SignonURL'] = '/phpmyadmin/index.php';
 if (!empty($sock)) {
     $cfg['Servers'][2]['host'] = 'localhost';
@@ -730,55 +730,102 @@ $cfg['SendErrorReports'] = 'never';
 		}
 	}
 
-	// 6. Install SSO bridge script in /usr/share/phpmyadmin/sso.php
+	// 6. Install native SignonScript in /usr/share/phpmyadmin/signon_auth.php and /etc/phpmyadmin/signon_auth.php
+	signonAuthCode := `<?php
+declare(strict_types=1);
+
+/**
+ * Seintech Panel SSO Authentication Script for phpMyAdmin
+ * Uses official SignonScript interface get_login_credentials
+ */
+function get_login_credentials(string $user): array
+{
+    $token = $_COOKIE['seintech_pma_token'] ?? '';
+    if (empty($token) && isset($_GET['token'])) {
+        $token = $_GET['token'];
+    }
+
+    if (!is_string($token) || !preg_match('/^[a-f0-9]{32,64}$/', $token)) {
+        return ['', ''];
+    }
+
+    $tokenFile = '/var/lib/seintech/pma_tokens/' . $token . '.json';
+    if (!file_exists($tokenFile)) {
+        return ['', ''];
+    }
+
+    $raw = @file_get_contents($tokenFile);
+    if (!$raw) {
+        return ['', ''];
+    }
+
+    $data = @json_decode($raw, true);
+    if (!$data || time() > ($data['expires'] ?? 0)) {
+        @unlink($tokenFile);
+        return ['', ''];
+    }
+
+    $u = (string)($data['user'] ?? '');
+    $p = (string)($data['pass'] ?? '');
+
+    if ($u === '') {
+        return ['', ''];
+    }
+
+    return [$u, $p];
+}
+`
+	_ = os.WriteFile("/usr/share/phpmyadmin/signon_auth.php", []byte(signonAuthCode), 0644)
+	_ = os.WriteFile("/etc/phpmyadmin/signon_auth.php", []byte(signonAuthCode), 0644)
+	_ = exec.CommandContext(ctx, "chown", "www-data:www-data", "/usr/share/phpmyadmin/signon_auth.php").Run()
+
+	// 7. Install SSO bridge script in /usr/share/phpmyadmin/sso.php
 	ssoScript := `/usr/share/phpmyadmin/sso.php`
 	ssoContent := `<?php
 // Seintech Panel SSO Bridge for phpMyAdmin
 $token = $_GET['token'] ?? '';
-if (!preg_match('/^[a-f0-9]{32,64}$/', $token)) {
+if (!is_string($token) || !preg_match('/^[a-f0-9]{32,64}$/', $token)) {
     die("Invalid token format");
 }
 $tokenFile = "/var/lib/seintech/pma_tokens/" . $token . ".json";
 if (!file_exists($tokenFile)) {
     die("Token not found or already used");
 }
-$data = json_decode(file_get_contents($tokenFile), true);
-@unlink($tokenFile);
-
-if (!$data || time() > $data['expires']) {
+$raw = @file_get_contents($tokenFile);
+$data = @json_decode($raw, true);
+if (!$data || time() > ($data['expires'] ?? 0)) {
+    @unlink($tokenFile);
     die("Token expired");
 }
 
-// Clear any previous phpMyAdmin session cookies so new login applies immediately
-foreach ($_COOKIE as $name => $val) {
-    if (stripos($name, 'pma') !== false || stripos($name, 'phpmyadmin') !== false) {
-        setcookie($name, '', time() - 3600, '/');
-        setcookie($name, '', time() - 3600, '/phpmyadmin/');
-    }
-}
+$isHttps = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') || 
+           (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
 
-session_name('SeintechSignon');
-$isHttps = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+// Set token cookie so SignonScript get_login_credentials can read it
 if (PHP_VERSION_ID >= 70300) {
-    session_set_cookie_params([
-        'lifetime' => 0,
-        'path' => '/',
+    setcookie('seintech_pma_token', $token, [
+        'expires' => time() + 180,
+        'path' => '/phpmyadmin/',
         'httponly' => true,
         'secure' => $isHttps,
         'samesite' => 'Lax'
     ]);
 } else {
-    session_set_cookie_params(0, '/', '', $isHttps, true);
+    setcookie('seintech_pma_token', $token, time() + 180, '/phpmyadmin/', '', $isHttps, true);
 }
-session_start();
-$_SESSION['PMA_single_signon_user'] = $data['user'];
-$_SESSION['PMA_single_signon_password'] = $data['pass'];
-$_SESSION['PMA_single_signon_host'] = 'localhost';
-$_SESSION['PMA_single_signon_port'] = 3306;
-session_write_close();
+
+// Clear any stale phpMyAdmin session cookie so fresh login takes effect
+foreach ($_COOKIE as $name => $val) {
+    if (stripos($name, 'pma') !== false || stripos($name, 'phpmyadmin') !== false) {
+        if ($name !== 'seintech_pma_token') {
+            setcookie($name, '', time() - 3600, '/');
+            setcookie($name, '', time() - 3600, '/phpmyadmin/');
+        }
+    }
+}
 
 $db = urlencode($data['db'] ?? '');
-header("Location: /phpmyadmin/index.php?server=2&db=" . $db);
+header("Location: /phpmyadmin/index.php?server=2&db=" . $db . "&token=" . $token);
 exit;
 `
 	_ = os.WriteFile(ssoScript, []byte(ssoContent), 0644)

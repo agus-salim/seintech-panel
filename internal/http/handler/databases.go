@@ -457,6 +457,59 @@ func (h *DatabaseHandler) SetPassword(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *DatabaseHandler) GrantPrivileges(w http.ResponseWriter, r *http.Request) {
+	name := strings.TrimSpace(r.FormValue("name"))
+	isAjax := r.Header.Get("X-Requested-With") == "XMLHttpRequest" || strings.Contains(r.Header.Get("Accept"), "application/json")
+
+	dbs, err := h.repo.GetDatabases()
+	if err != nil {
+		respondError(w, isAjax, "Gagal mengambil daftar database: "+err.Error())
+		return
+	}
+
+	var targetDB *model.Database
+	for _, d := range dbs {
+		if strings.EqualFold(d.Name, name) {
+			targetDB = &d
+			break
+		}
+	}
+
+	if targetDB == nil {
+		respondError(w, isAjax, "Database tidak ditemukan")
+		return
+	}
+
+	ctx := r.Context()
+	user := targetDB.Username
+	if user == "" {
+		user = targetDB.Name
+	}
+
+	if targetDB.Type == model.DBTypePostgres {
+		if err := h.pgMgr.GrantPrivileges(ctx, user, targetDB.Host, targetDB.Name); err != nil {
+			respondError(w, isAjax, "Gagal memperbarui hak akses PostgreSQL: "+err.Error())
+			return
+		}
+	} else {
+		if err := h.mysqlMgr.GrantPrivileges(ctx, user, targetDB.Host, targetDB.Name); err != nil {
+			respondError(w, isAjax, "Gagal memperbarui hak akses MySQL: "+err.Error())
+			return
+		}
+	}
+
+	if isAjax {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"message": fmt.Sprintf("Hak akses user '%s' pada database '%s' (schema & tables) berhasil diperbarui!", user, targetDB.Name),
+		})
+		return
+	}
+
+	http.Redirect(w, r, "/databases?success=permissions_granted", http.StatusSeeOther)
+}
+
 func respondError(w http.ResponseWriter, isAjax bool, msg string) {
 	if isAjax {
 		w.Header().Set("Content-Type", "application/json")

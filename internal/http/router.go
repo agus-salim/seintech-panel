@@ -123,6 +123,7 @@ func NewRouter(
 		pr.Post("/databases/import", dbH.Import)
 		pr.Get("/databases/sso", dbH.SSOLogin)
 		pr.Post("/databases/set-password", dbH.SetPassword)
+		pr.Post("/databases/grant-privileges", dbH.GrantPrivileges)
 
 		// SSL
 		pr.Get("/ssl", sslH.List)

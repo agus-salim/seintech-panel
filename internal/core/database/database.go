@@ -3,9 +3,12 @@ package database
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/seintech/panel/internal/core/system"
 	"github.com/seintech/panel/internal/model"
@@ -143,8 +146,29 @@ func (p *PostgresManager) runSQLInDB(ctx context.Context, dbName, query string) 
 	if dbName == "" {
 		dbName = "postgres"
 	}
-	cmd := exec.CommandContext(ctx, "su", "-", "postgres", "-c", fmt.Sprintf("psql -d %s -t", dbName))
-	cmd.Stdin = strings.NewReader(query)
+
+	// Write query to a temporary SQL file in /tmp so psql can reliably execute via -f
+	// This avoids stdin dropping/truncation when invoking 'su - postgres -c'
+	tmpFile, err := os.CreateTemp("", "seintech_pg_*.sql")
+	var tmpPath string
+	if err != nil {
+		tmpPath = filepath.Join(os.TempDir(), fmt.Sprintf("seintech_pg_%d.sql", time.Now().UnixNano()))
+		if writeErr := os.WriteFile(tmpPath, []byte(query), 0666); writeErr != nil {
+			return "", fmt.Errorf("failed to write temp file for postgres: %w", writeErr)
+		}
+	} else {
+		tmpPath = tmpFile.Name()
+		if _, writeErr := tmpFile.WriteString(query); writeErr != nil {
+			tmpFile.Close()
+			_ = os.Remove(tmpPath)
+			return "", fmt.Errorf("failed to write to temp file for postgres: %w", writeErr)
+		}
+		tmpFile.Close()
+	}
+	_ = os.Chmod(tmpPath, 0666)
+	defer os.Remove(tmpPath)
+
+	cmd := exec.CommandContext(ctx, "su", "-", "postgres", "-c", fmt.Sprintf("psql -d %s -f %s", dbName, tmpPath))
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return string(out), fmt.Errorf("postgres query failed in db %s: %w (%s)", dbName, err, strings.TrimSpace(string(out)))
@@ -184,20 +208,31 @@ func (p *PostgresManager) GrantPrivileges(ctx context.Context, username, host, d
 		return nil
 	}
 
-	// 1. Assign database ownership and grant cluster-level permissions
+	// 1. Assign database ownership and grant cluster-level database privileges
 	dbSQL := fmt.Sprintf(`ALTER DATABASE "%s" OWNER TO "%s";
 GRANT ALL PRIVILEGES ON DATABASE "%s" TO "%s";`, dbName, username, dbName, username)
 	_, _ = p.runSQLInDB(ctx, "postgres", dbSQL)
 
-	// 2. Grant public schema ownership, full permissions, and reassign ownership of all existing tables/views/sequences
+	// 2. Grant public schema ownership, full privileges, and reassign ownership of all existing objects
 	schemaSQL := fmt.Sprintf(`ALTER SCHEMA public OWNER TO "%s";
 GRANT ALL ON SCHEMA public TO "%s";
+GRANT CREATE, USAGE ON SCHEMA public TO "%s";
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "%s";
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO "%s";
 GRANT ALL PRIVILEGES ON ALL ROUTINES IN SCHEMA public TO "%s";
+GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO "%s";
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO "%s";
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO "%s";
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON ROUTINES TO "%s";
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO "%s";
+ALTER DEFAULT PRIVILEGES FOR ROLE "%s" IN SCHEMA public GRANT ALL ON TABLES TO "%s";
+ALTER DEFAULT PRIVILEGES FOR ROLE "%s" IN SCHEMA public GRANT ALL ON SEQUENCES TO "%s";
+ALTER DEFAULT PRIVILEGES FOR ROLE "%s" IN SCHEMA public GRANT ALL ON ROUTINES TO "%s";
+ALTER DEFAULT PRIVILEGES FOR ROLE "%s" IN SCHEMA public GRANT ALL ON FUNCTIONS TO "%s";
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON TABLES TO "%s";
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON SEQUENCES TO "%s";
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON ROUTINES TO "%s";
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON FUNCTIONS TO "%s";
 
 DO $$
 DECLARE
@@ -220,7 +255,11 @@ BEGIN
         EXECUTE 'ALTER MATERIALIZED VIEW public.' || quote_ident(r.matviewname) || ' OWNER TO ' || quote_ident('%s') || ';';
     END LOOP;
 END $$;
-`, username, username, username, username, username, username, username, username, username, username, username, username)
+`, username, username, username, username, username, username, username,
+		username, username, username, username,
+		username, username, username, username, username, username, username, username,
+		username, username, username, username,
+		username, username, username, username)
 
 	_, err := p.runSQLInDB(ctx, dbName, schemaSQL)
 	return err

@@ -113,6 +113,32 @@
             this.importLoading = false;
             alert('Error: ' + err.message);
         });
+    },
+
+    grantPrivileges(name, type) {
+        if (!confirm('Perbarui dan berikan seluruh hak akses/ownership (schema public & tables) untuk database ' + name + '?')) {
+            return;
+        }
+        const formData = new FormData();
+        formData.append('name', name);
+        formData.append('type', type);
+
+        fetch('/databases/grant-privileges', {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            body: formData
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message || 'Hak akses berhasil diperbarui!');
+            } else {
+                alert('Gagal: ' + (data.error || 'Terjadi kesalahan'));
+            }
+        })
+        .catch(err => {
+            alert('Error: ' + err.message);
+        });
     }
 }">
 
@@ -271,6 +297,14 @@
                                    class="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500/20">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                                 </a>
+
+                                <!-- Fix Permissions / Grant Privileges Icon -->
+                                <button type="button" 
+                                        @click="grantPrivileges('{{ .Name }}', '{{ .Type }}')"
+                                        title="Perbaiki & Berikan Hak Akses Penuh (Schema public & Tables)"
+                                        class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                                </button>
 
                                 <!-- Delete Icon -->
                                 <button type="button" 

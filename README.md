@@ -200,12 +200,13 @@ Jika ada pembaruan fitur terbaru di repositori resmi GitHub, perbarui panel deng
 ```bash
 cd /opt/seintech-panel
 git pull
-cp bin/seintech /usr/local/bin/seintech
-systemctl restart seintech
+systemctl stop seintech
+cp -f bin/seintech /usr/local/bin/seintech
+systemctl start seintech
 ```
 
 > [!TIP]
-> Perintah `cp bin/seintech /usr/local/bin/seintech` penting dijalankan setelah `git pull` karena layanan `systemd` Seintech mengeksekusi biner yang berada di folder `/usr/local/bin/seintech`. Alternatifnya, Anda juga bisa langsung menjalankan `./deploy/install.sh`.
+> Service `seintech` perlu dihentikan (`stop`) terlebih dahulu sebelum menyalin biner agar tidak terjadi error *Text file busy* pada Linux. Alternatifnya, Anda juga bisa langsung menjalankan `./deploy/install.sh`.
 
 ---
 

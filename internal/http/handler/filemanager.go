@@ -464,7 +464,8 @@ func (h *FileManagerHandler) Compress(w http.ResponseWriter, r *http.Request) {
 	if name == "" {
 		name = "archive.zip"
 	}
-	if !strings.HasSuffix(strings.ToLower(name), ".zip") {
+	lowerName := strings.ToLower(name)
+	if !strings.HasSuffix(lowerName, ".zip") && !strings.HasSuffix(lowerName, ".tar.gz") && !strings.HasSuffix(lowerName, ".tgz") && !strings.HasSuffix(lowerName, ".tar") {
 		name += ".zip"
 	}
 	targetZip := filepath.Join(destDir, name)
@@ -488,7 +489,7 @@ func (h *FileManagerHandler) Compress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := fm.CompressZip(paths, targetZip); err != nil {
+	if err := fm.CompressArchive(paths, targetZip); err != nil {
 		if isAjax {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusInternalServerError)

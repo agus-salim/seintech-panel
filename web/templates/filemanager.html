@@ -64,6 +64,17 @@
         this.extractDest = this.currentPath;
         this.extractModal = true;
     },
+    isSingleArchiveSelected() {
+        if (this.selectedFiles.length !== 1) return false;
+        const file = this.selectedFiles[0].toLowerCase();
+        return file.endsWith('.zip') || file.endsWith('.tar.gz') || file.endsWith('.tgz') || file.endsWith('.tar') || file.endsWith('.gz') || file.endsWith('.tar.bz2') || file.endsWith('.tbz2') || file.endsWith('.tar.xz');
+    },
+    extractSelectedArchive() {
+        if (!this.isSingleArchiveSelected()) return;
+        const path = this.selectedFiles[0];
+        const name = path.split('/').pop();
+        this.openExtractModal(path, name);
+    },
     openCompressModal() {
         this.compressName = 'archive.zip';
         this.compressModal = true;
@@ -425,6 +436,13 @@
             <span>file / folder dipilih</span>
         </div>
         <div class="flex items-center space-x-2">
+            <button x-show="isSingleArchiveSelected()" 
+                    type="button" 
+                    @click="extractSelectedArchive()" 
+                    class="px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-colors inline-flex items-center shadow-xs">
+                <svg class="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                Extract Arsip
+            </button>
             <button type="button" @click="openCompressModal()" class="px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors inline-flex items-center shadow-xs">
                 <svg class="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
                 Compress
@@ -507,8 +525,12 @@
                                 <a href="/filemanager?path={{ .Path }}" class="font-semibold text-slate-800 hover:text-indigo-600 truncate max-w-sm">{{ .Name }}</a>
                                 {{ else if .IsArchive }}
                                 <svg class="w-5 h-5 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
-                                <span class="font-mono text-xs font-semibold text-slate-800 truncate max-w-sm">{{ .Name }}</span>
-                                <span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-amber-100 text-amber-800">ZIP</span>
+                                <button type="button" @click="openExtractModal('{{ .Path }}', '{{ .Name }}')" class="font-mono text-xs font-semibold text-slate-800 hover:text-emerald-600 truncate max-w-sm text-left transition-colors" title="Klik untuk mengekstrak arsip">
+                                    {{ .Name }}
+                                </button>
+                                <span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-medium {{ if eq .ArchiveType "ZIP" }}bg-amber-100 text-amber-800{{ else if or (eq .ArchiveType "TAR.GZ") (eq .ArchiveType "TGZ") }}bg-emerald-100 text-emerald-800{{ else }}bg-blue-100 text-blue-800{{ end }}">
+                                    {{ if .ArchiveType }}{{ .ArchiveType }}{{ else }}ARCHIVE{{ end }}
+                                </span>
                                 {{ else }}
                                 <svg class="w-5 h-5 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                                 <span class="font-mono text-xs text-slate-700 truncate max-w-sm">{{ .Name }}</span>
@@ -531,7 +553,7 @@
                                 {{ if .IsArchive }}
                                 <button @click="openExtractModal('{{ .Path }}', '{{ .Name }}')"
                                         class="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
-                                        title="Ekstrak Arsip (Extract)">
+                                        title="Ekstrak Arsip (Extract {{ if .ArchiveType }}{{ .ArchiveType }}{{ else }}Arsip{{ end }})">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
                                     </svg>
@@ -698,6 +720,7 @@
                     <p class="text-xs text-slate-500 font-mono truncate max-w-xs" x-text="extractName"></p>
                 </div>
             </div>
+            <p class="text-[11px] text-slate-500 mb-3">Mendukung format arsip <code class="bg-slate-100 px-1 py-0.5 rounded text-slate-700 font-mono">.tar.gz</code>, <code class="bg-slate-100 px-1 py-0.5 rounded text-slate-700 font-mono">.zip</code>, <code class="bg-slate-100 px-1 py-0.5 rounded text-slate-700 font-mono">.tgz</code>, <code class="bg-slate-100 px-1 py-0.5 rounded text-slate-700 font-mono">.tar</code>.</p>
             <form @submit.prevent="executeExtract()">
                 <div class="mb-4">
                     <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Direktori Tujuan</label>
@@ -720,13 +743,18 @@
                 </div>
                 <div>
                     <h3 class="text-sm font-bold text-slate-900">Kompres File & Folder</h3>
-                    <p class="text-xs text-slate-500"><span x-text="selectedFiles.length"></span> item akan dimasukkan ke zip</p>
+                    <p class="text-xs text-slate-500"><span x-text="selectedFiles.length"></span> item akan dimasukkan ke arsip</p>
                 </div>
             </div>
             <form @submit.prevent="executeCompress()">
                 <div class="mb-4">
-                    <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Nama File Arsip (.zip)</label>
-                    <input type="text" x-model="compressName" required placeholder="archive.zip" class="w-full px-3.5 py-2 text-xs font-mono border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                    <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Nama File Arsip (.zip / .tar.gz)</label>
+                    <input type="text" x-model="compressName" required placeholder="archive.zip atau archive.tar.gz" class="w-full px-3.5 py-2 text-xs font-mono border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                    <div class="flex items-center space-x-2 mt-2">
+                        <span class="text-[11px] text-slate-400">Pilihan format:</span>
+                        <button type="button" @click="compressName = compressName.replace(/\.(zip|tar\.gz|tgz|tar)$/i, '') + '.zip'" class="px-2 py-0.5 text-[11px] font-mono rounded bg-slate-100 hover:bg-slate-200 text-slate-700">.zip</button>
+                        <button type="button" @click="compressName = compressName.replace(/\.(zip|tar\.gz|tgz|tar)$/i, '') + '.tar.gz'" class="px-2 py-0.5 text-[11px] font-mono rounded bg-slate-100 hover:bg-slate-200 text-slate-700">.tar.gz</button>
+                    </div>
                 </div>
                 <div class="flex justify-end space-x-2">
                     <button type="button" @click="compressModal = false" class="px-3.5 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-xl">Batal</button>

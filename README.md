@@ -193,6 +193,22 @@ systemctl start seintech
 
 ---
 
+### 6. Cara Memperbarui / Update Panel
+
+Jika ada pembaruan fitur terbaru di repositori resmi GitHub, perbarui panel dengan langkah ringkas:
+
+```bash
+cd /opt/seintech-panel
+git pull
+cp bin/seintech /usr/local/bin/seintech
+systemctl restart seintech
+```
+
+> [!TIP]
+> Perintah `cp bin/seintech /usr/local/bin/seintech` penting dijalankan setelah `git pull` karena layanan `systemd` Seintech mengeksekusi biner yang berada di folder `/usr/local/bin/seintech`. Alternatifnya, Anda juga bisa langsung menjalankan `./deploy/install.sh`.
+
+---
+
 ## 🛠️ Opsi Instalasi Lanjutan & Development
 
 ### Kompilasi Manual dari Source (Arsitektur ARM64 / Non-x86)

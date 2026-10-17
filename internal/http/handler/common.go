@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/seintech/panel/internal/core/auth"
@@ -38,6 +39,14 @@ func NewBaseData(r *http.Request, title, pageTitle, activeNav, hostname string) 
 	initial := "A"
 	if len(sess.Username) > 0 {
 		initial = strings.ToUpper(string(sess.Username[0]))
+	}
+
+	if hostname == "" || hostname == "cp.ppdmalfalah.id" {
+		if sys, err := os.Hostname(); err == nil && sys != "" {
+			hostname = sys
+		} else {
+			hostname = "localhost"
+		}
 	}
 
 	return BasePageData{

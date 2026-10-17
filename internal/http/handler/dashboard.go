@@ -20,9 +20,13 @@ func NewDashboardHandler(repo *storage.Repository, sm *system.ServiceManager) *D
 
 type DashboardData struct {
 	BasePageData
-	Metrics  system.SystemMetrics
-	Services []system.ServiceState
-	Domains  []model.Domain
+	Metrics        system.SystemMetrics
+	Services       []system.ServiceState
+	Domains        []model.Domain
+	ShowOnboarding bool
+	HasWebserver   bool
+	HasPHP         bool
+	HasDatabase    bool
 }
 
 func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -40,11 +44,33 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		services = append(services, st)
 	}
 
+	// Check installed stacks for onboarding check
+	all := h.sm.GetAllServicesList(ctx)
+	hasWebserver := false
+	hasPHP := false
+	hasDatabase := false
+	for _, s := range all {
+		if s.Installed {
+			switch s.Category {
+			case "webserver":
+				hasWebserver = true
+			case "php":
+				hasPHP = true
+			case "database":
+				hasDatabase = true
+			}
+		}
+	}
+
 	data := DashboardData{
-		BasePageData: NewBaseData(r, "Dashboard", "System Overview & Node Metrics", "dashboard", settings.Hostname),
-		Metrics:      metrics,
-		Services:     services,
-		Domains:      domains,
+		BasePageData:   NewBaseData(r, "Dashboard", "System Overview & Node Metrics", "dashboard", settings.Hostname),
+		Metrics:        metrics,
+		Services:       services,
+		Domains:        domains,
+		ShowOnboarding: !hasWebserver,
+		HasWebserver:   hasWebserver,
+		HasPHP:         hasPHP,
+		HasDatabase:    hasDatabase,
 	}
 
 	_ = web.RenderTemplate(w, "dashboard.html", data)

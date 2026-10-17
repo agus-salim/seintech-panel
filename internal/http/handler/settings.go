@@ -34,29 +34,6 @@ type SettingsPageData struct {
 func (h *SettingsHandler) View(w http.ResponseWriter, r *http.Request) {
 	settings, _ := h.repo.GetSettings()
 
-	// Ensure hosts slice is initialized
-	if len(settings.Hosts) == 0 {
-		primaryHost := settings.Hostname
-		if primaryHost == "" {
-			primaryHost = "cp.ppdmalfalah.id"
-		}
-		primaryPort := settings.Port
-		if primaryPort == 0 {
-			primaryPort = 8443
-		}
-		settings.Hosts = []model.PanelHost{
-			{
-				ID:          "host-primary",
-				Hostname:    primaryHost,
-				Port:        primaryPort,
-				SSLEnabled:  settings.SSLEnabled,
-				SSLProvider: "letsencrypt",
-				IsPrimary:   true,
-			},
-		}
-		_ = h.repo.SaveSettings(*settings)
-	}
-
 	// Synchronize authentic SSL certificates on disk for all panel hosts
 	for i := range settings.Hosts {
 		status := h.sslMgr.GetPanelHostSSLStatus(settings.Hosts[i].Hostname)

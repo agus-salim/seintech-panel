@@ -1,5 +1,277 @@
 {{ define "content" }}
-<div class="space-y-6">
+<div class="space-y-6" x-data="onboardingWizard()">
+
+    {{ if .ShowOnboarding }}
+    <!-- Fresh Install Setup Banner -->
+    <div x-show="showBanner" class="bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 rounded-2xl p-4 sm:p-5 text-white shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div class="flex items-center space-x-3.5">
+            <div class="w-10 h-10 rounded-xl bg-white/10 backdrop-blur border border-white/20 flex items-center justify-center flex-shrink-0">
+                <svg class="w-6 h-6 text-amber-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+            </div>
+            <div>
+                <h3 class="font-bold text-sm sm:text-base leading-tight">Server Siap Dikonfigurasi (Fresh Install)</h3>
+                <p class="text-xs sm:text-sm text-indigo-100 mt-0.5">Sistem mendeteksi belum ada Web Server terpasang. Pasang Nginx (diperlukan untuk SSL Let's Encrypt), PHP, dan Database sekarang.</p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-2 w-full sm:w-auto justify-end">
+            <button @click="openWizard()" type="button" class="px-4 py-2 bg-white text-indigo-600 font-bold text-xs rounded-xl shadow hover:bg-indigo-50 transition-colors whitespace-nowrap flex items-center">
+                <svg class="w-4 h-4 mr-1.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                Jalankan Setup Wizard
+            </button>
+        </div>
+    </div>
+
+    <!-- Onboarding Setup Wizard Modal Popup -->
+    <div x-show="showWizard" x-cloak class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <!-- Backdrop -->
+        <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" @click="if (!installing) dismissWizard()"></div>
+
+        <div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
+            <div class="relative transform overflow-hidden rounded-2xl bg-white text-left shadow-2xl transition-all sm:my-8 w-full sm:max-w-2xl border border-slate-100" @click.stop>
+                
+                <!-- Modal Header -->
+                <div class="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 px-6 py-5 text-white">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-bold text-white">Setup Wizard: Instalasi Web Stack</h3>
+                                <p class="text-xs text-indigo-200 mt-0.5">Pilih paket perangkat lunak inti untuk mengaktifkan fungsi hosting server Anda</p>
+                            </div>
+                        </div>
+                        <button x-show="!installing" @click="dismissWizard()" class="text-slate-400 hover:text-white transition-colors">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Content when NOT installing -->
+                <div x-show="!installing" class="p-6 space-y-6">
+                    <!-- 1. Web Server Selection -->
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
+                            1. Web Server Engine <span class="text-rose-500">*</span>
+                        </label>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <!-- Nginx Option -->
+                            <label @click="selectedWeb = 'nginx'" :class="selectedWeb === 'nginx' ? 'border-indigo-600 ring-2 ring-indigo-500/20 bg-indigo-50/40' : 'border-slate-200 hover:border-slate-300 bg-white'" class="relative flex flex-col p-4 rounded-xl border cursor-pointer transition-all">
+                                <div class="flex items-center justify-between mb-2">
+                                    <div class="flex items-center space-x-2">
+                                        <input type="radio" name="webserver" value="nginx" :checked="selectedWeb === 'nginx'" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-slate-300">
+                                        <span class="font-bold text-sm text-slate-900">Nginx Engine</span>
+                                    </div>
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                        Direkomendasikan
+                                    </span>
+                                </div>
+                                <p class="text-xs text-slate-500 leading-relaxed">
+                                    <strong class="text-indigo-700 font-semibold">Wajib untuk Let's Encrypt SSL:</strong> Nginx menangani ACME HTTP-01 challenge otomatis, SSL HTTPS Port 443, serta Reverse Proxy Node.js/Go/Python.
+                                </p>
+                            </label>
+
+                            <!-- Apache Option -->
+                            <label @click="selectedWeb = 'apache2'" :class="selectedWeb === 'apache2' ? 'border-indigo-600 ring-2 ring-indigo-500/20 bg-indigo-50/40' : 'border-slate-200 hover:border-slate-300 bg-white'" class="relative flex flex-col p-4 rounded-xl border cursor-pointer transition-all">
+                                <div class="flex items-center justify-between mb-2">
+                                    <div class="flex items-center space-x-2">
+                                        <input type="radio" name="webserver" value="apache2" :checked="selectedWeb === 'apache2'" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-slate-300">
+                                        <span class="font-bold text-sm text-slate-900">Apache 2.4</span>
+                                    </div>
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600">
+                                        Port :8080
+                                    </span>
+                                </div>
+                                <p class="text-xs text-slate-500 leading-relaxed">
+                                    Mendukung file konfigurasi <code class="bg-slate-100 px-1 py-0.5 rounded text-slate-700">.htaccess</code> bawaan untuk aplikasi PHP klasik.
+                                </p>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- 2. PHP Version Selection -->
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
+                            2. PHP Execution Engine
+                        </label>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                            <label @click="selectedPHP = 'php8.3-fpm'" :class="selectedPHP === 'php8.3-fpm' ? 'border-indigo-600 ring-2 ring-indigo-500/20 bg-indigo-50/40 font-semibold' : 'border-slate-200 bg-white text-slate-700'" class="flex items-center p-3 rounded-xl border cursor-pointer text-xs transition-all">
+                                <input type="radio" name="php_version" value="php8.3-fpm" :checked="selectedPHP === 'php8.3-fpm'" class="mr-2 text-indigo-600 focus:ring-indigo-500">
+                                <div>
+                                    <span class="block text-slate-900 font-bold">PHP 8.3 FPM</span>
+                                    <span class="text-[10px] text-emerald-600 font-medium">Stabil (Default)</span>
+                                </div>
+                            </label>
+                            <label @click="selectedPHP = 'php8.4-fpm'" :class="selectedPHP === 'php8.4-fpm' ? 'border-indigo-600 ring-2 ring-indigo-500/20 bg-indigo-50/40 font-semibold' : 'border-slate-200 bg-white text-slate-700'" class="flex items-center p-3 rounded-xl border cursor-pointer text-xs transition-all">
+                                <input type="radio" name="php_version" value="php8.4-fpm" :checked="selectedPHP === 'php8.4-fpm'" class="mr-2 text-indigo-600 focus:ring-indigo-500">
+                                <div>
+                                    <span class="block text-slate-900 font-bold">PHP 8.4 FPM</span>
+                                    <span class="text-[10px] text-slate-500">Versi Terbaru</span>
+                                </div>
+                            </label>
+                            <label @click="selectedPHP = 'php8.2-fpm'" :class="selectedPHP === 'php8.2-fpm' ? 'border-indigo-600 ring-2 ring-indigo-500/20 bg-indigo-50/40 font-semibold' : 'border-slate-200 bg-white text-slate-700'" class="flex items-center p-3 rounded-xl border cursor-pointer text-xs transition-all">
+                                <input type="radio" name="php_version" value="php8.2-fpm" :checked="selectedPHP === 'php8.2-fpm'" class="mr-2 text-indigo-600 focus:ring-indigo-500">
+                                <div>
+                                    <span class="block text-slate-900 font-bold">PHP 8.2 FPM</span>
+                                    <span class="text-[10px] text-slate-500">Long Term Support</span>
+                                </div>
+                            </label>
+                            <label @click="selectedPHP = 'php8.1-fpm'" :class="selectedPHP === 'php8.1-fpm' ? 'border-indigo-600 ring-2 ring-indigo-500/20 bg-indigo-50/40 font-semibold' : 'border-slate-200 bg-white text-slate-700'" class="flex items-center p-3 rounded-xl border cursor-pointer text-xs transition-all">
+                                <input type="radio" name="php_version" value="php8.1-fpm" :checked="selectedPHP === 'php8.1-fpm'" class="mr-2 text-indigo-600 focus:ring-indigo-500">
+                                <div>
+                                    <span class="block text-slate-900 font-bold">PHP 8.1 FPM</span>
+                                    <span class="text-[10px] text-slate-500">Standard</span>
+                                </div>
+                            </label>
+                            <label @click="selectedPHP = 'php7.4-fpm'" :class="selectedPHP === 'php7.4-fpm' ? 'border-indigo-600 ring-2 ring-indigo-500/20 bg-indigo-50/40 font-semibold' : 'border-slate-200 bg-white text-slate-700'" class="flex items-center p-3 rounded-xl border cursor-pointer text-xs transition-all">
+                                <input type="radio" name="php_version" value="php7.4-fpm" :checked="selectedPHP === 'php7.4-fpm'" class="mr-2 text-indigo-600 focus:ring-indigo-500">
+                                <div>
+                                    <span class="block text-slate-900 font-bold">PHP 7.4 FPM</span>
+                                    <span class="text-[10px] text-amber-600">Legacy Apps</span>
+                                </div>
+                            </label>
+                            <label @click="selectedPHP = 'none'" :class="selectedPHP === 'none' ? 'border-indigo-600 ring-2 ring-indigo-500/20 bg-indigo-50/40 font-semibold' : 'border-slate-200 bg-white text-slate-700'" class="flex items-center p-3 rounded-xl border cursor-pointer text-xs transition-all">
+                                <input type="radio" name="php_version" value="none" :checked="selectedPHP === 'none'" class="mr-2 text-indigo-600 focus:ring-indigo-500">
+                                <div>
+                                    <span class="block text-slate-600 font-medium">Lewati PHP</span>
+                                    <span class="text-[10px] text-slate-400">Node/Go/Static</span>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- 3. Database Server Selection -->
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
+                            3. Database Server
+                        </label>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <label @click="selectedDB = 'mariadb'" :class="selectedDB === 'mariadb' ? 'border-indigo-600 ring-2 ring-indigo-500/20 bg-indigo-50/40' : 'border-slate-200 bg-white'" class="flex flex-col p-3 rounded-xl border cursor-pointer transition-all">
+                                <div class="flex items-center justify-between mb-1">
+                                    <div class="flex items-center space-x-2">
+                                        <input type="radio" name="database" value="mariadb" :checked="selectedDB === 'mariadb'" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500">
+                                        <span class="font-bold text-xs text-slate-900">MariaDB Server</span>
+                                    </div>
+                                    <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                        Pilihan Populer
+                                    </span>
+                                </div>
+                                <span class="text-[11px] text-slate-500 mt-1">Kompatibel penuh dengan MySQL (WordPress, Laravel, CI)</span>
+                            </label>
+                            <label @click="selectedDB = 'postgresql'" :class="selectedDB === 'postgresql' ? 'border-indigo-600 ring-2 ring-indigo-500/20 bg-indigo-50/40' : 'border-slate-200 bg-white'" class="flex flex-col p-3 rounded-xl border cursor-pointer transition-all">
+                                <div class="flex items-center justify-between mb-1">
+                                    <div class="flex items-center space-x-2">
+                                        <input type="radio" name="database" value="postgresql" :checked="selectedDB === 'postgresql'" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500">
+                                        <span class="font-bold text-xs text-slate-900">PostgreSQL</span>
+                                    </div>
+                                </div>
+                                <span class="text-[11px] text-slate-500 mt-1">Database relasional tangguh untuk backend enterprise</span>
+                            </label>
+                            <label @click="selectedDB = 'none'" :class="selectedDB === 'none' ? 'border-indigo-600 ring-2 ring-indigo-500/20 bg-indigo-50/40' : 'border-slate-200 bg-white'" class="flex flex-col p-3 rounded-xl border cursor-pointer transition-all">
+                                <div class="flex items-center justify-between mb-1">
+                                    <div class="flex items-center space-x-2">
+                                        <input type="radio" name="database" value="none" :checked="selectedDB === 'none'" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500">
+                                        <span class="font-bold text-xs text-slate-600">Lewati Database</span>
+                                    </div>
+                                </div>
+                                <span class="text-[11px] text-slate-400 mt-1">Gunakan database remote / pasang nanti</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Content when INSTALLING -->
+                <div x-show="installing" class="p-8 space-y-6">
+                    <div class="text-center">
+                        <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
+                            <template x-if="!isDone && !isError">
+                                <svg class="animate-spin w-8 h-8" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                            </template>
+                            <template x-if="isDone">
+                                <svg class="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                            </template>
+                            <template x-if="isError">
+                                <svg class="w-8 h-8 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            </template>
+                        </div>
+                        <h4 class="text-lg font-bold text-slate-900" x-text="isDone ? 'Instalasi Selesai!' : (isError ? 'Terjadi Kesalahan' : 'Sedang Memasang Paket...')"></h4>
+                        <p class="text-xs text-slate-500 mt-1" x-text="isDone ? 'Semua paket berhasil dipasang. Panel akan me-refresh otomatis.' : 'Mohon tunggu, proses mengunduh dan mengonfigurasi paket APT memerlukan waktu beberapa menit.'"></p>
+                    </div>
+
+                    <!-- Steps list -->
+                    <div class="bg-slate-50 rounded-xl p-4 border border-slate-200/70 space-y-3">
+                        <template x-for="(step, sIdx) in installSteps" :key="step.id">
+                            <div class="flex items-center justify-between text-xs py-1">
+                                <div class="flex items-center space-x-2.5">
+                                    <span class="font-medium text-slate-800" x-text="(sIdx + 1) + '. ' + step.name"></span>
+                                </div>
+                                <div>
+                                    <span x-show="step.status === 'pending'" class="text-slate-400 font-medium">Menunggu giliran...</span>
+                                    <span x-show="step.status === 'installing'" class="inline-flex items-center text-indigo-600 font-semibold">
+                                        <svg class="animate-spin w-3.5 h-3.5 mr-1" fill="none" viewBox="0 0 24 24">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                        Sedang Memasang...
+                                    </span>
+                                    <span x-show="step.status === 'done'" class="inline-flex items-center text-emerald-600 font-bold">
+                                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                        Berhasil
+                                    </span>
+                                    <span x-show="step.status === 'failed'" class="inline-flex items-center text-rose-600 font-bold">
+                                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                        Gagal
+                                    </span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- Live log box -->
+                    <div class="bg-slate-900 text-slate-300 font-mono text-[11px] p-3 rounded-lg border border-slate-800 break-all leading-relaxed">
+                        <span class="text-emerald-400 font-bold">&gt;</span> <span x-text="logMessage"></span>
+                    </div>
+                </div>
+
+                <!-- Modal Footer -->
+                <div class="bg-slate-50 px-6 py-4 flex items-center justify-between border-t border-slate-100">
+                    <template x-if="!installing">
+                        <div class="flex items-center justify-between w-full">
+                            <button type="button" @click="dismissWizard()" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 rounded-lg transition-colors">
+                                Nanti Saja (Tutup)
+                            </button>
+                            <button type="button" @click="startInstall()" class="inline-flex items-center px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all transform hover:-translate-y-0.5">
+                                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                                Pasang Komponen Terpilih
+                            </button>
+                        </div>
+                    </template>
+                    <template x-if="installing && isError">
+                        <div class="flex items-center justify-end w-full space-x-2">
+                            <button type="button" @click="installing = false" class="px-4 py-2 text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg">
+                                Kembali ke Pilihan
+                            </button>
+                            <a href="/services" class="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg">
+                                Buka Services Manager
+                            </a>
+                        </div>
+                    </template>
+                    <template x-if="installing && isDone">
+                        <div class="flex items-center justify-end w-full">
+                            <button type="button" @click="window.location.reload()" class="px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow">
+                                Refresh Sekarang
+                            </button>
+                        </div>
+                    </template>
+                </div>
+
+            </div>
+        </div>
+    </div>
+    {{ end }}
 
     <!-- Top Stats Grid -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
@@ -253,4 +525,144 @@
     </div>
 
 </div>
+
+<script>
+function onboardingWizard() {
+    return {
+        showWizard: {{ if .ShowOnboarding }}!localStorage.getItem('seintech_wizard_dismissed'){{ else }}false{{ end }},
+        showBanner: {{ if .ShowOnboarding }}true{{ else }}false{{ end }},
+        selectedWeb: 'nginx',
+        selectedPHP: 'php8.3-fpm',
+        selectedDB: 'mariadb',
+        installing: false,
+        currentStepIndex: 0,
+        installSteps: [],
+        logMessage: '',
+        isDone: false,
+        isError: false,
+        pollTimer: null,
+
+        dismissWizard() {
+            this.showWizard = false;
+            localStorage.setItem('seintech_wizard_dismissed', '1');
+        },
+
+        openWizard() {
+            this.showWizard = true;
+            this.installing = false;
+            this.isDone = false;
+            this.isError = false;
+        },
+
+        startInstall() {
+            const queue = [];
+            if (this.selectedWeb && this.selectedWeb !== 'none') {
+                queue.push({
+                    id: this.selectedWeb,
+                    name: this.selectedWeb === 'nginx' ? 'Nginx Web Server' : 'Apache 2.4 Server',
+                    status: 'pending'
+                });
+            }
+            if (this.selectedPHP && this.selectedPHP !== 'none') {
+                const phpLabels = {
+                    'php8.3-fpm': 'PHP 8.3 FPM',
+                    'php8.4-fpm': 'PHP 8.4 FPM',
+                    'php8.2-fpm': 'PHP 8.2 FPM',
+                    'php8.1-fpm': 'PHP 8.1 FPM',
+                    'php7.4-fpm': 'PHP 7.4 FPM'
+                };
+                queue.push({
+                    id: this.selectedPHP,
+                    name: phpLabels[this.selectedPHP] || this.selectedPHP.toUpperCase(),
+                    status: 'pending'
+                });
+            }
+            if (this.selectedDB && this.selectedDB !== 'none') {
+                queue.push({
+                    id: this.selectedDB,
+                    name: this.selectedDB === 'mariadb' ? 'MariaDB Server' : 'PostgreSQL Server',
+                    status: 'pending'
+                });
+            }
+
+            if (queue.length === 0) {
+                alert('Silakan pilih minimal satu komponen untuk dipasang.');
+                return;
+            }
+
+            this.installSteps = queue;
+            this.installing = true;
+            this.isDone = false;
+            this.isError = false;
+            this.runStep(0);
+        },
+
+        runStep(index) {
+            if (index >= this.installSteps.length) {
+                this.isDone = true;
+                this.logMessage = 'Semua komponen terpilih berhasil dipasang dan diaktifkan!';
+                localStorage.setItem('seintech_wizard_dismissed', '1');
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
+                return;
+            }
+
+            this.currentStepIndex = index;
+            const currentItem = this.installSteps[index];
+            currentItem.status = 'installing';
+            this.logMessage = 'Memulai proses instalasi ' + currentItem.name + ' via APT...';
+
+            const formData = new FormData();
+            formData.append('service', currentItem.id);
+
+            fetch('/services/install', {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (!data.job_id) {
+                    throw new Error('Gagal mendapatkan ID job');
+                }
+                this.pollJob(data.job_id, index);
+            })
+            .catch(err => {
+                currentItem.status = 'failed';
+                this.isError = true;
+                this.logMessage = 'Gagal memasang ' + currentItem.name + ': ' + err.message;
+            });
+        },
+
+        pollJob(jobId, index) {
+            if (this.pollTimer) clearInterval(this.pollTimer);
+            const currentItem = this.installSteps[index];
+
+            this.pollTimer = setInterval(() => {
+                fetch('/services/job/' + jobId)
+                    .then(r => r.json())
+                    .then(job => {
+                        if (job.message) {
+                            this.logMessage = job.message;
+                        }
+
+                        if (job.status === 'done') {
+                            clearInterval(this.pollTimer);
+                            currentItem.status = 'done';
+                            this.runStep(index + 1);
+                        } else if (job.status === 'failed') {
+                            clearInterval(this.pollTimer);
+                            currentItem.status = 'failed';
+                            this.isError = true;
+                            this.logMessage = 'Instalasi ' + currentItem.name + ' gagal: ' + (job.message || 'Error tidak diketahui');
+                        }
+                    })
+                    .catch(() => {
+                        // ignore network hiccup, keep polling
+                    });
+            }, 1800);
+        }
+    };
+}
+</script>
 {{ end }}

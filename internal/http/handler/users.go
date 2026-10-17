@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -305,7 +306,29 @@ func (h *UserHandler) UpdateQuota(w http.ResponseWriter, r *http.Request) {
 
 	_ = h.repo.SaveQuota(*q)
 
-	http.Redirect(w, r, "/users?msg=Kuota+untuk+"+targetUser.Username+"+berhasil+diperbarui&type=success", http.StatusSeeOther)
+	// Optional password update
+	newPassword := strings.TrimSpace(r.FormValue("new_password"))
+	passwordUpdated := false
+	if newPassword != "" {
+		hash, err := auth.HashPassword(newPassword)
+		if err != nil {
+			http.Redirect(w, r, "/users?msg=Gagal+mengenkripsi+password+baru&type=error", http.StatusSeeOther)
+			return
+		}
+		targetUser.PasswordHash = hash
+		if err := h.repo.UpsertUser(*targetUser); err != nil {
+			http.Redirect(w, r, "/users?msg=Gagal+menyimpan+password+baru&type=error", http.StatusSeeOther)
+			return
+		}
+		passwordUpdated = true
+	}
+
+	msg := "Pengaturan kuota untuk " + targetUser.Username + " berhasil diperbarui"
+	if passwordUpdated {
+		msg = "Pengaturan kuota dan password untuk " + targetUser.Username + " berhasil diperbarui"
+	}
+
+	http.Redirect(w, r, "/users?msg="+url.QueryEscape(msg)+"&type=success", http.StatusSeeOther)
 }
 
 func (h *UserHandler) Delete(w http.ResponseWriter, r *http.Request) {

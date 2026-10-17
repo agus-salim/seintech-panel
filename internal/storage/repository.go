@@ -2,6 +2,7 @@ package storage
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -308,10 +309,14 @@ func (r *Repository) DeleteQuota(userID string) error {
 func (r *Repository) GetSettings() (*model.PanelSettings, error) {
 	var settings model.PanelSettings
 	err := r.settingsStore.Read(&settings)
+	sysHost, _ := os.Hostname()
+	if sysHost == "" {
+		sysHost = "localhost"
+	}
 	if err != nil {
 		// default settings
 		settings = model.PanelSettings{
-			Hostname:               "cp.ppdmalfalah.id",
+			Hostname:               sysHost,
 			Port:                   8443,
 			ListenAddr:             "0.0.0.0",
 			DefaultWebServer:       "nginx",
@@ -319,26 +324,25 @@ func (r *Repository) GetSettings() (*model.PanelSettings, error) {
 			SessionTimeoutMinutes:  120,
 			SecurityHeadersEnabled: true,
 			AutoRenewSSL:           true,
+			Hosts:                  []model.PanelHost{},
 		}
 	}
-	if settings.Hostname == "" {
-		settings.Hostname = "cp.ppdmalfalah.id"
+	if settings.Hostname == "" || settings.Hostname == "cp.ppdmalfalah.id" {
+		settings.Hostname = sysHost
 	}
 	if settings.Port == 0 {
 		settings.Port = 8443
 	}
-	if len(settings.Hosts) == 0 {
-		settings.Hosts = []model.PanelHost{
-			{
-				ID:          "host-primary",
-				Hostname:    settings.Hostname,
-				Port:        settings.Port,
-				SSLEnabled:  settings.SSLEnabled,
-				SSLProvider: "letsencrypt",
-				IsPrimary:   true,
-			},
+
+	// Filter out hardcoded cp.ppdmalfalah.id if present in existing hosts data
+	var cleanHosts []model.PanelHost
+	for _, h := range settings.Hosts {
+		if h.Hostname != "cp.ppdmalfalah.id" && h.Hostname != "" {
+			cleanHosts = append(cleanHosts, h)
 		}
 	}
+	settings.Hosts = cleanHosts
+
 	return &settings, nil
 }
 

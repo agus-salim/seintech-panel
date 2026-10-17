@@ -2,7 +2,7 @@
 <div class="space-y-6" x-data="{
     createModal: new URLSearchParams(window.location.search).has('new'),
     editModal: false,
-    editData: { id: '', domain: '', aliases: '', webserver: 'nginx', php: '8.4', mode: 'php', proxy: '', docroot: '' },
+    editData: { id: '', domain: '', aliases: '', webserver: 'nginx', php: '8.4', mode: 'php', proxy: 'http://127.0.0.1:8080', docroot: '' },
     logModal: false,
     logId: '',
     logDomain: '',
@@ -277,7 +277,7 @@
                             <div class="inline-flex items-center gap-1 justify-end">
                                 <!-- Edit Icon -->
                                 <button type="button" 
-                                        @click="editData = { id: '{{ .ID }}', domain: '{{ .DomainName }}', aliases: '{{ range $i, $a := .Aliases }}{{ if $i }},{{ end }}{{ $a }}{{ end }}', webserver: '{{ .WebServerType }}', php: '{{ .PHPVersion }}', mode: '{{ if .IsReverseProxy }}proxy{{ else if .IsStatic }}static{{ else }}php{{ end }}', proxy: '{{ .ProxyTarget }}', docroot: '{{ .DocumentRoot }}' }; editModal = true"
+                                        @click="editData = { id: '{{ .ID }}', domain: '{{ .DomainName }}', aliases: '{{ range $i, $a := .Aliases }}{{ if $i }},{{ end }}{{ $a }}{{ end }}', webserver: '{{ .WebServerType }}', php: '{{ .PHPVersion }}', mode: '{{ if .IsReverseProxy }}proxy{{ else if .IsStatic }}static{{ else }}php{{ end }}', proxy: '{{ .ProxyTarget }}' || 'http://127.0.0.1:8080', docroot: '{{ .DocumentRoot }}' }; editModal = true"
                                         title="Edit Virtual Host"
                                         class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
@@ -354,6 +354,7 @@
                     domainName: '',
                     siteUser: '',
                     userEdited: false,
+                    proxyTarget: 'http://127.0.0.1:8080',
                     updateSiteUser() {
                         if (!this.userEdited) {
                             let d = (this.domainName || '').toLowerCase().trim().replace(/^www\./, '');
@@ -427,7 +428,7 @@
 
                     <div x-show="mode === 'proxy'" style="display: none;">
                         <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Reverse Proxy Target URL</label>
-                        <input type="text" name="proxy_target" placeholder="http://127.0.0.1:3000" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                        <input type="text" name="proxy_target" x-model="proxyTarget" placeholder="http://127.0.0.1:8080" class="w-full px-3.5 py-2 text-sm font-mono border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
                     </div>
 
                     <div class="flex items-center pt-2">
@@ -479,7 +480,7 @@
 
                         <div>
                             <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Application Mode</label>
-                            <select name="mode" x-model="editData.mode" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                            <select name="mode" x-model="editData.mode" @change="if (editData.mode === 'proxy' && !editData.proxy) editData.proxy = 'http://127.0.0.1:8080'" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
                                 <option value="php">PHP-FPM Application</option>
                                 <option value="proxy">Reverse Proxy (Node/Go/Python)</option>
                                 <option value="static">Static HTML/JS Site</option>
@@ -498,7 +499,7 @@
 
                     <div x-show="editData.mode === 'proxy'">
                         <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Reverse Proxy Target URL</label>
-                        <input type="text" name="proxy_target" x-model="editData.proxy" placeholder="http://127.0.0.1:3000" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                        <input type="text" name="proxy_target" x-model="editData.proxy" placeholder="http://127.0.0.1:8080" class="w-full px-3.5 py-2 text-sm font-mono border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
                     </div>
 
                     <div>

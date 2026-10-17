@@ -1,6 +1,6 @@
 # Seintech Hosting Panel 🚀
 
-**Seintech Hosting Panel** adalah web hosting control panel modern berbasis **single binary Go** yang ultra-ringan, modular, dan tangguh. Dirancang khusus untuk berjalan sebagai `systemd` service pada sistem operasi Linux (Ubuntu, Debian) tanpa memerlukan database eksternal untuk konfigurasi internalnya.
+**Seintech Hosting Panel** adalah web hosting control panel modern berbasis **single binary Go** yang ultra-ringan, modular, dan tangguh. Dirancang khusus untuk berjalan sebagai `systemd` service pada sistem operasi Linux (Debian, Ubuntu) tanpa memerlukan database eksternal untuk konfigurasi internalnya.
 
 Repositori Resmi: **[https://github.com/seintechid/panel](https://github.com/seintechid/panel)**
 
@@ -9,8 +9,7 @@ Repositori Resmi: **[https://github.com/seintechid/panel](https://github.com/sei
 ## 🌟 Arsitektur & Keunggulan Utama
 
 1. **Standalone Single Binary Go (`embed.FS`):**
-   - Seluruh static assets (CSS, JS, gambar logo) dan Go HTML templates dibundle langsung ke dalam satu binary menggunakan fitur Go `embed.FS`.
-   - Seluruh static assets (CSS, JS, gambar logo) dan Go HTML templates dibundle langsung ke dalam satu binary menggunakan fitur Go `embed.FS`.
+   - Seluruh static assets (CSS, JS, logo) dan Go HTML templates dibundle langsung ke dalam satu binary menggunakan fitur Go `embed.FS`.
    - Tidak memerlukan dependensi Node.js, runtime Python, atau interpreter di host server.
    
 2. **Penyimpanan Flat-File JSON Berintegritas Tinggi:**
@@ -18,8 +17,6 @@ Repositori Resmi: **[https://github.com/seintechid/panel](https://github.com/sei
    - **Dual-Locking:** Dilindungi oleh `sync.RWMutex` (in-process concurrency safety) dan OS-level `flock` (advisory file locking) untuk mencegah race condition antar-proses.
    - **Atomic Write:** Menggunakan strategi penulisan ke temporary file kemudian `os.Rename` untuk mencegah kerusakan data jika terjadi pemadaman mendadak.
 
-3. **Multi-Webserver Management (Nginx & Apache2):**
-   - Abstraksi interface `WebServer` yang mengendalikan **Nginx** (High-Performance Engine / Reverse Proxy) dan **Apache2** (MPM Event & PHP-FPM).
 3. **Multi-Webserver Management (Nginx & Apache2):**
    - Abstraksi interface `WebServer` yang mengendalikan **Nginx** (High-Performance Engine / Reverse Proxy) dan **Apache2** (MPM Event & PHP-FPM).
    - Dilengkapi template generator vhost untuk reverse proxy, static site, dan PHP-FPM socket router.
@@ -30,7 +27,6 @@ Repositori Resmi: **[https://github.com/seintechid/panel](https://github.com/sei
 
 5. **Multi-Database Engine:**
    - Mendukung **MariaDB/MySQL** dan **PostgreSQL**.
-   - Pengelolaan database, user privilege, monitoring ukuran database, dan integrasi Single Sign-On (SSO) instan ke **phpMyAdmin** dan **phpPgAdmin**.
    - Pengelolaan database, user privilege, monitoring ukuran database, dan integrasi Single Sign-On (SSO) instan ke **phpMyAdmin** dan **phpPgAdmin**.
 
 6. **Automasi SSL / Let's Encrypt ACME:**
@@ -46,8 +42,6 @@ Repositori Resmi: **[https://github.com/seintechid/panel](https://github.com/sei
    - Password terenkripsi dengan algoritma `bcrypt`.
    - Pembatasan Kuota Penyimpanan / Storage (MB), RAM proses Linux (MB), jumlah virtualhost, dan database per user.
    - Isolasi ketat: End-User terkunci pada 1 situs, direktori miliknya, dan 1 database miliknya.
-   - Pembatasan Kuota Penyimpanan / Storage (MB), RAM proses Linux (MB), jumlah virtualhost, dan database per user.
-   - Isolasi ketat: End-User terkunci pada 1 situs, direktori miliknya, dan 1 database miliknya.
 
 ---
 
@@ -56,19 +50,16 @@ Repositori Resmi: **[https://github.com/seintechid/panel](https://github.com/sei
 ```text
 seintech-panel/
 ├── bin/
-│   ├── seintech                    # Precompiled Linux standalone binary
-│   └── seintech-linux-amd64        # Salinan binary deployment Linux x86_64
-├── bin/
-│   ├── seintech                    # Precompiled Linux standalone binary
-│   └── seintech-linux-amd64        # Salinan binary deployment Linux x86_64
+│   ├── seintech                    # Precompiled Linux standalone binary (x86_64)
+│   ├── seintech-linux-amd64        # Salinan binary deployment Linux x86_64
+│   └── seintech.exe                # Binary Windows (testing)
 ├── cmd/
 │   └── seintech/
 │       └── main.go                 # Entrypoint aplikasi, CLI flags, bootstrap admin & graceful shutdown
 ├── configs/
-│   └── schema/                     # Contoh skema flat-file JSON
+│   └── schema/                     # Skema flat-file JSON
 │       ├── users.json
 │       ├── domains.json
-│       ├── databases.json
 │       ├── databases.json
 │       ├── quotas.json
 │       └── settings.json
@@ -80,72 +71,25 @@ seintech-panel/
 │   ├── config/
 │   │   └── config.go               # Loader konfigurasi lingkungan (dev vs prod)
 │   ├── core/
-│   │   ├── auth/
-│   │   │   └── auth.go             # Manajemen sesi & enkripsi bcrypt
-│   │   ├── database/
-│   │   │   └── database.go         # Driver provisioning MariaDB & PostgreSQL
-│   │   ├── filemanager/
-│   │   │   ├── filemanager.go      # Operasi file, kompresi, ZipSlip guard
-│   │   │   └── security.go         # Chroot jail & sanitasi symlink breakout
-│   │   ├── php/
-│   │   │   └── php.go              # Manajemen engine PHP 7.4-8.5 & FPM pools
-│   │   ├── ssl/
-│   │   │   └── ssl.go              # ACME client, self-signed generator & auto-renewal
-│   │   ├── system/
-│   │   │   ├── metrics.go          # Pengambilan metrik CPU, RAM, Disk, LoadAvg
-│   │   │   ├── metrics_linux.go    # Pengambilan metrik spesifik kernel Linux
-│   │   │   ├── quota.go            # Kalkulasi penggunaan Storage (MB) & RAM proses
-│   │   │   ├── service.go          # Wrapper aman systemctl dengan whitelist
-│   │   │   ├── user.go             # Linux user provisioning & home directory isolation
-│   │   │   └── jobs.go             # Background package installation & progress tracker
-│   │   │   ├── metrics_linux.go    # Pengambilan metrik spesifik kernel Linux
-│   │   │   ├── quota.go            # Kalkulasi penggunaan Storage (MB) & RAM proses
-│   │   │   ├── service.go          # Wrapper aman systemctl dengan whitelist
-│   │   │   ├── user.go             # Linux user provisioning & home directory isolation
-│   │   │   └── jobs.go             # Background package installation & progress tracker
-│   │   └── webserver/
-│   │       ├── webserver.go        # Interface WebServer & Registry
-│   │       ├── nginx.go            # Implementasi Nginx vhost & reload
-│   │       └── apache.go           # Implementasi Apache2 vhost & proxy_fcgi
-│   │       └── apache.go           # Implementasi Apache2 vhost & proxy_fcgi
+│   │   ├── auth/                   # Manajemen sesi & enkripsi bcrypt
+│   │   ├── database/               # Driver provisioning MariaDB & PostgreSQL
+│   │   ├── filemanager/            # Operasi file, kompresi, ZipSlip guard & chroot
+│   │   ├── php/                    # Manajemen engine PHP 7.4-8.5 & FPM pools
+│   │   ├── ssl/                    # ACME client, self-signed generator & auto-renewal
+│   │   ├── system/                 # Metrik Linux, kuota, service manager & background jobs
+│   │   └── webserver/              # Interface WebServer, Nginx & Apache2 drivers
 │   ├── http/
-│   │   ├── handler/                # HTTP Handlers (Dashboard, Domains, File Manager, DB, Users, dll.)
 │   │   ├── handler/                # HTTP Handlers (Dashboard, Domains, File Manager, DB, Users, dll.)
 │   │   ├── middleware/             # Security headers, RequireAuth, RequireRole
 │   │   └── router.go               # Routing Chi HTTP
 │   ├── model/                      # Struct data Go (User, Domain, Quota, Database, Settings)
-│   ├── model/                      # Struct data Go (User, Domain, Quota, Database, Settings)
-│   └── storage/
-│       ├── flock.go                # Interface advisory file lock
-│       ├── flock_unix.go           # Implementasi flock Linux (unix.Flock)
-│       ├── flock_windows.go        # Implementasi Windows LockFileEx
-│       ├── json_store.go           # Atomic JSON flat-file storage engine
-│       └── repository.go           # Repository layer
+│   └── storage/                    # Dual-locking & atomic JSON flat-file storage engine
 ├── web/
 │   ├── embed.go                    # embed.FS bundle untuk template & assets
 │   ├── static/
 │   │   ├── css/style.css           # Styling Fira Sans & JetBrains Mono
-│   │   └── img/logo.jpg            # Logo resmi SEINTECH (Sekadau Innovation Technology)
-│   │   ├── css/style.css           # Styling Fira Sans & JetBrains Mono
-│   │   └── img/logo.jpg            # Logo resmi SEINTECH (Sekadau Innovation Technology)
-│   └── templates/
-│       ├── layout.html             # Base layout Tailwind CSS (Light Mode)
-│       ├── dashboard.html          # Halaman statistik & service status
-│       ├── domains.html            # Manajemen virtual host
-│       ├── filemanager.html        # Web file manager & code editor (chroot jailed)
-│       ├── databases.html          # Manajemen MySQL, PostgreSQL, & SSO phpMyAdmin
-│       ├── filemanager.html        # Web file manager & code editor (chroot jailed)
-│       ├── databases.html          # Manajemen MySQL, PostgreSQL, & SSO phpMyAdmin
-│       ├── php.html                # Multi-PHP engine controller
-│       ├── ssl.html                # Manajemen sertifikat SSL Let's Encrypt
-│       ├── users.html              # Manajemen RBAC & Resource Quotas
-│       ├── services.html           # Manajemen packages & system services
-│       ├── settings.html           # Pengaturan port & hostname
-│       ├── ssl.html                # Manajemen sertifikat SSL Let's Encrypt
-│       ├── users.html              # Manajemen RBAC & Resource Quotas
-│       ├── services.html           # Manajemen packages & system services
-│       ├── settings.html           # Pengaturan port & hostname
-│       └── login.html              # Halaman login
+│   │   └── img/logo.jpg            # Logo resmi SEINTECH
+│   └── templates/                  # Go HTML Templates (Tailwind UI)
 ├── Makefile
 ├── go.mod
 └── README.md
@@ -153,43 +97,124 @@ seintech-panel/
 
 ---
 
-## 🛠️ Panduan Kompilasi & Menjalankan
+## 🚀 Panduan Instalasi di Server Debian / Ubuntu (Production)
 
-### 1. Menjalankan Mode Development
-Untuk menguji panel di mesin lokal tanpa memodifikasi `/var/lib/seintech`:
+### 1. Prasyarat Server
+- Sistem Operasi: **Debian 11 (Bullseye), Debian 12 (Bookworm), Debian 13 (Trixie)** atau **Ubuntu 20.04/22.04/24.04 LTS**.
+- Hak akses: **root** (atau user dengan akses `sudo`).
+- Port yang perlu dibuka di firewall:
+  - `8443` : Dashboard Panel (HTTPS)
+  - `80`   : HTTP / Let's Encrypt Verification
+  - `443`  : HTTPS Web Server
+  - `22`   : SSH Server
+
+---
+
+### 2. Langkah Instalasi Otomatis (Direkomendasikan)
+
+Masuk ke server Debian Anda via SSH, kemudian jalankan langkah berikut:
+
+#### Langkah A: Perbarui paket dasar server
+```bash
+apt update -y && apt install -y git curl wget ca-certificates
+```
+
+#### Langkah B: Clone repositori resmi
+```bash
+git clone https://github.com/seintechid/panel.git /opt/seintech-panel
+```
+
+#### Langkah C: Jalankan skrip installer
+```bash
+cd /opt/seintech-panel
+chmod +x deploy/install.sh
+./deploy/install.sh
+```
+
+Skrip installer otomatis melakukan:
+1. Pembuatan direktori aplikasi (`/var/lib/seintech/data`, `/var/lib/seintech/ssl`, `/var/www`, dll).
+2. Konfigurasi repositori resmi PHP (Ondrej Sury PPA / packages.sury.org).
+3. Pemasangan binary `/usr/local/bin/seintech` dari precompiled binary yang sudah ada di repo.
+4. Pendaftaran dan aktivasi `systemd` unit `/etc/systemd/system/seintech.service`.
+5. Menjalankan service Seintech Panel di latar belakang.
+
+---
+
+### 3. Konfigurasi Firewall (UFW)
+
+Jika Anda menggunakan UFW (Uncomplicated Firewall) pada Debian/Ubuntu, buka port yang dibutuhkan:
+
+```bash
+ufw allow 8443/tcp comment "Seintech Panel HTTPS"
+ufw allow 80/tcp comment "HTTP Web"
+ufw allow 443/tcp comment "HTTPS Web"
+ufw allow 22/tcp comment "SSH"
+ufw reload
+```
+
+---
+
+### 4. Mengakses Web Dashboard
+
+Setelah instalasi selesai, buka browser Anda:
+
+- **Alamat URL:** `https://<IP_SERVER_ANDA>:8443`  
+  *(Contoh: `https://192.168.1.100:8443` atau `https://203.0.113.10:8443`)*
+- **Peringatan SSL:** Karena panel menggunakan SSL self-signed pada bootstrap awal, browser akan menampilkan peringatan keamanan. Klik **Advanced / Tingkat Lanjut** lalu pilih **Proceed to ... (unsafe)** untuk melanjutkan.
+- **Kredensial Default:**
+  - **Username:** `admin`
+  - **Password:** `admin123`
+
+> [!IMPORTANT]
+> Segera ganti kata sandi akun default setelah pertama kali login melalui menu **Users** atau **Settings** demi keamanan server Anda.
+
+---
+
+### 5. Manajemen Layanan (Systemd)
+
+Gunakan perintah `systemctl` untuk mengelola layanan Seintech Panel:
+
+```bash
+# Memeriksa status layanan
+systemctl status seintech
+
+# Memantau log aplikasi secara real-time
+journalctl -u seintech -f
+
+# Restart layanan
+systemctl restart seintech
+
+# Menghentikan layanan
+systemctl stop seintech
+
+# Memulai kembali layanan
+systemctl start seintech
+```
+
+---
+
+## 🛠️ Opsi Instalasi Lanjutan & Development
+
+### Kompilasi Manual dari Source (Arsitektur ARM64 / Non-x86)
+Jika server Anda menggunakan prosesor arsitektur ARM64 (seperti Raspberry Pi atau Oracle Cloud Ampere A1) atau Anda ingin mengompilasi binary sendiri:
+
+1. Pasang compiler Go di server Debian:
+   ```bash
+   apt install -y golang-go
+   ```
+2. Kompilasi dan pasang binary:
+   ```bash
+   cd /opt/seintech-panel
+   go build -ldflags="-s -w" -o /usr/local/bin/seintech ./cmd/seintech
+   chmod 755 /usr/local/bin/seintech
+   cp deploy/systemd/seintech.service /etc/systemd/system/seintech.service
+   systemctl daemon-reload
+   systemctl enable --now seintech
+   ```
+
+### Menjalankan Mode Development Lokal
+Untuk menguji dan mengembangkan panel di laptop/komputer lokal tanpa mengganggu sistem operasi host:
 ```bash
 go run ./cmd/seintech -dev -port 8443
 ```
-Panel akan otomatis membuat folder data lokal (`./data`, `./vhosts`, `./ssl`) dan meng-generate sertifikat TLS self-signed untuk akses HTTPS:
-Buka di browser: `https://localhost:8443`  
-Default kredensial:
-- **Username:** `admin`
-- **Password:** `admin123`
-
-### 2. Kompilasi Standalone Binary (Linux Production)
-Gunakan `Makefile`:
-```bash
-make build-linux
-```
-Atau via perintah Go langsung:
-```bash
-GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/seintech ./cmd/seintech
-```
-
-### 3. Deploy sebagai Systemd Service pada Linux (Debian/Ubuntu/RHEL)
-Jalankan skrip instalasi langsung sebagai `root`:
-```bash
-./deploy/install.sh
-```
-Atau manual:
-```bash
-cp bin/seintech /usr/local/bin/seintech
-cp deploy/systemd/seintech.service /etc/systemd/system/
-systemctl daemon-reload
-systemctl enable --now seintech
-```
-Cek status layanan:
-```bash
-systemctl status seintech
-journalctl -u seintech -f
-```
+Panel akan otomatis membuat folder sandbox lokal (`./data`, `./vhosts`, `./ssl`) dan meng-generate sertifikat TLS self-signed untuk pengujian di `https://localhost:8443`.

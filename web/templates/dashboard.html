@@ -527,8 +527,15 @@
 
 <script>
 function onboardingWizard() {
+    // Purge stale permanent flag from previous versions
+    try {
+        localStorage.removeItem('seintech_wizard_dismissed');
+    } catch (e) {}
+
+    const isClosedInSession = sessionStorage.getItem('seintech_wizard_closed') === '1';
+
     return {
-        showWizard: {{ if .ShowOnboarding }}!localStorage.getItem('seintech_wizard_dismissed'){{ else }}false{{ end }},
+        showWizard: {{ if .ShowOnboarding }}!isClosedInSession{{ else }}false{{ end }},
         showBanner: {{ if .ShowOnboarding }}true{{ else }}false{{ end }},
         selectedWeb: 'nginx',
         selectedPHP: 'php8.3-fpm',
@@ -543,7 +550,9 @@ function onboardingWizard() {
 
         dismissWizard() {
             this.showWizard = false;
-            localStorage.setItem('seintech_wizard_dismissed', '1');
+            try {
+                sessionStorage.setItem('seintech_wizard_closed', '1');
+            } catch (e) {}
         },
 
         openWizard() {

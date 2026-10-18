@@ -25,11 +25,16 @@ chmod 750 /var/lib/seintech/data
 chmod 700 /var/lib/seintech/ssl
 chmod 777 /var/lib/seintech/pma_tokens
 
-# Ensure bundled official standalone adminer.php is copied to system
+# Ensure bundled official standalone adminer.php and modern adminer.css are copied to system
 if [ -f "./web/static/adminer.php" ]; then
     cp ./web/static/adminer.php /usr/share/adminer/adminer.php
     chmod 644 /usr/share/adminer/adminer.php
     chown www-data:www-data /usr/share/adminer/adminer.php 2>/dev/null || true
+fi
+if [ -f "./web/static/adminer.css" ]; then
+    cp ./web/static/adminer.css /usr/share/adminer/adminer.css
+    chmod 644 /usr/share/adminer/adminer.css
+    chown www-data:www-data /usr/share/adminer/adminer.css 2>/dev/null || true
 fi
 
 # 2. Configure APT Repositories for PHP (Debian/Ubuntu)

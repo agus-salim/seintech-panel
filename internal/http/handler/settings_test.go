@@ -36,19 +36,18 @@ func setupTestSettingsHandler(t *testing.T) (*SettingsHandler, *storage.Reposito
 func TestSettingsHandler_AddHost_And_DeleteHost(t *testing.T) {
 	h, repo := setupTestSettingsHandler(t)
 
-	// Initially verify default settings
+	// Initially verify default settings starts with 0 hosts on fresh install
 	settings, err := repo.GetSettings()
 	if err != nil {
 		t.Fatalf("GetSettings error: %v", err)
 	}
-	if len(settings.Hosts) != 1 {
-		t.Fatalf("expected 1 initial host, got %d", len(settings.Hosts))
+	if len(settings.Hosts) != 0 {
+		t.Fatalf("expected 0 initial hosts, got %d", len(settings.Hosts))
 	}
-	initialHostID := settings.Hosts[0].ID
 
-	// 1. Add secondary host
+	// 1. Add primary host (including domain like cp.ppdmalfalah.id)
 	form := url.Values{}
-	form.Set("hostname", "panel2.example.com")
+	form.Set("hostname", "cp.ppdmalfalah.id")
 	form.Set("port", "8443")
 
 	req := httptest.NewRequest(http.MethodPost, "/settings/hosts/add", strings.NewReader(form.Encode()))
@@ -61,6 +60,35 @@ func TestSettingsHandler_AddHost_And_DeleteHost(t *testing.T) {
 	}
 
 	settings, _ = repo.GetSettings()
+	if len(settings.Hosts) != 1 {
+		t.Fatalf("expected 1 host after AddHost, got %d", len(settings.Hosts))
+	}
+	if settings.Hosts[0].Hostname != "cp.ppdmalfalah.id" {
+		t.Fatalf("expected hostname cp.ppdmalfalah.id, got %s", settings.Hosts[0].Hostname)
+	}
+	if !settings.Hosts[0].IsPrimary {
+		t.Fatalf("expected first added host to be primary")
+	}
+	if settings.Hostname != "cp.ppdmalfalah.id" {
+		t.Fatalf("expected primary settings.Hostname to be cp.ppdmalfalah.id, got %s", settings.Hostname)
+	}
+	initialHostID := settings.Hosts[0].ID
+
+	// 2. Add secondary host
+	form2 := url.Values{}
+	form2.Set("hostname", "panel2.example.com")
+	form2.Set("port", "8443")
+
+	req2 := httptest.NewRequest(http.MethodPost, "/settings/hosts/add", strings.NewReader(form2.Encode()))
+	req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rr2 := httptest.NewRecorder()
+
+	h.AddHost(rr2, req2)
+	if rr2.Code != http.StatusSeeOther {
+		t.Fatalf("expected status 303, got %d", rr2.Code)
+	}
+
+	settings, _ = repo.GetSettings()
 	if len(settings.Hosts) != 2 {
 		t.Fatalf("expected 2 hosts after AddHost, got %d", len(settings.Hosts))
 	}
@@ -69,7 +97,7 @@ func TestSettingsHandler_AddHost_And_DeleteHost(t *testing.T) {
 	}
 	secondHostID := settings.Hosts[1].ID
 
-	// 2. Prevent deleting primary host
+	// 3. Prevent deleting primary host
 	delPrimaryForm := url.Values{}
 	delPrimaryForm.Set("host_id", initialHostID)
 	reqDelPrim := httptest.NewRequest(http.MethodPost, "/settings/hosts/delete", strings.NewReader(delPrimaryForm.Encode()))
@@ -82,7 +110,7 @@ func TestSettingsHandler_AddHost_And_DeleteHost(t *testing.T) {
 		t.Fatalf("expected primary host to not be deleted, still have 2 hosts, got %d", len(settings.Hosts))
 	}
 
-	// 3. Delete secondary host
+	// 4. Delete secondary host
 	delForm := url.Values{}
 	delForm.Set("host_id", secondHostID)
 	reqDel := httptest.NewRequest(http.MethodPost, "/settings/hosts/delete", strings.NewReader(delForm.Encode()))
@@ -99,7 +127,19 @@ func TestSettingsHandler_AddHost_And_DeleteHost(t *testing.T) {
 func TestSettingsHandler_UpdateHost(t *testing.T) {
 	h, repo := setupTestSettingsHandler(t)
 
+	// Add an initial host
+	formAdd := url.Values{}
+	formAdd.Set("hostname", "panel.awal.id")
+	formAdd.Set("port", "8443")
+	reqAdd := httptest.NewRequest(http.MethodPost, "/settings/hosts/add", strings.NewReader(formAdd.Encode()))
+	reqAdd.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rrAdd := httptest.NewRecorder()
+	h.AddHost(rrAdd, reqAdd)
+
 	settings, _ := repo.GetSettings()
+	if len(settings.Hosts) == 0 {
+		t.Fatalf("expected at least 1 host")
+	}
 	hostID := settings.Hosts[0].ID
 
 	form := url.Values{}

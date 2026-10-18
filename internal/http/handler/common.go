@@ -41,7 +41,7 @@ func NewBaseData(r *http.Request, title, pageTitle, activeNav, hostname string) 
 		initial = strings.ToUpper(string(sess.Username[0]))
 	}
 
-	if hostname == "" || hostname == "cp.ppdmalfalah.id" {
+	if hostname == "" {
 		if sys, err := os.Hostname(); err == nil && sys != "" {
 			hostname = sys
 		} else {

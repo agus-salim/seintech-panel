@@ -58,13 +58,13 @@ func TestSetupVHostDirectory(t *testing.T) {
 		t.Errorf("docRoot is not a directory")
 	}
 
-	// Verify index.php exists
-	indexFile := filepath.Join(docRoot, "index.php")
+	// Verify index.html exists
+	indexFile := filepath.Join(docRoot, "index.html")
 	fileInfo, err := os.Stat(indexFile)
 	if err != nil {
-		t.Fatalf("index.php was not created: %v", err)
+		t.Fatalf("index.html was not created: %v", err)
 	}
 	if fileInfo.IsDir() {
-		t.Errorf("index.php is unexpectedly a directory")
+		t.Errorf("index.html is unexpectedly a directory")
 	}
 }

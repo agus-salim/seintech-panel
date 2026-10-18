@@ -16,3 +16,6 @@ Thumbs.db
 .vscode/
 *.swp
 /zencbt/
+
+# Windows binaries
+*.exe

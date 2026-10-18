@@ -327,17 +327,16 @@ func (r *Repository) GetSettings() (*model.PanelSettings, error) {
 			Hosts:                  []model.PanelHost{},
 		}
 	}
-	if settings.Hostname == "" || settings.Hostname == "cp.ppdmalfalah.id" {
+	if settings.Hostname == "" {
 		settings.Hostname = sysHost
 	}
 	if settings.Port == 0 {
 		settings.Port = 8443
 	}
 
-	// Filter out hardcoded cp.ppdmalfalah.id if present in existing hosts data
 	var cleanHosts []model.PanelHost
 	for _, h := range settings.Hosts {
-		if h.Hostname != "cp.ppdmalfalah.id" && h.Hostname != "" {
+		if strings.TrimSpace(h.Hostname) != "" {
 			cleanHosts = append(cleanHosts, h)
 		}
 	}

@@ -100,6 +100,10 @@ func (h *SettingsHandler) AddHost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	settings.Hosts = append(settings.Hosts, newHost)
+	if isPrimary {
+		settings.Hostname = hostname
+		settings.Port = port
+	}
 	_ = h.repo.SaveSettings(*settings)
 	_ = h.sslMgr.SyncPanelNginxReverseProxy(r.Context())
 

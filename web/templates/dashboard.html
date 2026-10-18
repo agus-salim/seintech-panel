@@ -22,31 +22,33 @@
     </div>
 
     <!-- Onboarding Setup Wizard Modal Popup -->
-    <div x-show="showWizard" x-cloak class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-        <!-- Backdrop -->
-        <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" @click="if (!installing) dismissWizard()"></div>
+    <div x-show="showWizard" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <!-- Backdrop (Static, click outside will not close modal) -->
+        <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity"></div>
 
-        <div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
-            <div class="relative transform overflow-hidden rounded-2xl bg-white text-left shadow-2xl transition-all sm:my-8 w-full sm:max-w-2xl border border-slate-100" @click.stop>
-                
-                <!-- Modal Header -->
-                <div class="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 px-6 py-5 text-white">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center space-x-3">
-                            <div class="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300">
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
-                            </div>
-                            <div>
-                                <h3 class="text-lg font-bold text-white">Setup Wizard: Instalasi Web Stack</h3>
-                                <p class="text-xs text-indigo-200 mt-0.5">Pilih paket perangkat lunak inti untuk mengaktifkan fungsi hosting server Anda</p>
-                            </div>
+        <!-- Modal Dialog -->
+        <div class="relative bg-white rounded-2xl shadow-2xl border border-slate-200/80 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden z-10 transition-all text-left" @click.stop>
+            
+            <!-- Modal Header (Pinned at top) -->
+            <div class="flex-shrink-0 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 px-6 py-4 sm:py-5 text-white">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
                         </div>
-                        <button x-show="!installing" @click="dismissWizard()" class="text-slate-400 hover:text-white transition-colors">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                        </button>
+                        <div>
+                            <h3 class="text-base sm:text-lg font-bold text-white">Setup Wizard: Instalasi Web Stack</h3>
+                            <p class="text-xs text-indigo-200 mt-0.5">Pilih paket perangkat lunak inti untuk mengaktifkan fungsi hosting server Anda</p>
+                        </div>
                     </div>
+                    <button type="button" x-show="!installing" @click="dismissWizard()" class="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 transition-colors focus:outline-none" title="Tutup Setup Wizard (X)">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
                 </div>
+            </div>
 
+            <!-- Modal Scrollable Content Area -->
+            <div class="flex-1 overflow-y-auto">
                 <!-- Content when NOT installing -->
                 <div x-show="!installing" class="p-6 space-y-6">
                     <!-- 1. Web Server Selection -->
@@ -235,40 +237,37 @@
                         <span class="text-emerald-400 font-bold">&gt;</span> <span x-text="logMessage"></span>
                     </div>
                 </div>
-
-                <!-- Modal Footer -->
-                <div class="bg-slate-50 px-6 py-4 flex items-center justify-between border-t border-slate-100">
-                    <template x-if="!installing">
-                        <div class="flex items-center justify-between w-full">
-                            <button type="button" @click="dismissWizard()" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 rounded-lg transition-colors">
-                                Nanti Saja (Tutup)
-                            </button>
-                            <button type="button" @click="startInstall()" class="inline-flex items-center px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all transform hover:-translate-y-0.5">
-                                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                                Pasang Komponen Terpilih
-                            </button>
-                        </div>
-                    </template>
-                    <template x-if="installing && isError">
-                        <div class="flex items-center justify-end w-full space-x-2">
-                            <button type="button" @click="installing = false" class="px-4 py-2 text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg">
-                                Kembali ke Pilihan
-                            </button>
-                            <a href="/services" class="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg">
-                                Buka Services Manager
-                            </a>
-                        </div>
-                    </template>
-                    <template x-if="installing && isDone">
-                        <div class="flex items-center justify-end w-full">
-                            <button type="button" @click="window.location.reload()" class="px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow">
-                                Refresh Sekarang
-                            </button>
-                        </div>
-                    </template>
-                </div>
-
             </div>
+
+            <!-- Modal Footer (Pinned at bottom) -->
+            <div class="flex-shrink-0 bg-slate-50 px-6 py-4 flex items-center justify-between border-t border-slate-100">
+                <template x-if="!installing">
+                    <div class="flex items-center justify-end w-full">
+                        <button type="button" @click="startInstall()" class="inline-flex items-center px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all transform hover:-translate-y-0.5">
+                            <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                            Pasang Komponen Terpilih
+                        </button>
+                    </div>
+                </template>
+                <template x-if="installing && isError">
+                    <div class="flex items-center justify-end w-full space-x-2">
+                        <button type="button" @click="installing = false" class="px-4 py-2 text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg">
+                            Kembali ke Pilihan
+                        </button>
+                        <a href="/services" class="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg">
+                            Buka Services Manager
+                        </a>
+                    </div>
+                </template>
+                <template x-if="installing && isDone">
+                    <div class="flex items-center justify-end w-full">
+                        <button type="button" @click="window.location.reload()" class="px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow">
+                            Refresh Sekarang
+                        </button>
+                    </div>
+                </template>
+            </div>
+
         </div>
     </div>
     {{ end }}

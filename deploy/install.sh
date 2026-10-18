@@ -32,7 +32,7 @@ if [ -f "./web/static/adminer.php" ]; then
     chown www-data:www-data /usr/share/adminer/adminer.php 2>/dev/null || true
 fi
 
-# 2. Configure APT Repositories for PHP & LiteSpeed (Debian/Ubuntu)
+# 2. Configure APT Repositories for PHP (Debian/Ubuntu)
 if command -v apt-get >/dev/null 2>&1; then
     echo "[2/6] Configuring APT repositories for PHP"
     export DEBIAN_FRONTEND=noninteractive

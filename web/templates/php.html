@@ -85,7 +85,7 @@
 </div>
 
 <!-- ==================== PHP CONFIG (php.ini) MODAL ==================== -->
-<div id="phpConfigModal" class="hidden fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 transition-opacity">
+<div id="phpConfigModal" class="hidden fixed inset-0 z-[9999] items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 transition-opacity" style="display: none;">
     <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden">
         
         <!-- Modal Header -->
@@ -307,7 +307,7 @@
 </div>
 
 <!-- ==================== PHP EXTENSIONS MODAL ==================== -->
-<div id="extensionModal" class="hidden fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 transition-opacity">
+<div id="extensionModal" class="hidden fixed inset-0 z-[9999] items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 transition-opacity" style="display: none;">
     <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
         
         <!-- Modal Header -->
@@ -381,7 +381,12 @@ let currentFilter = 'all';
 function openExtensionsModal(version) {
     currentPhpVersion = version;
     document.getElementById('modalPhpVersion').textContent = version;
-    document.getElementById('extensionModal').classList.remove('hidden');
+    const modal = document.getElementById('extensionModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
     document.getElementById('extSearch').value = '';
     currentFilter = 'all';
     updateFilterTabStyles();
@@ -389,7 +394,12 @@ function openExtensionsModal(version) {
 }
 
 function closeExtensionsModal() {
-    document.getElementById('extensionModal').classList.add('hidden');
+    const modal = document.getElementById('extensionModal');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('flex');
+        modal.classList.add('hidden');
+    }
 }
 
 function fetchExtensions(version) {
@@ -584,7 +594,12 @@ function openConfigModal(version) {
     currentConfigVersion = version;
     document.getElementById('configPhpVersion').textContent = version;
     document.getElementById('configLoading').classList.remove('hidden');
-    document.getElementById('phpConfigModal').classList.remove('hidden');
+    const modal = document.getElementById('phpConfigModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
     switchConfigTab('directives');
 
     fetch('/php/ini?version=' + encodeURIComponent(version))
@@ -621,7 +636,12 @@ function openConfigModal(version) {
 }
 
 function closeConfigModal() {
-    document.getElementById('phpConfigModal').classList.add('hidden');
+    const modal = document.getElementById('phpConfigModal');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('flex');
+        modal.classList.add('hidden');
+    }
 }
 
 function switchConfigTab(tab) {

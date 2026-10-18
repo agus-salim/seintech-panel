@@ -238,7 +238,7 @@
 </div>
 
 <!-- ==================== MODAL TAMBAH DOMAIN PANEL ==================== -->
-<div id="addHostModal" class="hidden fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
+<div id="addHostModal" class="hidden fixed inset-0 z-[9999] items-center justify-center bg-slate-900/60 backdrop-blur-sm" style="display: none;">
     <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 p-6 w-full max-w-md mx-4">
         <div class="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
             <h3 class="font-bold text-slate-900 text-sm">Tambah Domain Akses Panel</h3>
@@ -265,7 +265,7 @@
 </div>
 
 <!-- ==================== MODAL EDIT DOMAIN PANEL ==================== -->
-<div id="editHostModal" class="hidden fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
+<div id="editHostModal" class="hidden fixed inset-0 z-[9999] items-center justify-center bg-slate-900/60 backdrop-blur-sm" style="display: none;">
     <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 p-6 w-full max-w-md mx-4">
         <div class="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
             <h3 class="font-bold text-slate-900 text-sm">Edit Domain Akses Panel</h3>
@@ -292,7 +292,7 @@
 </div>
 
 <!-- ==================== MODAL HAPUS DOMAIN PANEL ==================== -->
-<div id="deleteHostModal" class="hidden fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
+<div id="deleteHostModal" class="hidden fixed inset-0 z-[9999] items-center justify-center bg-slate-900/60 backdrop-blur-sm" style="display: none;">
     <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 p-6 w-full max-w-sm mx-4">
         <div class="flex items-center space-x-3 mb-4">
             <div class="w-10 h-10 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-600">
@@ -316,29 +316,59 @@
 
 <script>
 function openAddHostModal() {
-    document.getElementById('addHostModal').classList.remove('hidden');
+    const modal = document.getElementById('addHostModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
 }
 function closeAddHostModal() {
-    document.getElementById('addHostModal').classList.add('hidden');
+    const modal = document.getElementById('addHostModal');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('flex');
+        modal.classList.add('hidden');
+    }
 }
 
 function openEditHostModal(id, hostname, port) {
     document.getElementById('edit_host_id').value = id;
     document.getElementById('edit_hostname').value = hostname;
     document.getElementById('edit_port').value = port;
-    document.getElementById('editHostModal').classList.remove('hidden');
+    const modal = document.getElementById('editHostModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
 }
 function closeEditHostModal() {
-    document.getElementById('editHostModal').classList.add('hidden');
+    const modal = document.getElementById('editHostModal');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('flex');
+        modal.classList.add('hidden');
+    }
 }
 
 function openDeleteHostModal(id, hostname) {
     document.getElementById('delete_host_id').value = id;
     document.getElementById('delete_hostname_label').textContent = hostname;
-    document.getElementById('deleteHostModal').classList.remove('hidden');
+    const modal = document.getElementById('deleteHostModal');
+    if (modal) {
+        modal.style.display = 'flex';
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
 }
 function closeDeleteHostModal() {
-    document.getElementById('deleteHostModal').classList.add('hidden');
+    const modal = document.getElementById('deleteHostModal');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('flex');
+        modal.classList.add('hidden');
+    }
 }
 </script>
 {{ end }}

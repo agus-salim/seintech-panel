@@ -38,7 +38,10 @@
     <!-- HTMX & Alpine.js -->
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
     <script defer src="https://unpkg.com/alpinejs@3.14.0/dist/cdn.min.js"></script>
-    <style>[x-cloak] { display: none !important; }</style>
+    <style>
+        [x-cloak] { display: none !important; }
+        .hidden, [style*="display: none"] { display: none !important; }
+    </style>
     
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
@@ -238,7 +241,7 @@
     </div>
 
     <!-- ==================== ELEGANT CONFIRMATION MODAL ==================== -->
-    <div id="confirm-modal" class="hidden fixed inset-0 z-[9995] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 transition-all duration-200">
+    <div id="confirm-modal" class="hidden fixed inset-0 z-[9995] items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 transition-all duration-200" style="display: none;">
         <div id="confirm-modal-card" class="bg-white rounded-2xl shadow-2xl border border-slate-200/90 w-full max-w-md overflow-hidden transform transition-all duration-200 scale-95 opacity-0">
             <div class="p-6">
                 <div class="flex items-start gap-4">
@@ -275,7 +278,7 @@
     </div>
 
     <!-- ==================== INSTALL PROGRESS MODAL ==================== -->
-    <div id="install-modal" class="hidden fixed inset-0 z-[9990] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
+    <div id="install-modal" class="hidden fixed inset-0 z-[9990] items-center justify-center bg-slate-900/60 backdrop-blur-sm" style="display: none;">
         <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 p-8 w-full max-w-md mx-4">
             <div class="flex items-center space-x-4 mb-5">
                 <div class="relative flex-shrink-0">
@@ -301,7 +304,7 @@
     </div>
 
     <!-- ==================== SSL LET'S ENCRYPT ACTIVATION MODAL ==================== -->
-    <div id="ssl-modal" class="hidden fixed inset-0 z-[9990] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm transition-opacity duration-200">
+    <div id="ssl-modal" class="hidden fixed inset-0 z-[9990] items-center justify-center bg-slate-900/60 backdrop-blur-sm transition-opacity duration-200" style="display: none;">
         <div class="bg-white rounded-2xl shadow-2xl border border-slate-200/90 p-8 w-full max-w-md mx-4 transform transition-all duration-300 scale-95" id="ssl-modal-card">
             <!-- Header Icon & State -->
             <div class="flex items-center space-x-4 mb-5">
@@ -419,7 +422,9 @@
 
         _onConfirmAction = typeof opts.onConfirm === 'function' ? opts.onConfirm : null;
 
+        modal.style.display = 'flex';
         modal.classList.remove('hidden');
+        modal.classList.add('flex');
         requestAnimationFrame(() => {
             card.classList.remove('scale-95', 'opacity-0');
             card.classList.add('scale-100', 'opacity-100');
@@ -434,6 +439,8 @@
         card.classList.remove('scale-100', 'opacity-100');
         card.classList.add('scale-95', 'opacity-0');
         setTimeout(() => {
+            modal.style.display = 'none';
+            modal.classList.remove('flex');
             modal.classList.add('hidden');
             _onConfirmAction = null;
         }, 150);
@@ -454,13 +461,6 @@
                 if (e.target === modal) hideConfirmModal();
             });
         }
-
-        // Move any non-Alpine fixed modals to document.body so they have full viewport overlay over navbar/header
-        document.querySelectorAll('.fixed.inset-0').forEach(function(el) {
-            if (el.parentElement && el.parentElement !== document.body && !el.closest('template')) {
-                document.body.appendChild(el);
-            }
-        });
     });
 
     function confirmUninstall(service, displayName) {
@@ -483,9 +483,14 @@
         const title = action === 'install' ? 'Installing ' + displayName + '...' : 'Removing ' + displayName + '...';
 
         // Show loading modal
-        document.getElementById('install-modal-title').textContent = title;
-        document.getElementById('install-modal-msg').textContent = 'Connecting to APT repository...';
-        document.getElementById('install-modal').classList.remove('hidden');
+        const installModal = document.getElementById('install-modal');
+        if (installModal) {
+            document.getElementById('install-modal-title').textContent = title;
+            document.getElementById('install-modal-msg').textContent = 'Connecting to APT repository...';
+            installModal.style.display = 'flex';
+            installModal.classList.remove('hidden');
+            installModal.classList.add('flex');
+        }
 
         const formData = new FormData();
         formData.append('service', service);
@@ -530,7 +535,12 @@
     }
 
     function hideInstallModal() {
-        document.getElementById('install-modal').classList.add('hidden');
+        const installModal = document.getElementById('install-modal');
+        if (installModal) {
+            installModal.style.display = 'none';
+            installModal.classList.remove('flex');
+            installModal.classList.add('hidden');
+        }
     }
 
     // ---- SSL Let's Encrypt Activation Engine ----
@@ -598,7 +608,9 @@
         }, 3000);
 
         if (modal) {
+            modal.style.display = 'flex';
             modal.classList.remove('hidden');
+            modal.classList.add('flex');
             requestAnimationFrame(() => {
                 if (card) {
                     card.classList.remove('scale-95');
@@ -647,7 +659,11 @@
         })
         .catch(err => {
             clearInterval(_sslStepTimer);
-            if (modal) modal.classList.add('hidden');
+            if (modal) {
+                modal.style.display = 'none';
+                modal.classList.remove('flex');
+                modal.classList.add('hidden');
+            }
             if (_sslOriginalBtn && _sslOriginalBtn.el) {
                 _sslOriginalBtn.el.disabled = _sslOriginalBtn.disabled;
                 _sslOriginalBtn.el.innerHTML = _sslOriginalBtn.html;

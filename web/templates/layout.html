@@ -454,6 +454,13 @@
                 if (e.target === modal) hideConfirmModal();
             });
         }
+
+        // Move any non-Alpine fixed modals to document.body so they have full viewport overlay over navbar/header
+        document.querySelectorAll('.fixed.inset-0').forEach(function(el) {
+            if (el.parentElement && el.parentElement !== document.body && !el.closest('template')) {
+                document.body.appendChild(el);
+            }
+        });
     });
 
     function confirmUninstall(service, displayName) {

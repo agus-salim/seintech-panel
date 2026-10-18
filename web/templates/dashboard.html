@@ -22,7 +22,8 @@
     </div>
 
     <!-- Onboarding Setup Wizard Modal Popup -->
-    <div x-show="showWizard" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <template x-teleport="body">
+        <div x-show="showWizard" x-cloak class="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6" aria-labelledby="modal-title" role="dialog" aria-modal="true">
         <!-- Backdrop (Static, click outside will not close modal) -->
         <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity"></div>
 
@@ -270,6 +271,7 @@
 
         </div>
     </div>
+    </template>
     {{ end }}
 
     <!-- Top Stats Grid -->

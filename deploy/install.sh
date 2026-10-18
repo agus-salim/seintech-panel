@@ -24,7 +24,7 @@ chmod 700 /var/lib/seintech/ssl
 
 # 2. Configure APT Repositories for PHP & LiteSpeed (Debian/Ubuntu)
 if command -v apt-get >/dev/null 2>&1; then
-    echo "[2/6] Configuring APT repositories for PHP & LiteSpeed..."
+    echo "[2/6] Configuring APT repositories for PHP"
     export DEBIAN_FRONTEND=noninteractive
 
     OS_ID="debian"

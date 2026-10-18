@@ -258,7 +258,7 @@
 
                         <td class="py-4 px-6">
                             {{ if .SSLEnabled }}
-                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-sm" title="Let's Encrypt Aktif{{ if .SSLExpiry }} • Berlaku hingga {{ .SSLExpiry.Format "02 Jan 2006" }}{{ end }}">
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-sm" title="{{ T "Let's Encrypt Active" }}{{ if .SSLExpiry }} • {{ .SSLExpiry.Format "02 Jan 2006" }}{{ end }}">
                                 <svg class="w-3.5 h-3.5 mr-1 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
                                 Let's Encrypt
                             </span>
@@ -267,7 +267,7 @@
                                     onclick="activateLetsEncrypt('{{ .ID }}', '{{ .DomainName }}', this)" 
                                     class="group inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-95 shadow-sm hover:shadow transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1">
                                 <svg class="w-3.5 h-3.5 text-indigo-200 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-                                <span>Aktifkan SSL</span>
+                                <span>{{ T "Enable SSL" }}</span>
                             </button>
                             {{ end }}
                         </td>
@@ -278,7 +278,7 @@
                                 <!-- Edit Icon -->
                                 <button type="button" 
                                         @click="editData = { id: '{{ .ID }}', domain: '{{ .DomainName }}', aliases: '{{ range $i, $a := .Aliases }}{{ if $i }},{{ end }}{{ $a }}{{ end }}', webserver: '{{ .WebServerType }}', php: '{{ .PHPVersion }}', mode: '{{ if .IsReverseProxy }}proxy{{ else if .IsStatic }}static{{ else }}php{{ end }}', proxy: '{{ .ProxyTarget }}' || 'http://127.0.0.1:8080', docroot: '{{ .DocumentRoot }}' }; editModal = true"
-                                        title="Edit Virtual Host"
+                                        title="{{ T "Edit Virtual Host" }}"
                                         class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                                 </button>
@@ -286,14 +286,14 @@
                                 <!-- Log Icon -->
                                 <button type="button"
                                         @click="openLogs('{{ .ID }}', '{{ .DomainName }}', '{{ .WebServerType }}')"
-                                        title="Lihat Log Webserver"
+                                        title="{{ T "View Web Server Logs" }}"
                                         class="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-amber-500/20">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                                 </button>
 
                                 <!-- Files Icon -->
                                 <a href="/filemanager?path={{ .DocumentRoot }}" 
-                                   title="Buka File Manager"
+                                   title="{{ T "Open File Manager" }}"
                                    class="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500/20">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
                                 </a>
@@ -301,7 +301,7 @@
                                 <!-- Database Setup Icon -->
                                 <button type="button"
                                         @click="openDBSetup('{{ .ID }}', '{{ .DomainName }}')"
-                                        title="Setup Database Virtual Host"
+                                        title="{{ T "Setup Database" }}"
                                         class="p-1.5 text-slate-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-purple-500/20">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/></svg>
                                 </button>
@@ -309,7 +309,7 @@
                                 <!-- Reset Permissions Icon (FastPanel 755/644) -->
                                 <button type="button"
                                         onclick="fixDomainPermissions('{{ .ID }}', '{{ .DomainName }}')"
-                                        title="Pulihkan Izin Default (Folder 755 &amp; File 644)"
+                                        title="{{ T "Reset Permissions (755/644)" }}"
                                         class="p-1.5 text-slate-500 hover:text-cyan-600 hover:bg-cyan-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-cyan-500/20">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
                                 </button>
@@ -317,7 +317,7 @@
                                 <!-- Delete Icon -->
                                 <button type="button"
                                         @click="deleteId = '{{ .ID }}'; deleteDomain = '{{ .DomainName }}'; deleteConfirmInput = ''; deleteModal = true"
-                                        title="Hapus Virtual Host"
+                                        title="{{ T "Delete Virtual Host" }}"
                                         class="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-rose-500/20">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                                 </button>
@@ -327,7 +327,7 @@
                     {{ else }}
                     <tr>
                         <td colspan="6" class="py-10 text-center text-slate-400">
-                            No virtual hosts configured yet.
+                            {{ T "No virtual hosts found." }}
                         </td>
                     </tr>
                     {{ end }}

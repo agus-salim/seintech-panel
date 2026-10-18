@@ -86,6 +86,7 @@
         formData.append('name', this.compressName);
         this.selectedFiles.forEach(p => formData.append('paths', p));
         
+        const isId = window.__LANG === 'id';
         fetch('/filemanager/compress', {
             method: 'POST',
             headers: { 'X-Requested-With': 'XMLHttpRequest' },
@@ -94,12 +95,13 @@
             if (data.success) {
                 window.location.reload();
             } else {
-                this.showToast('Gagal Mengompres', data.error || 'Terjadi kesalahan saat membuat arsip.', 'error');
+                this.showToast(isId ? 'Gagal Mengompres' : 'Compression Failed', data.error || (isId ? 'Terjadi kesalahan saat membuat arsip.' : 'An error occurred while creating archive.'), 'error');
             }
-        }).catch(err => this.showToast('Gagal Mengompres', err.message || 'Koneksi terputus.', 'error'));
+        }).catch(err => this.showToast(isId ? 'Gagal Mengompres' : 'Compression Failed', err.message || (isId ? 'Koneksi terputus.' : 'Connection lost.'), 'error'));
     },
     executeBulkDelete() {
         if (this.selectedFiles.length === 0) return;
+        const isId = window.__LANG === 'id';
         const formData = new FormData();
         formData.append('current_path', this.currentPath);
         this.selectedFiles.forEach(p => formData.append('paths', p));
@@ -112,11 +114,12 @@
             if (data.success) {
                 window.location.reload();
             } else {
-                this.showToast('Gagal Menghapus', data.error || 'Terjadi kesalahan saat menghapus item.', 'error');
+                this.showToast(isId ? 'Gagal Menghapus' : 'Delete Failed', data.error || (isId ? 'Terjadi kesalahan saat menghapus item.' : 'An error occurred while deleting items.'), 'error');
             }
-        }).catch(err => this.showToast('Gagal Menghapus', err.message || 'Koneksi terputus.', 'error'));
+        }).catch(err => this.showToast(isId ? 'Gagal Menghapus' : 'Delete Failed', err.message || (isId ? 'Koneksi terputus.' : 'Connection lost.'), 'error'));
     },
     executeExtract() {
+        const isId = window.__LANG === 'id';
         const formData = new FormData();
         formData.append('path', this.extractTarget);
         formData.append('dest', this.extractDest);
@@ -129,12 +132,16 @@
             if (data.success) {
                 window.location.reload();
             } else {
-                this.showToast('Gagal Mengekstrak', data.error || 'Terjadi kesalahan saat mengekstrak berkas.', 'error');
+                this.showToast(isId ? 'Gagal Mengekstrak' : 'Extraction Failed', data.error || (isId ? 'Terjadi kesalahan saat mengekstrak berkas.' : 'An error occurred while extracting archive.'), 'error');
             }
-        }).catch(err => this.showToast('Gagal Mengekstrak', err.message || 'Koneksi terputus.', 'error'));
+        }).catch(err => this.showToast(isId ? 'Gagal Mengekstrak' : 'Extraction Failed', err.message || (isId ? 'Koneksi terputus.' : 'Connection lost.'), 'error'));
     },
     resetCurrentPermissions() {
-        if (!confirm('Pulihkan izin default (Folder 755, File 644) dan kepemilikan user situs untuk direktori ini beserta isinya?')) return;
+        const isId = window.__LANG === 'id';
+        const confirmMsg = isId 
+            ? 'Pulihkan izin default (Folder 755, File 644) dan kepemilikan user situs untuk direktori ini beserta isinya?' 
+            : 'Restore default permissions (Folder 755, File 644) and site user ownership for this directory and its contents?';
+        if (!confirm(confirmMsg)) return;
         const formData = new FormData();
         formData.append('path', this.currentPath);
         fetch('/filemanager/fix-permissions', {
@@ -145,9 +152,9 @@
             if (data.success) {
                 window.location.reload();
             } else {
-                this.showToast('Gagal Memulihkan Izin', data.error || 'Terjadi kesalahan saat memulihkan izin.', 'error');
+                this.showToast(isId ? 'Gagal Memulihkan Izin' : 'Failed to Reset Permissions', data.error || (isId ? 'Terjadi kesalahan saat memulihkan izin.' : 'An error occurred while resetting permissions.'), 'error');
             }
-        }).catch(err => this.showToast('Gagal Memulihkan Izin', err.message || 'Koneksi terputus.', 'error'));
+        }).catch(err => this.showToast(isId ? 'Gagal Memulihkan Izin' : 'Failed to Reset Permissions', err.message || (isId ? 'Koneksi terputus.' : 'Connection lost.'), 'error'));
     },
 
     // Drag & Drop and Upload state
@@ -265,25 +272,27 @@
             if (xhr.readyState === XMLHttpRequest.DONE) {
                 if (xhr.status >= 200 && xhr.status < 300) {
                     this.uploadProgress = 100;
+                    const isId = window.__LANG === 'id';
                     this.uploadStatus = 'success';
-                    this.uploadSpeed = 'Selesai';
+                    this.uploadSpeed = isId ? 'Selesai' : 'Done';
                     setTimeout(() => {
                         window.location.reload();
                     }, 900);
                 } else {
+                    const isId = window.__LANG === 'id';
                     this.uploadStatus = 'error';
                     try {
                         const res = JSON.parse(xhr.responseText);
-                        this.uploadErrorMsg = res.error || 'Gagal mengupload file.';
+                        this.uploadErrorMsg = res.error || (isId ? 'Gagal mengupload file.' : 'Failed to upload file.');
                     } catch (_) {
                         if (xhr.status === 413) {
-                            this.uploadErrorMsg = 'Ukuran file melebihi batas upload web server (413 Payload Too Large).';
+                            this.uploadErrorMsg = isId ? 'Ukuran file melebihi batas upload web server (413 Payload Too Large).' : 'File size exceeds web server limit (413 Payload Too Large).';
                         } else if (xhr.status === 504 || xhr.status === 502) {
                             this.uploadErrorMsg = 'Gateway Timeout / Bad Gateway (HTTP ' + xhr.status + ').';
                         } else if (xhr.status === 403) {
-                            this.uploadErrorMsg = 'Akses ditolak (403 Forbidden). Izin direktori tidak mencukupi.';
+                            this.uploadErrorMsg = isId ? 'Akses ditolak (403 Forbidden). Izin direktori tidak mencukupi.' : 'Access denied (403 Forbidden). Insufficient directory permissions.';
                         } else {
-                            this.uploadErrorMsg = xhr.statusText ? (xhr.status + ': ' + xhr.statusText) : ('Gagal mengupload file (HTTP ' + xhr.status + ')');
+                            this.uploadErrorMsg = xhr.statusText ? (xhr.status + ': ' + xhr.statusText) : ((isId ? 'Gagal mengupload file' : 'Failed to upload file') + ' (HTTP ' + xhr.status + ')');
                         }
                     }
                 }
@@ -291,8 +300,9 @@
         };
 
         xhr.onerror = () => {
+            const isId = window.__LANG === 'id';
             this.uploadStatus = 'error';
-            this.uploadErrorMsg = 'Koneksi jaringan terputus saat upload.';
+            this.uploadErrorMsg = isId ? 'Koneksi jaringan terputus saat upload.' : 'Network connection lost during upload.';
         };
 
         xhr.open('POST', '/filemanager/upload', true);
@@ -309,12 +319,13 @@
     },
 
     openEditor(path) {
+        const isId = window.__LANG === 'id';
         this.editingFile = path;
         this.editorSaving = false;
         this.editorSaved = false;
         fetch('/filemanager/read?path=' + encodeURIComponent(path))
             .then(res => {
-                if (!res.ok) throw new Error('File tidak dapat dibaca');
+                if (!res.ok) throw new Error(isId ? 'File tidak dapat dibaca' : 'File could not be read');
                 return res.text();
             })
             .then(data => {
@@ -322,11 +333,12 @@
                 this.editorOpen = true;
             })
             .catch(err => {
-                this.showToast('Gagal Membuka File', err.message || 'Tidak dapat membaca isi file.', 'error');
+                this.showToast(isId ? 'Gagal Membuka File' : 'Failed to Open File', err.message || (isId ? 'Tidak dapat membaca isi file.' : 'Could not read file contents.'), 'error');
             });
     },
     saveFile() {
         if (this.editorSaving) return;
+        const isId = window.__LANG === 'id';
         this.editorSaving = true;
         this.editorSaved = false;
 
@@ -340,16 +352,16 @@
             this.editorSaving = false;
             if (res.ok) {
                 this.editorSaved = true;
-                this.showToast('Tersimpan dengan Sukses', `Perubahan pada ${filename} berhasil disimpan.`, 'success');
+                this.showToast(isId ? 'Tersimpan dengan Sukses' : 'Saved Successfully', isId ? `Perubahan pada ${filename} berhasil disimpan.` : `Changes to ${filename} saved successfully.`, 'success');
                 setTimeout(() => {
                     this.editorSaved = false;
                 }, 2500);
             } else {
-                this.showToast('Gagal Menyimpan', 'Terjadi kesalahan pada server saat menyimpan file.', 'error');
+                this.showToast(isId ? 'Gagal Menyimpan' : 'Save Failed', isId ? 'Terjadi kesalahan pada server saat menyimpan file.' : 'A server error occurred while saving file.', 'error');
             }
         }).catch(err => {
             this.editorSaving = false;
-            this.showToast('Koneksi Gagal', err.message || 'Tidak dapat menghubungi server.', 'error');
+            this.showToast(isId ? 'Koneksi Gagal' : 'Connection Failed', err.message || (isId ? 'Tidak dapat menghubungi server.' : 'Could not contact server.'), 'error');
         });
     }
 }"
@@ -364,7 +376,7 @@
             <!-- Site Selector / Indicator -->
             {{ if gt (len .AccessibleSites) 1 }}
             <div class="flex items-center space-x-1.5 flex-shrink-0">
-                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Situs:</span>
+                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">{{ T "Site:" }}</span>
                 <select onchange="window.location.href='/filemanager?site=' + encodeURIComponent(this.value)" class="text-xs font-semibold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 focus:ring-2 focus:ring-indigo-500 outline-none">
                     {{ range .AccessibleSites }}
                     <option value="{{ .DomainName }}" {{ if eq $.ActiveSite .DomainName }}selected{{ end }}>{{ .DomainName }}</option>
@@ -373,7 +385,7 @@
             </div>
             {{ else if eq (len .AccessibleSites) 1 }}
             <div class="flex items-center space-x-1.5 text-xs flex-shrink-0">
-                <span class="font-semibold text-slate-400 uppercase tracking-wider text-[11px]">Situs:</span>
+                <span class="font-semibold text-slate-400 uppercase tracking-wider text-[11px]">{{ T "Site:" }}</span>
                 <span class="font-bold text-indigo-600 bg-indigo-50 border border-indigo-200/80 px-2.5 py-1 rounded-lg">{{ (index .AccessibleSites 0).DomainName }}</span>
             </div>
             {{ end }}
@@ -394,7 +406,7 @@
             <!-- New File Icon -->
             <button type="button" 
                     @click="newFileModal = true" 
-                    title="Buat File Baru (New File)" 
+                    title="{{ T "New File" }}" 
                     class="w-9 h-9 text-slate-600 bg-white hover:bg-slate-50 hover:text-slate-900 border border-slate-200/90 rounded-xl transition-all shadow-xs flex items-center justify-center active:scale-95">
                 <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
             </button>
@@ -402,7 +414,7 @@
             <!-- New Folder Icon -->
             <button type="button" 
                     @click="newDirModal = true" 
-                    title="Buat Folder Baru (New Folder)" 
+                    title="{{ T "New Folder" }}" 
                     class="w-9 h-9 text-slate-600 bg-white hover:bg-slate-50 hover:text-slate-900 border border-slate-200/90 rounded-xl transition-all shadow-xs flex items-center justify-center active:scale-95">
                 <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"></path></svg>
             </button>
@@ -410,13 +422,13 @@
             <!-- Reset Izin (755/644) & Ownership Icon -->
             <button type="button" 
                     @click="resetCurrentPermissions()" 
-                    title="Pulihkan Izin Default (Folder 755 &amp; File 644)" 
+                    title="{{ T "Reset Default Permissions (Folder 755 & File 644)" }}" 
                     class="w-9 h-9 text-cyan-600 bg-white hover:bg-cyan-50 hover:text-cyan-700 border border-slate-200/90 hover:border-cyan-200 rounded-xl transition-all shadow-xs flex items-center justify-center active:scale-95">
                 <svg class="w-4 h-4 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
             </button>
             
             <!-- Upload File Icon with AJAX & Progress Animation trigger -->
-            <label title="Upload File" 
+            <label title="{{ T "Upload File" }}" 
                    class="cursor-pointer w-9 h-9 text-white bg-indigo-600 hover:bg-indigo-700 active:scale-95 rounded-xl transition-all shadow-sm flex items-center justify-center">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
                 <input type="file" multiple class="hidden" @change="startUpload($event.target.files); $event.target.value = ''">
@@ -433,7 +445,7 @@
          class="bg-indigo-50 border border-indigo-200/80 rounded-2xl p-3 px-5 flex items-center justify-between shadow-xs">
         <div class="flex items-center space-x-2.5 text-xs font-semibold text-indigo-900">
             <span class="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] font-bold" x-text="selectedFiles.length"></span>
-            <span>file / folder dipilih</span>
+            <span x-text="window.__LANG === 'id' ? 'file / folder dipilih' : 'file(s) / folder(s) selected'"></span>
         </div>
         <div class="flex items-center space-x-2">
             <button x-show="isSingleArchiveSelected()" 
@@ -441,15 +453,15 @@
                     @click="extractSelectedArchive()" 
                     class="px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-colors inline-flex items-center shadow-xs">
                 <svg class="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
-                Extract Arsip
+                {{ T "Extract Archive" }}
             </button>
             <button type="button" @click="openCompressModal()" class="px-3 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors inline-flex items-center shadow-xs">
                 <svg class="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
-                Compress
+                {{ T "Compress" }}
             </button>
             <button type="button" @click="bulkDeleteModal = true" class="px-3 py-1.5 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors inline-flex items-center shadow-xs">
                 <svg class="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                Delete
+                {{ T "Delete" }}
             </button>
             <button type="button" @click="selectedFiles = []" class="px-2.5 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-200/60 rounded-xl transition-colors">
                 {{ T "Cancel" }}
@@ -476,8 +488,8 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
                 </svg>
             </div>
-            <h3 class="text-xl font-bold text-slate-800 mb-1">Lepaskan File di Sini</h3>
-            <p class="text-sm text-slate-600 mb-2">File yang dilepas akan otomatis diunggah ke direktori:</p>
+            <h3 class="text-xl font-bold text-slate-800 mb-1">{{ T "Drop Files Here" }}</h3>
+            <p class="text-sm text-slate-600 mb-2">{{ T "Dropped files will be uploaded automatically to:" }}</p>
             <div class="inline-flex items-center space-x-1.5 px-3 py-1 bg-white border border-indigo-200 rounded-xl shadow-sm text-xs font-mono font-semibold text-indigo-700">
                 <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
                 <span x-text="currentPath"></span>
@@ -491,13 +503,13 @@
                         <th class="py-3 px-4 w-10 text-center">
                             <input type="checkbox" @change="toggleSelectAll($event)" :checked="isAllSelected()" class="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer">
                         </th>
-                        <th class="py-3 px-6">Name</th>
-                        <th class="py-3 px-4">Type</th>
-                        <th class="py-3 px-4">Size</th>
-                        <th class="py-3 px-4">Owner</th>
-                        <th class="py-3 px-4 text-center">Access</th>
-                        <th class="py-3 px-6">Changed</th>
-                        <th class="py-3 px-6 text-right">Actions</th>
+                        <th class="py-3 px-6">{{ T "Name" }}</th>
+                        <th class="py-3 px-4">{{ T "Type" }}</th>
+                        <th class="py-3 px-4">{{ T "Size" }}</th>
+                        <th class="py-3 px-4">{{ T "Owner" }}</th>
+                        <th class="py-3 px-4 text-center">{{ T "Access" }}</th>
+                        <th class="py-3 px-6">{{ T "Changed" }}</th>
+                        <th class="py-3 px-6 text-right">{{ T "Actions" }}</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
@@ -507,7 +519,7 @@
                         <td colspan="7" class="py-3 px-6">
                             <a href="/filemanager?path={{ .ParentPath }}" class="inline-flex items-center text-xs font-semibold text-slate-500 hover:text-indigo-600">
                                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 17l-5-5m0 0l5-5m-5 5h12"></path></svg>
-                                .. (Parent Directory)
+                                .. ({{ T "Parent Directory" }})
                             </a>
                         </td>
                     </tr>
@@ -525,7 +537,7 @@
                                 <a href="/filemanager?path={{ .Path }}" class="font-semibold text-slate-800 hover:text-indigo-600 truncate max-w-sm">{{ .Name }}</a>
                                 {{ else if .IsArchive }}
                                 <svg class="w-5 h-5 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
-                                <button type="button" @click="openExtractModal('{{ .Path }}', '{{ .Name }}')" class="font-mono text-xs font-semibold text-slate-800 hover:text-emerald-600 truncate max-w-sm text-left transition-colors" title="Klik untuk mengekstrak arsip">
+                                <button type="button" @click="openExtractModal('{{ .Path }}', '{{ .Name }}')" class="font-mono text-xs font-semibold text-slate-800 hover:text-emerald-600 truncate max-w-sm text-left transition-colors" title="{{ $.T "Click to extract archive" }}">
                                     {{ .Name }}
                                 </button>
                                 <span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-medium {{ if eq .ArchiveType "ZIP" }}bg-amber-100 text-amber-800{{ else if or (eq .ArchiveType "TAR.GZ") (eq .ArchiveType "TGZ") }}bg-emerald-100 text-emerald-800{{ else }}bg-blue-100 text-blue-800{{ end }}">
@@ -543,7 +555,7 @@
                         <td class="py-3 px-4 text-center">
                             <button @click="chmodTarget = '{{ .Path }}'; chmodVal = '{{ if .IsDir }}0755{{ else }}0644{{ end }}'; chmodModal = true" 
                                     class="font-mono text-xs font-semibold px-2 py-0.5 rounded {{ if .IsDir }}bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200/60{{ else }}bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200{{ end }} transition-colors" 
-                                    title="Ubah izin akses (chmod)">
+                                    title="{{ $.T "Change Permissions (chmod)" }}">
                                 {{ .Access }}
                             </button>
                         </td>
@@ -553,7 +565,7 @@
                                 {{ if .IsArchive }}
                                 <button @click="openExtractModal('{{ .Path }}', '{{ .Name }}')"
                                         class="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
-                                        title="Ekstrak Arsip (Extract {{ if .ArchiveType }}{{ .ArchiveType }}{{ else }}Arsip{{ end }})">
+                                        title="{{ $.T "Extract Archive" }}">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
                                     </svg>
@@ -563,7 +575,7 @@
                                 {{ if .IsEditable }}
                                 <button @click="openEditor('{{ .Path }}')"
                                         class="p-1.5 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
-                                        title="Edit File">
+                                        title="{{ $.T "Edit File" }}">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
                                     </svg>
@@ -573,7 +585,7 @@
                                 {{ if not .IsDir }}
                                 <a href="/filemanager/download?path={{ .Path }}"
                                    class="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
-                                   title="Unduh File (Download)">
+                                   title="{{ $.T "Download File" }}">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
                                     </svg>
@@ -582,17 +594,17 @@
 
                                 <button @click="renameOld = '{{ .Path }}'; renameNew = '{{ .Name }}'; renameModal = true"
                                         class="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
-                                        title="Ubah Nama (Rename)">
+                                        title="{{ $.T "Rename" }}">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
                                     </svg>
                                 </button>
 
-                                <form action="/filemanager/delete" method="POST" class="inline" onsubmit="return confirm('Permanently delete this file or folder?');">
+                                <form action="/filemanager/delete" method="POST" class="inline" onsubmit="return confirm('{{ $.T "Permanently delete this file or folder?" }}');">
                                     <input type="hidden" name="path" value="{{ .Path }}">
                                     <button type="submit"
                                             class="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors"
-                                            title="Permanently Delete">
+                                            title="{{ $.T "Permanently Delete" }}">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
                                         </svg>
@@ -606,12 +618,16 @@
                         <td colspan="8" class="py-14 text-center text-slate-400">
                             <div class="flex flex-col items-center justify-center space-y-2">
                                 <svg class="w-10 h-10 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
-                                <span class="text-sm font-medium text-slate-500">Direktori ini masih kosong.</span>
-                                <span class="text-xs text-slate-400">Tarik & lepaskan file ke sini untuk mengunggah secara otomatis.</span>
+                                <span class="text-sm font-medium text-slate-500">{{ T "This directory is empty." }}</span>
+                                <span class="text-xs text-slate-400">{{ T "Drag & drop files here to upload automatically." }}</span>
                             </div>
                         </td>
                     </tr>
                     {{ end }}
+                </tbody>
+            </table>
+        </div>
+    </div>
                 </tbody>
             </table>
         </div>

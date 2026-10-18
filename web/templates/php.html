@@ -4,12 +4,12 @@
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
             <h2 class="text-base font-bold text-slate-900">PHP Version Engines &amp; Pools</h2>
-            <p class="text-xs text-slate-500 mt-0.5">Kelola daemon PHP-FPM aktif dan parameter konfigurasi per versi</p>
+            <p class="text-xs text-slate-500 mt-0.5">{{ T "Manage active PHP-FPM daemons and per-version configuration parameters" }}</p>
         </div>
         <div class="flex items-center space-x-2">
             <a href="/services" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-colors active:scale-95">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                <span>Pasang Versi PHP di Services</span>
+                <span>{{ T "Install PHP Versions in Services" }}</span>
             </a>
         </div>
     </div>
@@ -44,7 +44,7 @@
                     <input type="hidden" name="service" value="php{{ .Version }}-fpm">
                     <button type="submit" 
                             class="w-full py-1.5 px-2.5 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 active:scale-95 border border-slate-200 rounded-xl transition-all shadow-sm inline-flex items-center justify-center gap-1.5"
-                            title="Restart layanan PHP-FPM {{ .Version }}">
+                            title="{{ $.T "Restart PHP-FPM service" }} {{ .Version }}">
                         <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                         <span>Restart</span>
                     </button>
@@ -55,7 +55,7 @@
                 <button type="button" 
                         onclick="openConfigModal('{{ .Version }}')" 
                         class="flex-1 py-1.5 px-2.5 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 active:scale-95 border border-amber-200/90 rounded-xl transition-all shadow-sm inline-flex items-center justify-center gap-1.5"
-                        title="Ubah konfigurasi php.ini PHP {{ .Version }}">
+                        title="{{ $.T "Edit php.ini configuration for PHP" }} {{ .Version }}">
                     <svg class="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
@@ -67,7 +67,7 @@
                 <button type="button" 
                         onclick="openExtensionsModal('{{ .Version }}')" 
                         class="flex-1 py-1.5 px-2.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 active:scale-95 border border-indigo-200/90 rounded-xl transition-all shadow-sm inline-flex items-center justify-center gap-1.5"
-                        title="Kelola ekstensi PHP {{ .Version }}">
+                        title="{{ $.T "Manage PHP extensions" }} {{ .Version }}">
                     <svg class="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
                     <span>Extension</span>
                 </button>
@@ -77,7 +77,7 @@
         {{ end }}
         {{ else }}
         <div class="col-span-full py-12 text-center text-xs text-slate-400 bg-white rounded-2xl border border-dashed border-slate-200">
-            Tidak ada versi PHP yang terpasang di sistem. Silakan pasang melalui menu <a href="/services" class="text-indigo-600 font-semibold underline">Services &amp; Packages</a>.
+            {{ T "No PHP versions installed on the system. Please install one via" }} <a href="/services" class="text-indigo-600 font-semibold underline">{{ T "Services & Packages" }}</a>.
         </div>
         {{ end }}
     </div>
@@ -98,7 +98,7 @@
                     </svg>
                 </div>
                 <div class="min-w-0">
-                    <h3 class="font-bold text-slate-900 text-sm">Konfigurasi PHP <span id="configPhpVersion" class="font-mono text-amber-600"></span> (php.ini)</h3>
+                    <h3 class="font-bold text-slate-900 text-sm">{{ T "PHP Configuration" }} <span id="configPhpVersion" class="font-mono text-amber-600"></span> (php.ini)</h3>
                     <p class="text-xs text-slate-500 font-mono truncate" id="configPhpFile">/etc/php/8.3/fpm/php.ini</p>
                 </div>
             </div>
@@ -135,7 +135,7 @@
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    <span class="text-xs text-slate-600 font-medium">Memuat konfigurasi php.ini...</span>
+                    <span class="text-xs text-slate-600 font-medium">{{ T "Loading php.ini configuration..." }}</span>
                 </div>
             </div>
 
@@ -146,7 +146,7 @@
                     <!-- upload_max_filesize -->
                     <div class="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80">
                         <label class="block text-xs font-bold text-slate-800 mb-1">upload_max_filesize</label>
-                        <p class="text-[11px] text-slate-500 mb-2">Batas ukuran maksimum per berkas yang diunggah</p>
+                        <p class="text-[11px] text-slate-500 mb-2">{{ T "Maximum allowed size for uploaded files" }}</p>
                         <div class="flex gap-2">
                             <input type="text" id="dir_upload_max_filesize" name="upload_max_filesize" placeholder="64M" 
                                    class="w-full px-3 py-1.5 text-xs font-mono border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
@@ -165,7 +165,7 @@
                     <!-- post_max_size -->
                     <div class="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80">
                         <label class="block text-xs font-bold text-slate-800 mb-1">post_max_size</label>
-                        <p class="text-[11px] text-slate-500 mb-2">Batas maksimum total data POST (biasanya ≥ upload_max_filesize)</p>
+                        <p class="text-[11px] text-slate-500 mb-2">{{ T "Maximum size of POST data that PHP will accept" }}</p>
                         <div class="flex gap-2">
                             <input type="text" id="dir_post_max_size" name="post_max_size" placeholder="64M" 
                                    class="w-full px-3 py-1.5 text-xs font-mono border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
@@ -184,7 +184,7 @@
                     <!-- memory_limit -->
                     <div class="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80">
                         <label class="block text-xs font-bold text-slate-800 mb-1">memory_limit</label>
-                        <p class="text-[11px] text-slate-500 mb-2">Batas alokasi memori RAM maksimum per skrip PHP</p>
+                        <p class="text-[11px] text-slate-500 mb-2">{{ T "Maximum amount of memory a script may consume" }}</p>
                         <div class="flex gap-2">
                             <input type="text" id="dir_memory_limit" name="memory_limit" placeholder="256M" 
                                    class="w-full px-3 py-1.5 text-xs font-mono border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
@@ -201,8 +201,8 @@
 
                     <!-- max_execution_time -->
                     <div class="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80">
-                        <label class="block text-xs font-bold text-slate-800 mb-1">max_execution_time (detik)</label>
-                        <p class="text-[11px] text-slate-500 mb-2">Waktu eksekusi maksimum skrip sebelum dihentikan timeout</p>
+                        <label class="block text-xs font-bold text-slate-800 mb-1">max_execution_time ({{ T "seconds" }})</label>
+                        <p class="text-[11px] text-slate-500 mb-2">{{ T "Maximum execution time of each script, in seconds" }}</p>
                         <div class="flex gap-2">
                             <input type="text" id="dir_max_execution_time" name="max_execution_time" placeholder="300" 
                                    class="w-full px-3 py-1.5 text-xs font-mono border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
@@ -219,8 +219,8 @@
 
                     <!-- max_input_time -->
                     <div class="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80">
-                        <label class="block text-xs font-bold text-slate-800 mb-1">max_input_time (detik)</label>
-                        <p class="text-[11px] text-slate-500 mb-2">Waktu maksimal mengurai data input (POST/GET/upload)</p>
+                        <label class="block text-xs font-bold text-slate-800 mb-1">max_input_time ({{ T "seconds" }})</label>
+                        <p class="text-[11px] text-slate-500 mb-2">{{ T "Maximum amount of time each script may spend parsing request data" }}</p>
                         <input type="text" id="dir_max_input_time" name="max_input_time" placeholder="300" 
                                class="w-full px-3 py-1.5 text-xs font-mono border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
                     </div>
@@ -228,7 +228,7 @@
                     <!-- max_input_vars -->
                     <div class="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80">
                         <label class="block text-xs font-bold text-slate-800 mb-1">max_input_vars</label>
-                        <p class="text-[11px] text-slate-500 mb-2">Batas jumlah variabel form input yang dapat diterima</p>
+                        <p class="text-[11px] text-slate-500 mb-2">{{ T "How many input variables may be accepted" }}</p>
                         <input type="text" id="dir_max_input_vars" name="max_input_vars" placeholder="3000" 
                                class="w-full px-3 py-1.5 text-xs font-mono border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
                     </div>
@@ -236,7 +236,7 @@
                     <!-- date.timezone -->
                     <div class="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80">
                         <label class="block text-xs font-bold text-slate-800 mb-1">date.timezone</label>
-                        <p class="text-[11px] text-slate-500 mb-2">Zona waktu bawaan untuk fungsi tanggal/waktu PHP</p>
+                        <p class="text-[11px] text-slate-500 mb-2">{{ T "Default timezone used by all date/time functions" }}</p>
                         <input type="text" id="dir_date_timezone" name="date.timezone" placeholder="Asia/Jakarta" 
                                class="w-full px-3 py-1.5 text-xs font-mono border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
                     </div>
@@ -244,9 +244,9 @@
                     <!-- display_errors -->
                     <div class="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80">
                         <label class="block text-xs font-bold text-slate-800 mb-1">display_errors</label>
-                        <p class="text-[11px] text-slate-500 mb-2">Tampilkan pesan galat langsung pada layar browser</p>
+                        <p class="text-[11px] text-slate-500 mb-2">{{ T "Print out errors as part of the output" }}</p>
                         <select id="dir_display_errors" name="display_errors" class="w-full px-3 py-1.5 text-xs font-mono border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
-                            <option value="Off">Off (Direkomendasikan untuk Produksi)</option>
+                            <option value="Off">Off ({{ T "Recommended for Production" }})</option>
                             <option value="On">On (Development / Debug)</option>
                         </select>
                     </div>
@@ -254,20 +254,20 @@
                     <!-- short_open_tag -->
                     <div class="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80">
                         <label class="block text-xs font-bold text-slate-800 mb-1">short_open_tag</label>
-                        <p class="text-[11px] text-slate-500 mb-2">Dukungan tag pembuka singkat PHP (&lt;? ?&gt;)</p>
+                        <p class="text-[11px] text-slate-500 mb-2">{{ T "Tells PHP whether the short form of the PHP start tag is allowed" }}</p>
                         <select id="dir_short_open_tag" name="short_open_tag" class="w-full px-3 py-1.5 text-xs font-mono border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
-                            <option value="On">On (Aktif)</option>
-                            <option value="Off">Off (Nonaktif)</option>
+                            <option value="On">On ({{ T "Enabled" }})</option>
+                            <option value="Off">Off ({{ T "Disabled" }})</option>
                         </select>
                     </div>
 
                     <!-- allow_url_fopen -->
                     <div class="bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80">
                         <label class="block text-xs font-bold text-slate-800 mb-1">allow_url_fopen</label>
-                        <p class="text-[11px] text-slate-500 mb-2">Izinkan pengambilan URL luar via file_get_contents</p>
+                        <p class="text-[11px] text-slate-500 mb-2">{{ T "Whether to allow the treatment of URLs like ordinary files" }}</p>
                         <select id="dir_allow_url_fopen" name="allow_url_fopen" class="w-full px-3 py-1.5 text-xs font-mono border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
-                            <option value="On">On (Aktif)</option>
-                            <option value="Off">Off (Nonaktif)</option>
+                            <option value="On">On ({{ T "Enabled" }})</option>
+                            <option value="Off">Off ({{ T "Disabled" }})</option>
                         </select>
                     </div>
 
@@ -277,14 +277,14 @@
             <!-- Tab 2: Raw Editor -->
             <div id="wrapperRawEditor" class="hidden h-full flex flex-col">
                 <div class="mb-2 flex items-center justify-between text-xs text-slate-500 font-mono">
-                    <span>Editor Langsung File php.ini</span>
-                    <span>Pintasan: Ctrl+S untuk menyimpan</span>
+                    <span>{{ T "Direct php.ini File Editor" }}</span>
+                    <span>{{ T "Shortcut: Ctrl+S to save" }}</span>
                 </div>
                 <div class="flex-1 min-h-[400px] bg-slate-900 rounded-xl p-3 border border-slate-800 overflow-hidden flex flex-col">
                     <textarea id="rawIniEditor" 
                               class="w-full h-full min-h-[380px] bg-transparent font-mono text-xs text-slate-100 outline-none resize-none leading-relaxed" 
                               spellcheck="false" 
-                              placeholder="Memuat isi php.ini..."></textarea>
+                              placeholder="{{ T "Loading php.ini content..." }}"></textarea>
                 </div>
             </div>
         </div>
@@ -318,7 +318,7 @@
                 </div>
                 <div>
                     <h3 class="font-bold text-slate-900 text-sm">PHP <span id="modalPhpVersion" class="font-mono text-indigo-600"></span> Extensions Manager</h3>
-                    <p class="text-xs text-slate-500">Pasang atau hapus ekstensi dan pustaka modul PHP</p>
+                    <p class="text-xs text-slate-500">{{ T "Install or remove PHP extensions and module libraries" }}</p>
                 </div>
             </div>
             <button type="button" onclick="closeExtensionsModal()" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors">
@@ -330,19 +330,19 @@
         <div class="p-4 border-b border-slate-100 bg-white flex flex-col sm:flex-row items-center justify-between gap-3">
             <div class="relative w-full sm:w-64">
                 <svg class="w-4 h-4 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                <input type="text" id="extSearch" oninput="filterExtensions()" placeholder="Cari nama ekstensi..." class="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                <input type="text" id="extSearch" oninput="filterExtensions()" placeholder="{{ T "Search extension name..." }}" class="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
             </div>
 
             <!-- Tab Filter Buttons -->
             <div class="flex items-center gap-1.5 bg-slate-100/80 p-1 rounded-xl w-full sm:w-auto text-xs font-semibold">
                 <button type="button" onclick="setExtFilter('all')" id="tabAll" class="flex-1 sm:flex-none px-3 py-1 rounded-lg transition-colors bg-white text-indigo-600 shadow-sm">
-                    Semua (<span id="countAll">0</span>)
+                    {{ T "All" }} (<span id="countAll">0</span>)
                 </button>
                 <button type="button" onclick="setExtFilter('installed')" id="tabInstalled" class="flex-1 sm:flex-none px-3 py-1 rounded-lg transition-colors text-slate-600 hover:text-slate-900">
-                    Terpasang (<span id="countInstalled">0</span>)
+                    {{ T "Installed" }} (<span id="countInstalled">0</span>)
                 </button>
                 <button type="button" onclick="setExtFilter('uninstalled')" id="tabUninstalled" class="flex-1 sm:flex-none px-3 py-1 rounded-lg transition-colors text-slate-600 hover:text-slate-900">
-                    Belum Terpasang (<span id="countUninstalled">0</span>)
+                    {{ T "Not Installed" }} (<span id="countUninstalled">0</span>)
                 </button>
             </div>
         </div>
@@ -355,7 +355,7 @@
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                <span class="text-xs">Memuat daftar ekstensi PHP...</span>
+                <span class="text-xs">{{ T "Loading PHP extensions list..." }}</span>
             </div>
 
             <!-- Dynamic Extension Rows injected here -->
@@ -364,9 +364,9 @@
 
         <!-- Modal Footer -->
         <div class="p-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-            <span class="text-[11px]">Mengubah ekstensi otomatis me-restart PHP-FPM service terkait.</span>
+            <span class="text-[11px]">{{ T "Modifying extensions will automatically restart the associated PHP-FPM service." }}</span>
             <button type="button" onclick="closeExtensionsModal()" class="px-4 py-1.5 font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
-                Tutup
+                {{ T "Close" }}
             </button>
         </div>
 
@@ -418,13 +418,15 @@ function fetchExtensions(version) {
                 updateCounts();
                 renderExtensions();
             } else {
-                list.innerHTML = `<div class="p-8 text-center text-xs text-rose-500">${data.error || 'Gagal memuat ekstensi.'}</div>`;
+                const isId = window.__LANG === 'id';
+                list.innerHTML = `<div class="p-8 text-center text-xs text-rose-500">${data.error || (isId ? 'Gagal memuat ekstensi.' : 'Failed to load extensions.')}</div>`;
             }
         })
         .catch(err => {
+            const isId = window.__LANG === 'id';
             loading.classList.add('hidden');
             list.classList.remove('hidden');
-            list.innerHTML = `<div class="p-8 text-center text-xs text-rose-500">Koneksi bermasalah saat memuat ekstensi.</div>`;
+            list.innerHTML = `<div class="p-8 text-center text-xs text-rose-500">${isId ? 'Koneksi bermasalah saat memuat ekstensi.' : 'Connection problem while loading extensions.'}</div>`;
         });
 }
 
@@ -466,6 +468,7 @@ function filterExtensions() {
 function renderExtensions() {
     const list = document.getElementById('extItemsList');
     const query = (document.getElementById('extSearch').value || '').toLowerCase().trim();
+    const isId = window.__LANG === 'id';
 
     const filtered = allExtensions.filter(ext => {
         // Tab filter
@@ -484,7 +487,7 @@ function renderExtensions() {
     });
 
     if (filtered.length === 0) {
-        list.innerHTML = `<div class="p-8 text-center text-xs text-slate-400">Tidak ada ekstensi yang cocok dengan kriteria.</div>`;
+        list.innerHTML = `<div class="p-8 text-center text-xs text-slate-400">${isId ? 'Tidak ada ekstensi yang cocok dengan kriteria.' : 'No extensions matched the criteria.'}</div>`;
         return;
     }
 
@@ -494,7 +497,7 @@ function renderExtensions() {
             <button type="button" 
                     onclick="handleExtAction('delete', '${currentPhpVersion}', '${ext.name}', this)" 
                     class="p-2 text-rose-600 hover:text-white hover:bg-rose-600 border border-rose-200 hover:border-rose-600 rounded-lg transition-all shadow-sm active:scale-90" 
-                    title="Hapus / Uninstall Ekstensi ${ext.name}">
+                    title="${isId ? 'Hapus / Uninstall Ekstensi' : 'Uninstall Extension'} ${ext.name}">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
             </button>
             `
@@ -502,14 +505,14 @@ function renderExtensions() {
             <button type="button" 
                     onclick="handleExtAction('install', '${currentPhpVersion}', '${ext.name}', this)" 
                     class="p-2 text-indigo-600 hover:text-white hover:bg-indigo-600 border border-indigo-200 hover:border-indigo-600 rounded-lg transition-all shadow-sm active:scale-90" 
-                    title="Pasang / Install Ekstensi ${ext.name}">
+                    title="${isId ? 'Pasang / Install Ekstensi' : 'Install Extension'} ${ext.name}">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
             </button>
             `;
 
         const statusBadge = ext.installed
-            ? `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">Terpasang</span>`
-            : `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600">Belum Terpasang</span>`;
+            ? `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">${isId ? 'Terpasang' : 'Installed'}</span>`
+            : `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600">${isId ? 'Belum Terpasang' : 'Not Installed'}</span>`;
 
         return `
         <div class="p-3 bg-white hover:bg-slate-50/80 border border-slate-200/70 rounded-xl flex items-center justify-between gap-3 transition-colors shadow-xs">
@@ -536,7 +539,12 @@ function renderExtensions() {
 }
 
 function handleExtAction(action, version, extName, btnEl) {
-    if (!confirm(`Yakin ingin ${action === 'install' ? 'memasang' : 'menghapus'} ekstensi ${extName} untuk PHP ${version}?`)) {
+    const isId = window.__LANG === 'id';
+    const confirmPrompt = isId 
+        ? `Yakin ingin ${action === 'install' ? 'memasang' : 'menghapus'} ekstensi ${extName} untuk PHP ${version}?` 
+        : `Are you sure you want to ${action === 'install' ? 'install' : 'uninstall'} extension ${extName} for PHP ${version}?`;
+    
+    if (!confirm(confirmPrompt)) {
         return;
     }
 
@@ -565,13 +573,13 @@ function handleExtAction(action, version, extName, btnEl) {
     .then(async res => {
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data.success) {
-            throw new Error(data.error || `Gagal ${action} ekstensi ${extName}`);
+            throw new Error(data.error || (isId ? `Gagal ${action} ekstensi ${extName}` : `Failed to ${action} extension ${extName}`));
         }
         return data;
     })
     .then(data => {
         if (typeof showToast === 'function') {
-            showToast(data.message || `Ekstensi ${extName} berhasil diproses.`, 'success');
+            showToast(data.message || (isId ? `Ekstensi ${extName} berhasil diproses.` : `Extension ${extName} processed successfully.`), 'success');
         }
         fetchExtensions(version);
     })
@@ -666,6 +674,7 @@ function switchConfigTab(tab) {
 
 function savePhpConfig() {
     if (!currentConfigVersion) return;
+    const isId = window.__LANG === 'id';
     const btn = document.getElementById('btnSaveConfig');
     const origHTML = btn.innerHTML;
     btn.disabled = true;
@@ -674,7 +683,7 @@ function savePhpConfig() {
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
-        <span>Menyimpan & Restart...</span>
+        <span>${isId ? 'Menyimpan & Restart...' : 'Saving & Restarting...'}</span>
     `;
 
     const formData = new URLSearchParams();
@@ -704,7 +713,7 @@ function savePhpConfig() {
     .then(async res => {
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data.success) {
-            throw new Error(data.error || 'Gagal menyimpan konfigurasi php.ini');
+            throw new Error(data.error || (isId ? 'Gagal menyimpan konfigurasi php.ini' : 'Failed to save php.ini configuration'));
         }
         return data;
     })
@@ -712,7 +721,7 @@ function savePhpConfig() {
         btn.disabled = false;
         btn.innerHTML = origHTML;
         if (typeof showToast === 'function') {
-            showToast(data.message || `Konfigurasi php.ini PHP ${currentConfigVersion} berhasil diterapkan!`, 'success');
+            showToast(data.message || (isId ? `Konfigurasi php.ini PHP ${currentConfigVersion} berhasil diterapkan!` : `PHP ${currentConfigVersion} php.ini configuration applied successfully!`), 'success');
         }
         closeConfigModal();
     })

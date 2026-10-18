@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/seintech/panel/web"
 )
 
 var (
@@ -992,10 +994,6 @@ func (sm *ServiceManager) ensurePhpMyAdminPrerequisites(ctx context.Context) {
 
 // AutoConfigureAdminer installs dependencies, wrapper index.php with SSO bridge, and a modern CSS theme for Adminer.
 func (sm *ServiceManager) AutoConfigureAdminer(ctx context.Context) {
-	if !sm.IsInstalled("adminer") {
-		return
-	}
-
 	// 1. Ensure token exchange directory exists
 	_ = os.MkdirAll("/var/lib/seintech/pma_tokens", 0777)
 	_ = os.Chmod("/var/lib/seintech/pma_tokens", 0777)
@@ -1003,62 +1001,67 @@ func (sm *ServiceManager) AutoConfigureAdminer(ctx context.Context) {
 	// 2. Ensure /usr/share/adminer exists
 	_ = os.MkdirAll("/usr/share/adminer", 0755)
 
-	// 3. Ensure PHP database driver extensions (mysql, pgsql, sqlite3, mbstring)
+	// 3. Ensure PHP database driver extensions (mysql, pgsql, sqlite3, mbstring) and configure pg_hba.conf
 	script := `
 		export DEBIAN_FRONTEND=noninteractive
-		need_reload=0
-		for sock in /run/php/php*-fpm.sock; do
-			if [ -e "$sock" ]; then
-				ver=$(basename "$sock" | sed -E 's/php([0-9]+\.[0-9]+)-fpm\.sock/\1/')
-				need_pkg=0
-				for ext in mysql pgsql mbstring; do
-					if [ ! -f "/etc/php/$ver/fpm/conf.d/"*"$ext"*.ini ] && ! php$ver -m 2>/dev/null | grep -qi "^$ext$"; then
-						need_pkg=1
-						break
-					fi
-				done
-				if [ "$need_pkg" -eq 1 ]; then
-					apt-get update -y >/dev/null 2>&1 || true
-					apt-get install -y php$ver-mysql php$ver-pgsql php$ver-sqlite3 php$ver-mbstring || true
-					phpenmod -v $ver mysqlnd mysqli pdo_mysql pgsql pdo_pgsql mbstring 2>/dev/null || true
-					need_reload=1
-				fi
+		
+		# Install drivers for base system packages
+		apt-get update -y >/dev/null 2>&1 || true
+		apt-get install -y php-mysql php-pgsql php-sqlite3 php-mbstring curl wget 2>/dev/null || true
+		phpenmod mysqli pdo_mysql pgsql pdo_pgsql mbstring 2>/dev/null || true
+
+		# Also ensure drivers are enabled across all installed PHP version directories
+		for phpdir in /etc/php/*; do
+			if [ -d "$phpdir" ]; then
+				ver=$(basename "$phpdir")
+				apt-get install -y php$ver-mysql php$ver-pgsql php$ver-sqlite3 php$ver-mbstring 2>/dev/null || true
+				phpenmod -v $ver mysqlnd mysqli pdo_mysql pgsql pdo_pgsql mbstring 2>/dev/null || true
 			fi
 		done
 
-		if ! dpkg -s php-mysql >/dev/null 2>&1 || ! dpkg -s php-pgsql >/dev/null 2>&1; then
-			apt-get install -y php-mysql php-pgsql php-sqlite3 php-mbstring || true
-			phpenmod mysqli pdo_mysql pgsql pdo_pgsql mbstring 2>/dev/null || true
-			need_reload=1
-		fi
+		# Ensure PostgreSQL allows local md5/scram password connections (avoid peer auth rejection on unix socket)
+		for hba in /etc/postgresql/*/main/pg_hba.conf; do
+			if [ -f "$hba" ]; then
+				sed -i 's/local\s\+all\s\+all\s\+peer/local all all md5/g' "$hba" 2>/dev/null || true
+			fi
+		done
+		systemctl reload postgresql 2>/dev/null || true
 
-		if [ "$need_reload" -eq 1 ]; then
-			for svc in $(systemctl list-unit-files --type=service | grep -oE 'php[0-9\.]+-fpm\.service'); do
-				systemctl restart "$svc" 2>/dev/null || true
-			done
-		fi
+		# Restart PHP-FPM daemons so new extensions are immediately active
+		for svc in $(systemctl list-unit-files --type=service | grep -oE 'php[0-9\.]+-fpm\.service'); do
+			systemctl restart "$svc" 2>/dev/null || true
+		done
 	`
 	_ = exec.CommandContext(ctx, "bash", "-c", script).Run()
 
-	// 4. Download standalone adminer.php if not present
+	// 4. Install official standalone adminer.php from embedded assets if missing or corrupted
 	adminerBin := "/usr/share/adminer/adminer.php"
-	if _, err := os.Stat(adminerBin); os.IsNotExist(err) {
-		dlScript := `
-			curl -fsSL https://github.com/vrana/adminer/releases/download/v4.8.1/adminer-4.8.1.php -o /usr/share/adminer/adminer.php || \
-			wget -qO /usr/share/adminer/adminer.php https://github.com/vrana/adminer/releases/download/v4.8.1/adminer-4.8.1.php || \
-			curl -fsSL https://www.adminer.org/latest.php -o /usr/share/adminer/adminer.php || true
-		`
-		_ = exec.CommandContext(ctx, "bash", "-c", dlScript).Run()
+	needInstallAdminer := true
+	if fi, err := os.Stat(adminerBin); err == nil && fi.Size() > 50000 {
+		needInstallAdminer = false
+	}
+	if needInstallAdminer {
+		if embeddedAdminer, err := web.EmbeddedFiles.ReadFile("static/adminer.php"); err == nil && len(embeddedAdminer) > 50000 {
+			_ = os.WriteFile(adminerBin, embeddedAdminer, 0644)
+		} else {
+			dlScript := `
+				curl -fsSL https://github.com/vrana/adminer/releases/download/v4.8.1/adminer-4.8.1.php -o /usr/share/adminer/adminer.php || \
+				wget -qO /usr/share/adminer/adminer.php https://github.com/vrana/adminer/releases/download/v4.8.1/adminer-4.8.1.php || \
+				curl -fsSL https://www.adminer.org/latest.php -o /usr/share/adminer/adminer.php || true
+			`
+			_ = exec.CommandContext(ctx, "bash", "-c", dlScript).Run()
+		}
 	}
 
 	// 5. Install Seintech SSO & Plugin Wrapper in /usr/share/adminer/index.php
 	wrapperScript := `<?php
-// Seintech Panel SSO & Wrapper for Adminer
+// Seintech Panel SSO & Modern Theme Wrapper for Adminer
 declare(strict_types=1);
 
-session_name('adminer_sid');
-@session_start();
+@ini_set('display_errors', '0');
+@ini_set('log_errors', '1');
 
+// 1. Process One-Time SSO Token from Seintech Panel
 $token = $_GET['token'] ?? '';
 if (is_string($token) && preg_match('/^[a-f0-9]{32,64}$/', $token)) {
     $tokenFile = '/var/lib/seintech/pma_tokens/' . $token . '.json';
@@ -1070,21 +1073,32 @@ if (is_string($token) && preg_match('/^[a-f0-9]{32,64}$/', $token)) {
         if ($data && time() <= ($data['expires'] ?? 0)) {
             $isPg = ($data['type'] ?? '') === 'postgres';
             $driver = $isPg ? 'pgsql' : 'server';
-            $server = 'localhost';
+            $server = '127.0.0.1'; // 127.0.0.1 ensures TCP loopback authentication
             $username = (string)($data['user'] ?? '');
             $password = (string)($data['pass'] ?? '');
             $db = (string)($data['db'] ?? '');
 
+            if (session_status() === PHP_SESSION_NONE) {
+                session_name('adminer_sid');
+                @session_start();
+            }
+
+            // Store credentials in session for Adminer credentials() hook
+            $_SESSION['seintech_auth'] = [
+                'driver'   => $driver,
+                'server'   => $server,
+                'username' => $username,
+                'password' => $password,
+                'db'       => $db,
+                'time'     => time(),
+            ];
+
             if (!isset($_SESSION['pwds'])) {
                 $_SESSION['pwds'] = [];
             }
-            if (!isset($_SESSION['pwds'][$driver])) {
-                $_SESSION['pwds'][$driver] = [];
-            }
-            if (!isset($_SESSION['pwds'][$driver][$server])) {
-                $_SESSION['pwds'][$driver][$server] = [];
-            }
             $_SESSION['pwds'][$driver][$server][$username] = $password;
+
+            session_write_close();
 
             $target = 'index.php?' . $driver . '=' . urlencode($server) . '&username=' . urlencode($username);
             if (!empty($db)) {
@@ -1096,15 +1110,94 @@ if (is_string($token) && preg_match('/^[a-f0-9]{32,64}$/', $token)) {
     }
 }
 
-function adminer_object() {
-    class SeintechAdminer extends Adminer {
-        function name() {
-            return '<span class="seintech-brand"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2 3.5 3 8 3s8-1 8-3V7M4 7c0 2 3.5 3 8 3s8-1 8-3M4 7c0-2 3.5-3 8-3s8 1 8 3m0 5c0 2-3.5 3-8 3s-8-1-8-3"/></svg> Seintech Database Manager</span>';
-        }
-    }
-    return new SeintechAdminer;
+// 2. Set session name if session is not started yet
+if (session_status() === PHP_SESSION_NONE) {
+    session_name('adminer_sid');
 }
 
+// 3. Clear SSO credentials on explicit logout
+if (isset($_GET['logout'])) {
+    if (session_status() === PHP_SESSION_NONE) {
+        session_name('adminer_sid');
+        @session_start();
+    }
+    unset($_SESSION['seintech_auth']);
+    unset($_SESSION['pwds']);
+    session_write_close();
+}
+
+// 4. Custom Adminer object supporting both Adminer 4 and 5
+function adminer_object() {
+    if (class_exists('Adminer\\Adminer')) {
+        if (!class_exists('SeintechAdminer5', false)) {
+            class SeintechAdminer5 extends Adminer\Adminer {
+                function name() {
+                    return '<a href="/databases" class="seintech-brand" style="text-decoration:none;color:inherit;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2 3.5 3 8 3s8-1 8-3V7M4 7c0 2 3.5 3 8 3s8-1 8-3M4 7c0-2 3.5-3 8-3s8 1 8 3m0 5c0 2-3.5 3-8 3s-8-1-8-3"/></svg> Seintech Database Manager</a>';
+                }
+                function credentials() {
+                    $auth = $_SESSION['seintech_auth'] ?? [];
+                    if (!empty($auth['password'])) {
+                        return [
+                            $auth['server'] ?? '127.0.0.1',
+                            $auth['username'] ?? '',
+                            $auth['password'] ?? ''
+                        ];
+                    }
+                    return array(SERVER, $_GET["username"] ?? "", get_password());
+                }
+                function database() {
+                    if (!empty($_GET['db'])) {
+                        return (string)$_GET['db'];
+                    }
+                    $auth = $_SESSION['seintech_auth'] ?? [];
+                    if (!empty($auth['db'])) {
+                        return (string)$auth['db'];
+                    }
+                    return parent::database();
+                }
+                function login($login, $password) {
+                    return true;
+                }
+            }
+        }
+        return new SeintechAdminer5();
+    }
+
+    if (!class_exists('SeintechAdminer4', false)) {
+        class SeintechAdminer4 extends Adminer {
+            function name() {
+                return '<a href="/databases" class="seintech-brand" style="text-decoration:none;color:inherit;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2 3.5 3 8 3s8-1 8-3V7M4 7c0 2 3.5 3 8 3s8-1 8-3M4 7c0-2 3.5-3 8-3s8 1 8 3m0 5c0 2-3.5 3-8 3s-8-1-8-3"/></svg> Seintech Database Manager</a>';
+            }
+            function credentials() {
+                $auth = $_SESSION['seintech_auth'] ?? [];
+                if (!empty($auth['password'])) {
+                    return [
+                        $auth['server'] ?? '127.0.0.1',
+                        $auth['username'] ?? '',
+                        $auth['password'] ?? ''
+                    ];
+                }
+                return array(SERVER, $_GET["username"] ?? "", get_password());
+            }
+            function database() {
+                if (!empty($_GET['db'])) {
+                    return (string)$_GET['db'];
+                }
+                $auth = $_SESSION['seintech_auth'] ?? [];
+                if (!empty($auth['db'])) {
+                    return (string)$auth['db'];
+                }
+                return parent::database();
+            }
+            function login($login, $password) {
+                return true;
+            }
+        }
+    }
+    return new SeintechAdminer4();
+}
+
+// 5. Include Adminer core
 if (file_exists(__DIR__ . '/adminer.php')) {
     include __DIR__ . '/adminer.php';
 } elseif (file_exists('/usr/share/adminer/adminer.php')) {

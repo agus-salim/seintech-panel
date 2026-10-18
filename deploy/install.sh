@@ -18,9 +18,19 @@ echo "[1/6] Creating application directories..."
 mkdir -p /var/lib/seintech/data
 mkdir -p /var/lib/seintech/ssl/panel
 mkdir -p /var/lib/seintech/acme-challenge
+mkdir -p /var/lib/seintech/pma_tokens
 mkdir -p /var/www
+mkdir -p /usr/share/adminer
 chmod 750 /var/lib/seintech/data
 chmod 700 /var/lib/seintech/ssl
+chmod 777 /var/lib/seintech/pma_tokens
+
+# Ensure bundled official standalone adminer.php is copied to system
+if [ -f "./web/static/adminer.php" ]; then
+    cp ./web/static/adminer.php /usr/share/adminer/adminer.php
+    chmod 644 /usr/share/adminer/adminer.php
+    chown www-data:www-data /usr/share/adminer/adminer.php 2>/dev/null || true
+fi
 
 # 2. Configure APT Repositories for PHP & LiteSpeed (Debian/Ubuntu)
 if command -v apt-get >/dev/null 2>&1; then
@@ -83,6 +93,7 @@ if command -v apt-get >/dev/null 2>&1; then
     rm -f /etc/apt/trusted.gpg.d/lst_debian_repo.gpg /etc/apt/trusted.gpg.d/lst_repo.gpg /usr/share/keyrings/caddy-stable-archive-keyring.gpg 2>/dev/null || true
 
     apt-get update -y -qq || true
+    apt-get install -y -qq php-mysql php-pgsql php-sqlite3 php-mbstring 2>/dev/null || true
 fi
 
 # 3. Install Binary (Stop existing service first if running to avoid Text file busy error)

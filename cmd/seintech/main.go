@@ -89,6 +89,7 @@ func main() {
 	go func() {
 		repoCtx, repoCancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer repoCancel()
+		sm.EnsureDatabaseTools(repoCtx)
 		sm.EnsureSystemRepositories(repoCtx)
 		sm.EnsureNginxConfiguration(repoCtx)
 		sm.EnsureApacheConfiguration(repoCtx)

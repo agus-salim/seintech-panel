@@ -57,12 +57,15 @@ a:hover {
     left: 0 !important;
     bottom: 0 !important;
     width: 260px !important;
+    max-width: 260px !important;
     margin: 0 !important;
     padding: 20px 16px !important;
     background: var(--bg-surface) !important;
     border-right: 1px solid var(--border) !important;
     box-shadow: 1px 0 3px rgba(0,0,0,0.03) !important;
     overflow-y: auto !important;
+    overflow-x: hidden !important;
+    box-sizing: border-box !important;
     z-index: 100 !important;
 }
 
@@ -84,6 +87,10 @@ a:hover {
     background: transparent !important;
     color: var(--text-primary) !important;
     line-height: 1.4 !important;
+    box-sizing: border-box !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
 }
 
 .seintech-brand {
@@ -93,6 +100,9 @@ a:hover {
     color: var(--primary) !important;
     font-weight: 700 !important;
     letter-spacing: -0.01em !important;
+    max-width: 100% !important;
+    white-space: normal !important;
+    word-break: break-word !important;
 }
 
 #menu .version {
@@ -188,7 +198,7 @@ a:hover {
     height: 52px !important;
     line-height: 52px !important;
     margin: 0 !important;
-    padding: 0 32px !important;
+    padding: 0 28px !important;
     background: #ffffff !important;
     border-bottom: 1px solid var(--border) !important;
     display: flex !important;
@@ -200,6 +210,7 @@ a:hover {
     white-space: nowrap !important;
     overflow-x: auto !important;
     z-index: 90 !important;
+    box-sizing: border-box !important;
     box-shadow: 0 1px 2px rgba(0,0,0,0.02) !important;
 }
 

@@ -28,22 +28,31 @@ chmod 777 /var/lib/seintech/pma_tokens
 # Ensure bundled official standalone adminer.php and modern adminer.css are copied to system
 if [ -f "./web/static/adminer.php" ]; then
     cp ./web/static/adminer.php /usr/share/adminer/adminer.php
-    chmod 644 /usr/share/adminer/adminer.php
-    chown www-data:www-data /usr/share/adminer/adminer.php 2>/dev/null || true
+elif [ ! -f "/usr/share/adminer/adminer.php" ]; then
+    curl -fsSL https://raw.githubusercontent.com/seintechid/panel/main/web/static/adminer.php -o /usr/share/adminer/adminer.php 2>/dev/null || \
+    curl -fsSL https://github.com/vrana/adminer/releases/download/v4.8.1/adminer-4.8.1.php -o /usr/share/adminer/adminer.php 2>/dev/null || true
 fi
+chmod 644 /usr/share/adminer/adminer.php
+chown www-data:www-data /usr/share/adminer/adminer.php 2>/dev/null || true
+
 if [ -f "./web/static/adminer.css" ]; then
     cp ./web/static/adminer.css /usr/share/adminer/adminer.css
-    chmod 644 /usr/share/adminer/adminer.css
-    chown www-data:www-data /usr/share/adminer/adminer.css 2>/dev/null || true
+else
+    curl -fsSL https://raw.githubusercontent.com/seintechid/panel/main/web/static/adminer.css -o /usr/share/adminer/adminer.css 2>/dev/null || true
 fi
+chmod 644 /usr/share/adminer/adminer.css
+chown www-data:www-data /usr/share/adminer/adminer.css 2>/dev/null || true
+
 if [ -f "./web/static/index.php" ]; then
     cp ./web/static/index.php /usr/share/adminer/index.php
-    chmod 644 /usr/share/adminer/index.php
-    chown www-data:www-data /usr/share/adminer/index.php 2>/dev/null || true
-    echo "<?php require_once __DIR__ . '/index.php';" > /usr/share/adminer/sso.php
-    chmod 644 /usr/share/adminer/sso.php
-    chown www-data:www-data /usr/share/adminer/sso.php 2>/dev/null || true
+else
+    curl -fsSL https://raw.githubusercontent.com/seintechid/panel/main/web/static/index.php -o /usr/share/adminer/index.php 2>/dev/null || true
 fi
+chmod 644 /usr/share/adminer/index.php
+chown www-data:www-data /usr/share/adminer/index.php 2>/dev/null || true
+echo "<?php require_once __DIR__ . '/index.php';" > /usr/share/adminer/sso.php
+chmod 644 /usr/share/adminer/sso.php
+chown www-data:www-data /usr/share/adminer/sso.php 2>/dev/null || true
 
 # 2. Configure APT Repositories for PHP (Debian/Ubuntu)
 if command -v apt-get >/dev/null 2>&1; then

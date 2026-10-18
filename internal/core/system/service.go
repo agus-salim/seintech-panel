@@ -1139,15 +1139,18 @@ function adminer_object() {
                     $v = file_exists(__DIR__ . '/adminer.css') ? filemtime(__DIR__ . '/adminer.css') : time();
                     echo '<link rel="stylesheet" type="text/css" href="/adminer/adminer.css?v=' . $v . '">';
                     echo '<style>
-                    #menu { position: fixed !important; top: 0 !important; left: 0 !important; bottom: 0 !important; width: 260px !important; margin: 0 !important; padding: 20px 16px !important; z-index: 100 !important; background: #ffffff !important; border-right: 1px solid #e2e8f0 !important; box-shadow: 1px 0 3px rgba(0,0,0,0.03) !important; overflow-y: auto !important; }
-                    #menu h1, h1 { background: transparent !important; border: none !important; border-bottom: 1px solid #e2e8f0 !important; padding: 0 0 14px 0 !important; margin: 0 0 16px 0 !important; font-size: 14.5px !important; font-weight: 700 !important; }
+                    #menu { position: fixed !important; top: 0 !important; left: 0 !important; bottom: 0 !important; width: 260px !important; max-width: 260px !important; margin: 0 !important; padding: 20px 16px !important; z-index: 100 !important; background: #ffffff !important; border-right: 1px solid #e2e8f0 !important; box-shadow: 1px 0 3px rgba(0,0,0,0.03) !important; overflow-y: auto !important; overflow-x: hidden !important; box-sizing: border-box !important; }
+                    #menu h1, h1 { background: transparent !important; border: none !important; border-bottom: 1px solid #e2e8f0 !important; padding: 0 0 14px 0 !important; margin: 0 0 16px 0 !important; font-size: 14.5px !important; font-weight: 700 !important; color: #0f172a !important; line-height: 1.4 !important; box-sizing: border-box !important; max-width: 100% !important; overflow: hidden !important; text-overflow: ellipsis !important; }
+                    .seintech-brand { display: inline-flex !important; align-items: center !important; gap: 8px !important; color: #4f46e5 !important; font-weight: 700 !important; letter-spacing: -0.01em !important; max-width: 100% !important; white-space: normal !important; word-break: break-word !important; }
                     #menu .version { display: inline-block !important; font-size: 11px !important; color: #64748b !important; background: #f1f5f9 !important; padding: 1px 6px !important; border-radius: 4px !important; margin-left: 6px !important; }
                     #version { display: none !important; }
-                    #breadcrumb { position: fixed !important; top: 0 !important; left: 260px !important; right: 0 !important; height: 52px !important; line-height: 52px !important; margin: 0 !important; padding: 0 32px !important; background: #ffffff !important; border-bottom: 1px solid #e2e8f0 !important; z-index: 90 !important; display: flex !important; align-items: center !important; font-size: 13px !important; color: #64748b !important; white-space: nowrap !important; overflow-x: auto !important; }
-                    #breadcrumb a { color: #4f46e5 !important; font-weight: 600 !important; }
+                    #lang { position: static !important; margin: 16px 0 0 0 !important; padding: 12px 0 0 0 !important; border-top: 1px solid #e2e8f0 !important; font-size: 11.5px !important; color: #64748b !important; display: block !important; }
+                    #breadcrumb { position: fixed !important; top: 0 !important; left: 260px !important; right: 0 !important; height: 52px !important; line-height: 52px !important; margin: 0 !important; padding: 0 28px !important; background: #ffffff !important; border-bottom: 1px solid #e2e8f0 !important; z-index: 90 !important; display: flex !important; align-items: center !important; font-size: 13px !important; color: #64748b !important; white-space: nowrap !important; overflow-x: auto !important; box-sizing: border-box !important; box-shadow: 0 1px 2px rgba(0,0,0,0.02) !important; }
+                    #breadcrumb a { color: #4f46e5 !important; font-weight: 600 !important; text-decoration: none !important; }
+                    #breadcrumb a:hover { text-decoration: underline !important; }
                     .logout, p.logout, form.logout { position: fixed !important; top: 10px !important; right: 24px !important; margin: 0 !important; padding: 0 !important; z-index: 95 !important; }
                     .logout input[type="submit"], .logout button { font-size: 12px !important; font-weight: 600 !important; padding: 6px 14px !important; color: #dc2626 !important; background: #fee2e2 !important; border: 1px solid #fecaca !important; border-radius: 6px !important; cursor: pointer !important; }
-                    #content { margin-left: 260px !important; margin-top: 52px !important; margin-right: 0 !important; margin-bottom: 0 !important; padding: 28px 36px !important; max-width: 1400px !important; min-height: calc(100vh - 52px) !important; position: relative !important; }
+                    #content { margin-left: 260px !important; margin-top: 52px !important; margin-right: 0 !important; margin-bottom: 0 !important; padding: 28px 36px !important; max-width: 1400px !important; min-height: calc(100vh - 52px) !important; position: relative !important; box-sizing: border-box !important; }
                     h2 { font-size: 20px !important; font-weight: 700 !important; color: #0f172a !important; margin: 0 0 20px 0 !important; padding: 0 !important; background: transparent !important; border: none !important; display: flex !important; align-items: center !important; gap: 8px !important; letter-spacing: -0.02em !important; }
                     </style>';
                     return true;
@@ -1194,15 +1197,18 @@ function adminer_object() {
                 $v = file_exists(__DIR__ . '/adminer.css') ? filemtime(__DIR__ . '/adminer.css') : time();
                 echo '<link rel="stylesheet" type="text/css" href="/adminer/adminer.css?v=' . $v . '">';
                 echo '<style>
-                #menu { position: fixed !important; top: 0 !important; left: 0 !important; bottom: 0 !important; width: 260px !important; margin: 0 !important; padding: 20px 16px !important; z-index: 100 !important; background: #ffffff !important; border-right: 1px solid #e2e8f0 !important; box-shadow: 1px 0 3px rgba(0,0,0,0.03) !important; overflow-y: auto !important; }
-                #menu h1, h1 { background: transparent !important; border: none !important; border-bottom: 1px solid #e2e8f0 !important; padding: 0 0 14px 0 !important; margin: 0 0 16px 0 !important; font-size: 14.5px !important; font-weight: 700 !important; }
+                #menu { position: fixed !important; top: 0 !important; left: 0 !important; bottom: 0 !important; width: 260px !important; max-width: 260px !important; margin: 0 !important; padding: 20px 16px !important; z-index: 100 !important; background: #ffffff !important; border-right: 1px solid #e2e8f0 !important; box-shadow: 1px 0 3px rgba(0,0,0,0.03) !important; overflow-y: auto !important; overflow-x: hidden !important; box-sizing: border-box !important; }
+                #menu h1, h1 { background: transparent !important; border: none !important; border-bottom: 1px solid #e2e8f0 !important; padding: 0 0 14px 0 !important; margin: 0 0 16px 0 !important; font-size: 14.5px !important; font-weight: 700 !important; color: #0f172a !important; line-height: 1.4 !important; box-sizing: border-box !important; max-width: 100% !important; overflow: hidden !important; text-overflow: ellipsis !important; }
+                .seintech-brand { display: inline-flex !important; align-items: center !important; gap: 8px !important; color: #4f46e5 !important; font-weight: 700 !important; letter-spacing: -0.01em !important; max-width: 100% !important; white-space: normal !important; word-break: break-word !important; }
                 #menu .version { display: inline-block !important; font-size: 11px !important; color: #64748b !important; background: #f1f5f9 !important; padding: 1px 6px !important; border-radius: 4px !important; margin-left: 6px !important; }
                 #version { display: none !important; }
-                #breadcrumb { position: fixed !important; top: 0 !important; left: 260px !important; right: 0 !important; height: 52px !important; line-height: 52px !important; margin: 0 !important; padding: 0 32px !important; background: #ffffff !important; border-bottom: 1px solid #e2e8f0 !important; z-index: 90 !important; display: flex !important; align-items: center !important; font-size: 13px !important; color: #64748b !important; white-space: nowrap !important; overflow-x: auto !important; }
-                #breadcrumb a { color: #4f46e5 !important; font-weight: 600 !important; }
+                #lang { position: static !important; margin: 16px 0 0 0 !important; padding: 12px 0 0 0 !important; border-top: 1px solid #e2e8f0 !important; font-size: 11.5px !important; color: #64748b !important; display: block !important; }
+                #breadcrumb { position: fixed !important; top: 0 !important; left: 260px !important; right: 0 !important; height: 52px !important; line-height: 52px !important; margin: 0 !important; padding: 0 28px !important; background: #ffffff !important; border-bottom: 1px solid #e2e8f0 !important; z-index: 90 !important; display: flex !important; align-items: center !important; font-size: 13px !important; color: #64748b !important; white-space: nowrap !important; overflow-x: auto !important; box-sizing: border-box !important; box-shadow: 0 1px 2px rgba(0,0,0,0.02) !important; }
+                #breadcrumb a { color: #4f46e5 !important; font-weight: 600 !important; text-decoration: none !important; }
+                #breadcrumb a:hover { text-decoration: underline !important; }
                 .logout, p.logout, form.logout { position: fixed !important; top: 10px !important; right: 24px !important; margin: 0 !important; padding: 0 !important; z-index: 95 !important; }
                 .logout input[type="submit"], .logout button { font-size: 12px !important; font-weight: 600 !important; padding: 6px 14px !important; color: #dc2626 !important; background: #fee2e2 !important; border: 1px solid #fecaca !important; border-radius: 6px !important; cursor: pointer !important; }
-                #content { margin-left: 260px !important; margin-top: 52px !important; margin-right: 0 !important; margin-bottom: 0 !important; padding: 28px 36px !important; max-width: 1400px !important; min-height: calc(100vh - 52px) !important; position: relative !important; }
+                #content { margin-left: 260px !important; margin-top: 52px !important; margin-right: 0 !important; margin-bottom: 0 !important; padding: 28px 36px !important; max-width: 1400px !important; min-height: calc(100vh - 52px) !important; position: relative !important; box-sizing: border-box !important; }
                 h2 { font-size: 20px !important; font-weight: 700 !important; color: #0f172a !important; margin: 0 0 20px 0 !important; padding: 0 !important; background: transparent !important; border: none !important; display: flex !important; align-items: center !important; gap: 8px !important; letter-spacing: -0.02em !important; }
                 </style>';
                 return true;
@@ -1249,7 +1255,11 @@ if (file_exists(__DIR__ . '/adminer.php')) {
     echo 'Adminer core binary missing. Please reinstall Adminer from Seintech Panel.';
 }
 `
-	_ = os.WriteFile("/usr/share/adminer/index.php", []byte(wrapperScript), 0644)
+	wrapperContent := []byte(wrapperScript)
+	if emb, err := web.EmbeddedFiles.ReadFile("static/index.php"); err == nil && len(emb) > 0 {
+		wrapperContent = emb
+	}
+	_ = os.WriteFile("/usr/share/adminer/index.php", wrapperContent, 0644)
 	_ = os.WriteFile("/usr/share/adminer/sso.php", []byte("<?php\nrequire_once __DIR__ . '/index.php';\n"), 0644)
 
 	// 6. Install Modern CSS Theme for Adminer
@@ -1312,12 +1322,15 @@ a:hover {
     left: 0 !important;
     bottom: 0 !important;
     width: 260px !important;
+    max-width: 260px !important;
     margin: 0 !important;
     padding: 20px 16px !important;
     background: var(--bg-surface) !important;
     border-right: 1px solid var(--border) !important;
     box-shadow: 1px 0 3px rgba(0,0,0,0.03) !important;
     overflow-y: auto !important;
+    overflow-x: hidden !important;
+    box-sizing: border-box !important;
     z-index: 100 !important;
 }
 
@@ -1339,6 +1352,10 @@ a:hover {
     background: transparent !important;
     color: var(--text-primary) !important;
     line-height: 1.4 !important;
+    box-sizing: border-box !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
 }
 
 .seintech-brand {
@@ -1348,6 +1365,9 @@ a:hover {
     color: var(--primary) !important;
     font-weight: 700 !important;
     letter-spacing: -0.01em !important;
+    max-width: 100% !important;
+    white-space: normal !important;
+    word-break: break-word !important;
 }
 
 #menu .version {
@@ -1443,7 +1463,7 @@ a:hover {
     height: 52px !important;
     line-height: 52px !important;
     margin: 0 !important;
-    padding: 0 32px !important;
+    padding: 0 28px !important;
     background: #ffffff !important;
     border-bottom: 1px solid var(--border) !important;
     display: flex !important;
@@ -1455,6 +1475,7 @@ a:hover {
     white-space: nowrap !important;
     overflow-x: auto !important;
     z-index: 90 !important;
+    box-sizing: border-box !important;
     box-shadow: 0 1px 2px rgba(0,0,0,0.02) !important;
 }
 
@@ -1733,7 +1754,11 @@ legend {
     }
 }
 `
-	_ = os.WriteFile("/usr/share/adminer/adminer.css", []byte(modernTheme), 0644)
+	themeContent := []byte(modernTheme)
+	if emb, err := web.EmbeddedFiles.ReadFile("static/adminer.css"); err == nil && len(emb) > 0 {
+		themeContent = emb
+	}
+	_ = os.WriteFile("/usr/share/adminer/adminer.css", themeContent, 0644)
 	_ = exec.CommandContext(ctx, "chown", "-R", "www-data:www-data", "/usr/share/adminer").Run()
 	_ = exec.CommandContext(ctx, "nginx", "-s", "reload").Run()
 }

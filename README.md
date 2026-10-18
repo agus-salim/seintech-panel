@@ -27,7 +27,7 @@ Repositori Resmi: **[https://github.com/seintechid/panel](https://github.com/sei
 
 5. **Multi-Database Engine:**
    - Mendukung **MariaDB/MySQL** dan **PostgreSQL**.
-   - Pengelolaan database, user privilege, monitoring ukuran database, dan integrasi Single Sign-On (SSO) instan ke **phpMyAdmin** dan **phpPgAdmin**.
+   - Pengelolaan database, user privilege, monitoring ukuran database, dan integrasi Single Sign-On (SSO) instan ke **Adminer** (MariaDB/MySQL & PostgreSQL).
 
 6. **Automasi SSL / Let's Encrypt ACME:**
    - HTTP-01 challenge otomatis, self-signed TLS bootstrap, dan cron worker auto-renewal tiap 12 jam (memperbarui sertifikat 30 hari sebelum kedaluwarsa).

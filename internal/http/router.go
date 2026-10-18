@@ -2,6 +2,8 @@ package http
 
 import (
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
@@ -47,6 +49,31 @@ func NewRouter(
 
 	// ACME Challenge Server for Let's Encrypt HTTP-01
 	r.Handle("/.well-known/acme-challenge/*", http.StripPrefix("/.well-known/acme-challenge/", http.FileServer(http.Dir(cfg.ACMERoot))))
+
+	// Reverse proxy for internal database web management tool (Adminer)
+	dbToolsURL, _ := url.Parse("http://127.0.0.1:8089")
+	dbProxy := httputil.NewSingleHostReverseProxy(dbToolsURL)
+	origDirector := dbProxy.Director
+	dbProxy.Director = func(req *http.Request) {
+		origDirector(req)
+		req.Host = "127.0.0.1:8089"
+		req.Header.Set("X-Forwarded-Proto", "https")
+		req.Header.Set("X-Real-IP", req.RemoteAddr)
+	}
+	dbProxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusBadGateway)
+		_, _ = w.Write([]byte(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Database Tool Unavailable</title><style>body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;text-align:center;padding:50px;color:#1e293b;background:#f8fafc;}h2{margin-bottom:8px;color:#0f172a;}p{color:#64748b;font-size:14px;}</style></head><body><h2>Database Web Tool Unavailable</h2><p>Layanan Nginx atau PHP-FPM belum aktif. Silakan jalankan layanan tersebut melalui menu Services &amp; Packages.</p></body></html>`))
+	}
+
+	r.Handle("/adminer", http.RedirectHandler("/adminer/", http.StatusMovedPermanently))
+	r.Handle("/adminer/*", dbProxy)
+
+	// Backwards compatibility: redirect legacy phpMyAdmin and phpPgAdmin paths to Adminer
+	r.Handle("/phpmyadmin", http.RedirectHandler("/adminer/", http.StatusMovedPermanently))
+	r.Handle("/phpmyadmin/*", http.RedirectHandler("/adminer/", http.StatusMovedPermanently))
+	r.Handle("/phppgadmin", http.RedirectHandler("/adminer/", http.StatusMovedPermanently))
+	r.Handle("/phppgadmin/*", http.RedirectHandler("/adminer/", http.StatusMovedPermanently))
 
 	// Initialize Handlers
 	authH := handler.NewAuthHandler(authMgr)

@@ -183,27 +183,15 @@
             <p class="text-xs text-slate-500 mt-0.5">{{ T "Provision and manage MariaDB / MySQL & PostgreSQL instances" }}</p>
         </div>
         <div class="flex items-center flex-wrap gap-2">
-            {{ if .PhpMyAdminInstalled }}
-            <a href="/phpmyadmin/" target="_blank" title="{{ T "Open phpMyAdmin Web GUI (MariaDB/MySQL)" }}" class="px-3 py-2 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 rounded-xl transition-colors inline-flex items-center shadow-sm">
-                <svg class="w-3.5 h-3.5 mr-1.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l4-4m0 0l-4-4m4 4H3m6 4v1a3 3 0 003 3h6a3 3 0 003-3V7a3 3 0 00-3-3h-6a3 3 0 00-3 3v1"/></svg>
-                phpMyAdmin
+            {{ if .AdminerInstalled }}
+            <a href="/adminer/" target="_blank" title="{{ T "Open Adminer Web GUI (MariaDB & PostgreSQL)" }}" class="px-3 py-2 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 rounded-xl transition-colors inline-flex items-center shadow-sm">
+                <svg class="w-3.5 h-3.5 mr-1.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l4-4m0 0l-4-4m4 4H3m6 4v1a3 3 0 003 3h6a3 3 0 003-3V7a3 3 0 00-3-3h-6a3 3 0 00-3 3v1"/></svg>
+                Adminer
             </a>
             {{ else if eq .UserRole "admin" }}
-            <button type="button" onclick="startInstallJob('phpmyadmin', 'phpMyAdmin', 'install')" title="{{ T "Click to auto-install & configure phpMyAdmin" }}" class="px-3 py-2 text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-xl transition-colors inline-flex items-center shadow-sm">
-                <svg class="w-3.5 h-3.5 mr-1.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                <span>{{ T "Install phpMyAdmin (Auto)" }}</span>
-            </button>
-            {{ end }}
-
-            {{ if .PhpPgAdminInstalled }}
-            <a href="/phppgadmin/" target="_blank" title="{{ T "Open phpPgAdmin Web GUI (PostgreSQL)" }}" class="px-3 py-2 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200/80 rounded-xl transition-colors inline-flex items-center shadow-sm">
-                <svg class="w-3.5 h-3.5 mr-1.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l4-4m0 0l-4-4m4 4H3m6 4v1a3 3 0 003 3h6a3 3 0 003-3V7a3 3 0 00-3-3h-6a3 3 0 00-3 3v1"/></svg>
-                phpPgAdmin
-            </a>
-            {{ else if eq .UserRole "admin" }}
-            <button type="button" onclick="startInstallJob('phppgadmin', 'phpPgAdmin', 'install')" title="{{ T "Click to auto-install & configure phpPgAdmin" }}" class="px-3 py-2 text-xs font-semibold text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-300 rounded-xl transition-colors inline-flex items-center shadow-sm">
-                <svg class="w-3.5 h-3.5 mr-1.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                <span>{{ T "Install phpPgAdmin (Auto)" }}</span>
+            <button type="button" onclick="startInstallJob('adminer', 'Adminer', 'install')" title="{{ T "Click to auto-install & configure Adminer" }}" class="px-3 py-2 text-xs font-semibold text-indigo-800 bg-indigo-50 hover:bg-indigo-100 border border-indigo-300 rounded-xl transition-colors inline-flex items-center shadow-sm">
+                <svg class="w-3.5 h-3.5 mr-1.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                <span>{{ T "Install Adminer (Auto)" }}</span>
             </button>
             {{ end }}
 
@@ -280,75 +268,38 @@
                         <td class="py-4 px-6 font-mono text-xs text-slate-500" x-text="formatBytes({{ .SizeBytes }})"></td>
                         <td class="py-4 px-6 text-right">
                             <div class="inline-flex items-center gap-1.5 justify-end">
-                                {{ if eq .Type "postgres" }}
-                                    {{ if $.PhpPgAdminInstalled }}
-                                    <!-- Login phpPgAdmin Icon -->
+                                {{ if $.AdminerInstalled }}
+                                    <!-- Login Adminer Icon -->
                                     {{ if .Password }}
                                     <a href="/databases/sso?name={{ .Name }}&type={{ .Type }}" 
                                        target="_blank"
-                                       title="{{ T "Auto-Login phpPgAdmin" }} ({{ .Name }})"
-                                       class="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+                                       title="{{ T "Auto-Login Adminer" }} ({{ .Name }})"
+                                       class="p-1.5 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l4-4m0 0l-4-4m4 4H3m6 4v1a3 3 0 003 3h6a3 3 0 003-3V7a3 3 0 00-3-3h-6a3 3 0 00-3 3v1"/></svg>
                                     </a>
                                     <button type="button"
                                             @click="openSetPassword('{{ .Name }}', '{{ .Username }}', '{{ .Type }}')"
                                             title="{{ T "Set / Sync Auto-Login Password" }} ({{ .Name }})"
-                                            class="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+                                            class="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
                                     </button>
                                     {{ else }}
                                     <button type="button"
                                             @click="openSetPassword('{{ .Name }}', '{{ .Username }}', '{{ .Type }}')"
-                                            title="{{ T "Auto-Login phpPgAdmin (Click to Save Password Once)" }}"
-                                            class="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+                                            title="{{ T "Auto-Login Adminer (Click to Save Password Once)" }}"
+                                            class="p-1.5 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l4-4m0 0l-4-4m4 4H3m6 4v1a3 3 0 003 3h6a3 3 0 003-3V7a3 3 0 00-3-3h-6a3 3 0 00-3 3v1"/></svg>
                                     </button>
-                                    {{ end }}
-                                    {{ else }}
-                                    <!-- Quick Auto-Install phpPgAdmin Icon -->
-                                    {{ if eq $.UserRole "admin" }}
-                                    <button type="button"
-                                            onclick="startInstallJob('phppgadmin', 'phpPgAdmin', 'install')"
-                                            title="{{ T "phpPgAdmin not installed (Click to Auto-Install)" }}"
-                                            class="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-blue-500/20">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                                    </button>
-                                    {{ end }}
                                     {{ end }}
                                 {{ else }}
-                                    {{ if $.PhpMyAdminInstalled }}
-                                    <!-- Login phpMyAdmin Icon -->
-                                    {{ if .Password }}
-                                    <a href="/phpmyadmin/" 
-                                       target="_blank"
-                                       title="{{ T "Auto-Login phpMyAdmin" }} ({{ .Name }})"
-                                       class="p-1.5 text-amber-600 hover:text-amber-800 hover:bg-amber-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-amber-500/20">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l4-4m0 0l-4-4m4 4H3m6 4v1a3 3 0 003 3h6a3 3 0 003-3V7a3 3 0 00-3-3h-6a3 3 0 00-3 3v1"/></svg>
-                                    </a>
-                                    <button type="button"
-                                            @click="openSetPassword('{{ .Name }}', '{{ .Username }}', '{{ .Type }}')"
-                                            title="{{ T "Set / Sync Auto-Login Password" }} ({{ .Name }})"
-                                            class="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-amber-500/20">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
-                                    </button>
-                                    {{ else }}
-                                    <button type="button"
-                                            @click="openSetPassword('{{ .Name }}', '{{ .Username }}', '{{ .Type }}')"
-                                            title="{{ T "Auto-Login phpMyAdmin (Click to Save Password Once)" }}"
-                                            class="p-1.5 text-amber-600 hover:text-amber-800 hover:bg-amber-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-amber-500/20">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l4-4m0 0l-4-4m4 4H3m6 4v1a3 3 0 003 3h6a3 3 0 003-3V7a3 3 0 00-3-3h-6a3 3 0 00-3 3v1"/></svg>
-                                    </button>
-                                    {{ end }}
-                                    {{ else }}
-                                    <!-- Quick Auto-Install phpMyAdmin Icon -->
+                                    <!-- Quick Auto-Install Adminer Icon -->
                                     {{ if eq $.UserRole "admin" }}
                                     <button type="button"
-                                            onclick="startInstallJob('phpmyadmin', 'phpMyAdmin', 'install')"
-                                            title="{{ T "phpMyAdmin not installed (Click to Auto-Install)" }}"
-                                            class="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-amber-500/20">
+                                            onclick="startInstallJob('adminer', 'Adminer', 'install')"
+                                            title="{{ T "Adminer not installed (Click to Auto-Install)" }}"
+                                            class="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                                     </button>
-                                    {{ end }}
                                     {{ end }}
                                 {{ end }}
 

@@ -42,10 +42,9 @@ func NewDatabaseHandler(repo *storage.Repository, mysqlMgr *database.MySQLManage
 
 type DBPageData struct {
 	BasePageData
-	Databases           []model.Database
-	PhpMyAdminInstalled bool
-	PhpPgAdminInstalled bool
-	CanCreateDB         bool
+	Databases        []model.Database
+	AdminerInstalled bool
+	CanCreateDB      bool
 }
 
 func (h *DatabaseHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -102,11 +101,10 @@ func (h *DatabaseHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := DBPageData{
-		BasePageData:        NewBaseData(r, "Databases", "Multi-Database Engine Provisioning", "databases", settings.Hostname, settings.Language),
-		Databases:           dbs,
-		PhpMyAdminInstalled: h.sm.IsInstalled("phpmyadmin"),
-		PhpPgAdminInstalled: h.sm.IsInstalled("phppgadmin"),
-		CanCreateDB:         canCreate,
+		BasePageData:     NewBaseData(r, "Databases", "Multi-Database Engine Provisioning", "databases", settings.Hostname, settings.Language),
+		Databases:        dbs,
+		AdminerInstalled: h.sm.IsInstalled("adminer"),
+		CanCreateDB:      canCreate,
 	}
 
 	_ = web.RenderTemplate(w, "databases.html", data)
@@ -526,11 +524,7 @@ func (h *DatabaseHandler) SSOLogin(w http.ResponseWriter, r *http.Request) {
 	_ = os.WriteFile(tokenFile, tokenBytesData, 0666)
 	_ = os.Chmod(tokenFile, 0666)
 
-	if targetDB.Type == model.DBTypePostgres {
-		http.Redirect(w, r, fmt.Sprintf("/phppgadmin/sso.php?token=%s", token), http.StatusSeeOther)
-	} else {
-		http.Redirect(w, r, fmt.Sprintf("/phpmyadmin/sso.php?token=%s", token), http.StatusSeeOther)
-	}
+	http.Redirect(w, r, fmt.Sprintf("/adminer/?token=%s", token), http.StatusSeeOther)
 }
 
 // SetPassword updates database password in database system and repository for seamless auto-login.

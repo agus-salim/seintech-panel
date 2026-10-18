@@ -31,6 +31,7 @@ var AllowedServices = map[string]bool{
 	"php8.3-fpm":  true,
 	"php8.4-fpm":  true,
 	"php8.5-fpm":  true,
+	"adminer":     true,
 	"phpmyadmin":  true,
 	"phppgadmin":  true,
 	"seintech":    true,
@@ -173,24 +174,15 @@ var Catalog = []ServiceDefinition{
 		AptPackages: []string{"php8.5-fpm", "php8.5-cli", "php8.5-mysql", "php8.5-pgsql", "php8.5-curl", "php8.5-gd", "php8.5-mbstring", "php8.5-xml", "php8.5-zip"},
 	},
 
-	// Database Management Tools
+	// Database Management Tool
 	{
-		Name:        "phpmyadmin",
-		DisplayName: "phpMyAdmin",
+		Name:        "adminer",
+		DisplayName: "Adminer",
 		Category:    "database_tool",
-		Description: "Web-based administration interface for MySQL and MariaDB databases.",
-		CheckPaths:  []string{"/usr/share/phpmyadmin/index.php", "/usr/share/phpmyadmin"},
-		AptPackages: []string{"phpmyadmin"},
-		Ports:       "URI: /phpmyadmin/",
-	},
-	{
-		Name:        "phppgadmin",
-		DisplayName: "phpPgAdmin",
-		Category:    "database_tool",
-		Description: "Web-based administration interface for PostgreSQL databases.",
-		CheckPaths:  []string{"/usr/share/phppgadmin/index.php", "/usr/share/phppgadmin"},
-		AptPackages: []string{"phppgadmin", "php-pgsql"},
-		Ports:       "URI: /phppgadmin/",
+		Description: "Modern, lightweight web GUI to inspect, query, and manage MariaDB/MySQL & PostgreSQL databases.",
+		CheckPaths:  []string{"/usr/share/adminer/adminer.php", "/usr/share/adminer/index.php", "/usr/share/adminer"},
+		AptPackages: []string{"adminer", "php-mysql", "php-pgsql", "php-sqlite3"},
+		Ports:       "URI: /adminer/",
 	},
 }
 
@@ -261,7 +253,7 @@ func (sm *ServiceManager) isServiceDisabled(serviceName string) bool {
 
 // GetStatus checks if the service is currently running.
 func (sm *ServiceManager) GetStatus(ctx context.Context, serviceName string) (ServiceState, error) {
-	if serviceName == "phpmyadmin" || serviceName == "phppgadmin" {
+	if serviceName == "adminer" || serviceName == "phpmyadmin" || serviceName == "phppgadmin" {
 		if !sm.IsInstalled(serviceName) {
 			return ServiceState{
 				Name:   serviceName,
@@ -293,9 +285,11 @@ func (sm *ServiceManager) GetStatus(ctx context.Context, serviceName string) (Se
 }
 
 func (sm *ServiceManager) Start(ctx context.Context, serviceName string) error {
-	if serviceName == "phpmyadmin" || serviceName == "phppgadmin" {
+	if serviceName == "adminer" || serviceName == "phpmyadmin" || serviceName == "phppgadmin" {
 		_ = os.Remove(disabledFilePath(serviceName))
-		if serviceName == "phpmyadmin" {
+		if serviceName == "adminer" {
+			sm.AutoConfigureAdminer(ctx)
+		} else if serviceName == "phpmyadmin" {
 			sm.AutoConfigurePhpMyAdmin(ctx)
 		} else {
 			sm.AutoConfigurePhpPgAdmin(ctx)
@@ -311,7 +305,7 @@ func (sm *ServiceManager) Start(ctx context.Context, serviceName string) error {
 }
 
 func (sm *ServiceManager) Stop(ctx context.Context, serviceName string) error {
-	if serviceName == "phpmyadmin" || serviceName == "phppgadmin" {
+	if serviceName == "adminer" || serviceName == "phpmyadmin" || serviceName == "phppgadmin" {
 		_ = os.MkdirAll("/var/lib/seintech/services", 0755)
 		_ = os.WriteFile(disabledFilePath(serviceName), []byte("stopped"), 0644)
 		_, err := sm.ExecuteSystemctl(ctx, "reload", "nginx")
@@ -322,9 +316,11 @@ func (sm *ServiceManager) Stop(ctx context.Context, serviceName string) error {
 }
 
 func (sm *ServiceManager) Restart(ctx context.Context, serviceName string) error {
-	if serviceName == "phpmyadmin" || serviceName == "phppgadmin" {
+	if serviceName == "adminer" || serviceName == "phpmyadmin" || serviceName == "phppgadmin" {
 		_ = os.Remove(disabledFilePath(serviceName))
-		if serviceName == "phpmyadmin" {
+		if serviceName == "adminer" {
+			sm.AutoConfigureAdminer(ctx)
+		} else if serviceName == "phpmyadmin" {
 			sm.AutoConfigurePhpMyAdmin(ctx)
 		} else {
 			sm.AutoConfigurePhpPgAdmin(ctx)
@@ -340,7 +336,7 @@ func (sm *ServiceManager) Restart(ctx context.Context, serviceName string) error
 }
 
 func (sm *ServiceManager) Reload(ctx context.Context, serviceName string) error {
-	if serviceName == "phpmyadmin" || serviceName == "phppgadmin" {
+	if serviceName == "adminer" || serviceName == "phpmyadmin" || serviceName == "phppgadmin" {
 		_, err := sm.ExecuteSystemctl(ctx, "reload", "nginx")
 		return err
 	}
@@ -432,7 +428,24 @@ func (sm *ServiceManager) InstallService(ctx context.Context, serviceName string
 	installCmd := exec.CommandContext(ctx, "apt-get", args...)
 	installCmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
 	out, err := installCmd.CombinedOutput()
-	if err != nil && serviceName == "phpmyadmin" {
+	if err != nil && serviceName == "adminer" {
+		// Fallback for adminer if APT package is unavailable:
+		// Download standalone official adminer.php directly
+		_ = os.MkdirAll("/usr/share/adminer", 0755)
+		fbScript := `
+			export DEBIAN_FRONTEND=noninteractive
+			apt-get install -y curl wget php-mysql php-pgsql php-sqlite3 php-mbstring || true
+			mkdir -p /usr/share/adminer
+			curl -fsSL https://github.com/vrana/adminer/releases/download/v4.8.1/adminer-4.8.1.php -o /usr/share/adminer/adminer.php || \
+			wget -qO /usr/share/adminer/adminer.php https://github.com/vrana/adminer/releases/download/v4.8.1/adminer-4.8.1.php || \
+			curl -fsSL https://www.adminer.org/latest.php -o /usr/share/adminer/adminer.php || true
+			chown -R www-data:www-data /usr/share/adminer
+		`
+		_ = exec.CommandContext(ctx, "bash", "-c", fbScript).Run()
+		if sm.IsInstalled("adminer") {
+			err = nil
+		}
+	} else if err != nil && serviceName == "phpmyadmin" {
 		// Fallback for phpmyadmin if APT package is unavailable in Debian testing/trixie:
 		// Download official standalone release archive directly
 		fbScript := `
@@ -460,6 +473,10 @@ func (sm *ServiceManager) InstallService(ctx context.Context, serviceName string
 	// Post-install port and configuration enforcement
 	if serviceName == "apache2" {
 		sm.ensureApachePorts(ctx)
+	}
+	if serviceName == "adminer" {
+		_ = os.Remove(disabledFilePath("adminer"))
+		sm.AutoConfigureAdminer(ctx)
 	}
 	if serviceName == "phpmyadmin" {
 		_ = os.Remove(disabledFilePath("phpmyadmin"))
@@ -535,7 +552,10 @@ func (sm *ServiceManager) UninstallService(ctx context.Context, serviceName stri
 		_ = os.RemoveAll(p)
 	}
 
-	if serviceName == "phpmyadmin" {
+	if serviceName == "adminer" {
+		_ = os.RemoveAll("/usr/share/adminer")
+		_ = os.RemoveAll("/etc/adminer")
+	} else if serviceName == "phpmyadmin" {
 		_ = os.RemoveAll("/usr/share/phpmyadmin")
 		_ = os.RemoveAll("/etc/phpmyadmin")
 		_ = os.RemoveAll("/var/lib/phpmyadmin")
@@ -811,6 +831,7 @@ exit;
 `
 	_ = os.WriteFile(ssoScript, []byte(ssoContent), 0644)
 	_ = exec.CommandContext(ctx, "chown", "www-data:www-data", ssoScript).Run()
+	_ = exec.CommandContext(ctx, "nginx", "-s", "reload").Run()
 }
 
 // AutoConfigurePhpPgAdmin adjusts security settings, installs php-pgsql, and installs SSO bridge script.
@@ -992,6 +1013,7 @@ exit;
 			}
 		}
 	}
+	_ = exec.CommandContext(ctx, "nginx", "-s", "reload").Run()
 }
 
 func (sm *ServiceManager) ensurePhpMyAdminPrerequisites(ctx context.Context) {
@@ -1014,10 +1036,415 @@ func (sm *ServiceManager) ensurePhpMyAdminPrerequisites(ctx context.Context) {
 	_ = exec.CommandContext(ctx, "bash", "-c", script).Run()
 }
 
-// EnsureDatabaseTools preseeds debconf and auto-configures both tools if present.
+// AutoConfigureAdminer installs dependencies, wrapper index.php with SSO bridge, and a modern CSS theme for Adminer.
+func (sm *ServiceManager) AutoConfigureAdminer(ctx context.Context) {
+	if !sm.IsInstalled("adminer") {
+		return
+	}
+
+	// 1. Ensure token exchange directory exists
+	_ = os.MkdirAll("/var/lib/seintech/pma_tokens", 0777)
+	_ = os.Chmod("/var/lib/seintech/pma_tokens", 0777)
+
+	// 2. Ensure /usr/share/adminer exists
+	_ = os.MkdirAll("/usr/share/adminer", 0755)
+
+	// 3. Ensure PHP database driver extensions (mysql, pgsql, sqlite3, mbstring)
+	script := `
+		export DEBIAN_FRONTEND=noninteractive
+		need_reload=0
+		for sock in /run/php/php*-fpm.sock; do
+			if [ -e "$sock" ]; then
+				ver=$(basename "$sock" | sed -E 's/php([0-9]+\.[0-9]+)-fpm\.sock/\1/')
+				need_pkg=0
+				for ext in mysql pgsql mbstring; do
+					if [ ! -f "/etc/php/$ver/fpm/conf.d/"*"$ext"*.ini ] && ! php$ver -m 2>/dev/null | grep -qi "^$ext$"; then
+						need_pkg=1
+						break
+					fi
+				done
+				if [ "$need_pkg" -eq 1 ]; then
+					apt-get update -y >/dev/null 2>&1 || true
+					apt-get install -y php$ver-mysql php$ver-pgsql php$ver-sqlite3 php$ver-mbstring || true
+					phpenmod -v $ver mysqlnd mysqli pdo_mysql pgsql pdo_pgsql mbstring 2>/dev/null || true
+					need_reload=1
+				fi
+			fi
+		done
+
+		if ! dpkg -s php-mysql >/dev/null 2>&1 || ! dpkg -s php-pgsql >/dev/null 2>&1; then
+			apt-get install -y php-mysql php-pgsql php-sqlite3 php-mbstring || true
+			phpenmod mysqli pdo_mysql pgsql pdo_pgsql mbstring 2>/dev/null || true
+			need_reload=1
+		fi
+
+		if [ "$need_reload" -eq 1 ]; then
+			for svc in $(systemctl list-unit-files --type=service | grep -oE 'php[0-9\.]+-fpm\.service'); do
+				systemctl restart "$svc" 2>/dev/null || true
+			done
+		fi
+	`
+	_ = exec.CommandContext(ctx, "bash", "-c", script).Run()
+
+	// 4. Download standalone adminer.php if not present
+	adminerBin := "/usr/share/adminer/adminer.php"
+	if _, err := os.Stat(adminerBin); os.IsNotExist(err) {
+		dlScript := `
+			curl -fsSL https://github.com/vrana/adminer/releases/download/v4.8.1/adminer-4.8.1.php -o /usr/share/adminer/adminer.php || \
+			wget -qO /usr/share/adminer/adminer.php https://github.com/vrana/adminer/releases/download/v4.8.1/adminer-4.8.1.php || \
+			curl -fsSL https://www.adminer.org/latest.php -o /usr/share/adminer/adminer.php || true
+		`
+		_ = exec.CommandContext(ctx, "bash", "-c", dlScript).Run()
+	}
+
+	// 5. Install Seintech SSO & Plugin Wrapper in /usr/share/adminer/index.php
+	wrapperScript := `<?php
+// Seintech Panel SSO & Wrapper for Adminer
+declare(strict_types=1);
+
+session_name('adminer_sid');
+@session_start();
+
+$token = $_GET['token'] ?? '';
+if (is_string($token) && preg_match('/^[a-f0-9]{32,64}$/', $token)) {
+    $tokenFile = '/var/lib/seintech/pma_tokens/' . $token . '.json';
+    if (file_exists($tokenFile)) {
+        $raw = @file_get_contents($tokenFile);
+        $data = @json_decode($raw, true);
+        @unlink($tokenFile);
+
+        if ($data && time() <= ($data['expires'] ?? 0)) {
+            $isPg = ($data['type'] ?? '') === 'postgres';
+            $driver = $isPg ? 'pgsql' : 'server';
+            $server = 'localhost';
+            $username = (string)($data['user'] ?? '');
+            $password = (string)($data['pass'] ?? '');
+            $db = (string)($data['db'] ?? '');
+
+            if (!isset($_SESSION['pwds'])) {
+                $_SESSION['pwds'] = [];
+            }
+            if (!isset($_SESSION['pwds'][$driver])) {
+                $_SESSION['pwds'][$driver] = [];
+            }
+            if (!isset($_SESSION['pwds'][$driver][$server])) {
+                $_SESSION['pwds'][$driver][$server] = [];
+            }
+            $_SESSION['pwds'][$driver][$server][$username] = $password;
+
+            $target = 'index.php?' . $driver . '=' . urlencode($server) . '&username=' . urlencode($username);
+            if (!empty($db)) {
+                $target .= '&db=' . urlencode($db);
+            }
+            header('Location: ' . $target);
+            exit;
+        }
+    }
+}
+
+function adminer_object() {
+    class SeintechAdminer extends Adminer {
+        function name() {
+            return '<span class="seintech-brand"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2 3.5 3 8 3s8-1 8-3V7M4 7c0 2 3.5 3 8 3s8-1 8-3M4 7c0-2 3.5-3 8-3s8 1 8 3m0 5c0 2-3.5 3-8 3s-8-1-8-3"/></svg> Seintech Database Manager</span>';
+        }
+    }
+    return new SeintechAdminer;
+}
+
+if (file_exists(__DIR__ . '/adminer.php')) {
+    include __DIR__ . '/adminer.php';
+} elseif (file_exists('/usr/share/adminer/adminer.php')) {
+    include '/usr/share/adminer/adminer.php';
+} else {
+    echo 'Adminer core binary missing. Please reinstall Adminer from Seintech Panel.';
+}
+`
+	_ = os.WriteFile("/usr/share/adminer/index.php", []byte(wrapperScript), 0644)
+	_ = os.WriteFile("/usr/share/adminer/sso.php", []byte("<?php\nrequire_once __DIR__ . '/index.php';\n"), 0644)
+
+	// 6. Install Modern CSS Theme for Adminer
+	modernTheme := `/* Seintech Modern Theme for Adminer */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+    --primary: #4f46e5;
+    --primary-hover: #4338ca;
+    --primary-light: #eef2ff;
+    --bg-page: #f8fafc;
+    --bg-surface: #ffffff;
+    --border: #e2e8f0;
+    --border-hover: #cbd5e1;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #64748b;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -2px rgba(0,0,0,0.05);
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+    margin: 0;
+    padding: 0;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-primary);
+    background-color: var(--bg-page);
+    -webkit-font-smoothing: antialiased;
+}
+
+a {
+    color: var(--primary);
+    text-decoration: none;
+    transition: color 0.15s ease;
+}
+a:hover {
+    color: var(--primary-hover);
+    text-decoration: underline;
+}
+
+#menu {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 260px;
+    background: var(--bg-surface);
+    border-right: 1px solid var(--border);
+    padding: 20px 16px;
+    overflow-y: auto;
+    z-index: 100;
+    box-shadow: 1px 0 3px rgba(0,0,0,0.03);
+}
+
+#menu h1 {
+    font-size: 15px;
+    font-weight: 700;
+    margin: 0 0 18px 0;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+}
+
+.seintech-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--primary);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+#menu .version {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: normal;
+}
+
+#menu p {
+    margin: 6px 0;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    transition: background-color 0.15s ease;
+}
+#menu p:hover {
+    background: var(--primary-light);
+}
+
+#tables {
+    list-style: none;
+    padding: 0;
+    margin: 10px 0;
+}
+#tables li {
+    margin-bottom: 2px;
+}
+#tables a {
+    display: block;
+    padding: 5px 8px;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-size: 12.5px;
+    transition: all 0.15s ease;
+}
+#tables a:hover, #tables .active {
+    background: var(--primary-light);
+    color: var(--primary);
+    font-weight: 500;
+    text-decoration: none;
+}
+
+#content {
+    margin-left: 260px;
+    padding: 28px 36px;
+    max-width: 1400px;
+}
+
+h2 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 18px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    letter-spacing: -0.02em;
+}
+
+#breadcrumb {
+    background: transparent;
+    padding: 0 0 14px 0;
+    color: var(--text-muted);
+    font-size: 12.5px;
+}
+#breadcrumb a {
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+table {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100%;
+    margin: 16px 0 24px 0;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+}
+
+thead th, th {
+    background: #f1f5f9;
+    color: var(--text-secondary);
+    font-size: 11.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+}
+
+td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+tbody tr:last-child td {
+    border-bottom: none;
+}
+
+tbody tr:hover td {
+    background-color: #f8fafc;
+}
+
+input[type="text"], input[type="password"], input[type="number"], select, textarea {
+    font-family: var(--font-sans);
+    font-size: 13px;
+    color: var(--text-primary);
+    background: #ffffff;
+    border: 1px solid var(--border-hover);
+    border-radius: var(--radius-sm);
+    padding: 7px 12px;
+    outline: none;
+    transition: all 0.15s ease;
+}
+
+input[type="text"]:focus, input[type="password"]:focus, select:focus, textarea:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+}
+
+textarea {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.45;
+    background: #ffffff;
+    border-radius: var(--radius-md);
+    padding: 12px;
+}
+
+input[type="submit"], button, .button {
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 7px 16px;
+    color: #ffffff;
+    background: var(--primary);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s ease;
+    box-shadow: var(--shadow-sm);
+}
+
+input[type="submit"]:hover, button:hover, .button:hover {
+    background: var(--primary-hover);
+    box-shadow: var(--shadow-md);
+    text-decoration: none;
+}
+
+.message {
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    color: #065f46;
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    margin: 16px 0;
+    box-shadow: var(--shadow-sm);
+}
+
+.error {
+    background: #fff1f2;
+    border: 1px solid #fecdd3;
+    color: #9f1239;
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    margin: 16px 0;
+    box-shadow: var(--shadow-sm);
+}
+
+fieldset {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 16px 20px;
+    margin: 16px 0;
+    box-shadow: var(--shadow-sm);
+}
+
+legend {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    padding: 0 8px;
+}
+`
+	_ = os.WriteFile("/usr/share/adminer/adminer.css", []byte(modernTheme), 0644)
+	_ = exec.CommandContext(ctx, "chown", "-R", "www-data:www-data", "/usr/share/adminer").Run()
+	_ = exec.CommandContext(ctx, "nginx", "-s", "reload").Run()
+}
+
+// EnsureDatabaseTools preseeds debconf and auto-configures database tools if present.
 func (sm *ServiceManager) EnsureDatabaseTools(ctx context.Context) {
 	sm.ensurePhpMyAdminPrerequisites(ctx)
 	sm.PreseedDebconf(ctx)
+	sm.AutoConfigureAdminer(ctx)
 	sm.AutoConfigurePhpMyAdmin(ctx)
 	sm.AutoConfigurePhpPgAdmin(ctx)
 }

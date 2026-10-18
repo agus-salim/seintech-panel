@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/seintech/panel/internal/config"
+	"github.com/seintech/panel/internal/core/i18n"
 	"github.com/seintech/panel/internal/core/php"
 	"github.com/seintech/panel/internal/core/ssl"
 	"github.com/seintech/panel/internal/core/system"
@@ -57,6 +58,7 @@ type DomainsPageData struct {
 	WebServers      []model.WebServerType
 	CanCreateDomain bool
 	UserAccounts    []model.User
+	ExistingDomains []string
 }
 
 func (h *DomainHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -149,8 +151,14 @@ func (h *DomainHandler) List(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	allSystemDomains, _ := h.repo.GetDomains()
+	existingNames := make([]string, 0, len(allSystemDomains))
+	for _, d := range allSystemDomains {
+		existingNames = append(existingNames, strings.ToLower(strings.TrimSpace(d.DomainName)))
+	}
+
 	data := DomainsPageData{
-		BasePageData:    NewBaseData(r, "Virtual Hosts", "Virtual Hosts & Web Routing", "domains", settings.Hostname),
+		BasePageData:    NewBaseData(r, "Virtual Hosts", "Virtual Hosts & Web Routing", "domains", settings.Hostname, settings.Language),
 		Domains:         domainViews,
 		PHPVersions:     fallbackVersions,
 		CanCreateDomain: canCreate,
@@ -159,6 +167,7 @@ func (h *DomainHandler) List(w http.ResponseWriter, r *http.Request) {
 			model.WebServerNginx,
 			model.WebServerApache,
 		},
+		ExistingDomains: existingNames,
 	}
 
 	_ = web.RenderTemplate(w, "domains.html", data)
@@ -206,8 +215,25 @@ func (h *DomainHandler) Create(w http.ResponseWriter, r *http.Request) {
 	proxyTarget := strings.TrimSpace(r.FormValue("proxy_target"))
 	sslEnable := r.FormValue("ssl_enable") == "true"
 
+	settings, _ := h.repo.GetSettings()
+	lang := i18n.GetLangFromRequest(r, settings.Language)
+
 	if domainName == "" {
-		http.Redirect(w, r, "/domains?msg=Nama+domain+wajib+diisi&type=error", http.StatusSeeOther)
+		errMsg := "Domain name is required"
+		if lang == i18n.LangID {
+			errMsg = "Nama domain wajib diisi"
+		}
+		http.Redirect(w, r, "/domains?msg="+url.QueryEscape(errMsg)+"&type=error", http.StatusSeeOther)
+		return
+	}
+
+	// Duplicate domain check
+	if existing, err := h.repo.GetDomainByName(domainName); err == nil && existing != nil {
+		errMsg := "This domain name is already registered in the panel!"
+		if lang == i18n.LangID {
+			errMsg = "Nama domain ini sudah terdaftar di panel!"
+		}
+		http.Redirect(w, r, "/domains?msg="+url.QueryEscape(errMsg)+"&type=error", http.StatusSeeOther)
 		return
 	}
 
@@ -632,9 +658,11 @@ func (h *DomainHandler) Delete(w http.ResponseWriter, r *http.Request) {
 
 	id := strings.TrimSpace(r.FormValue("id"))
 	confirmText := strings.ToLower(strings.TrimSpace(r.FormValue("confirm")))
+	lang := i18n.GetLangFromRequest(r)
 
-	if confirmText != "konfirmasi" {
-		http.Redirect(w, r, "/domains?msg=Penghapusan+dibatalkan.+Harap+ketik+'konfirmasi'+untuk+menghapus.&type=error", http.StatusSeeOther)
+	if confirmText != "konfirmasi" && confirmText != "confirm" {
+		errMsg := url.QueryEscape(i18n.T(lang, "Deletion cancelled. Please type 'confirm' to delete."))
+		http.Redirect(w, r, "/domains?msg="+errMsg+"&type=error", http.StatusSeeOther)
 		return
 	}
 
@@ -646,7 +674,8 @@ func (h *DomainHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	if domain != nil {
 		sess := GetSession(r)
 		if !IsUserAccessible(sess, h.repo, domain.UserID) {
-			http.Redirect(w, r, "/domains?msg=Akses+ditolak:+Anda+tidak+memiliki+izin+untuk+menghapus+domain+ini&type=error", http.StatusSeeOther)
+			errMsg := url.QueryEscape(i18n.T(lang, "Access denied: You do not have permission to delete this domain"))
+			http.Redirect(w, r, "/domains?msg="+errMsg+"&type=error", http.StatusSeeOther)
 			return
 		}
 

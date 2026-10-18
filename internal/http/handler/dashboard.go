@@ -63,7 +63,7 @@ func (h *DashboardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := DashboardData{
-		BasePageData:   NewBaseData(r, "Dashboard", "System Overview & Node Metrics", "dashboard", settings.Hostname),
+		BasePageData:   NewBaseData(r, "Dashboard", "System Overview & Node Metrics", "dashboard", settings.Hostname, settings.Language),
 		Metrics:        metrics,
 		Services:       services,
 		Domains:        domains,

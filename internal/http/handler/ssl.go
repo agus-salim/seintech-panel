@@ -39,7 +39,7 @@ func (h *SSLHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := SSLPageData{
-		BasePageData: NewBaseData(r, "SSL & Certificates", "Automated Let's Encrypt & Custom SSL", "ssl", settings.Hostname),
+		BasePageData: NewBaseData(r, "SSL & Certificates", "Automated Let's Encrypt & Custom SSL", "ssl", settings.Hostname, settings.Language),
 		Domains:      domains,
 	}
 

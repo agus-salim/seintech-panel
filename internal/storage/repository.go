@@ -325,6 +325,7 @@ func (r *Repository) GetSettings() (*model.PanelSettings, error) {
 			SecurityHeadersEnabled: true,
 			AutoRenewSSL:           true,
 			Hosts:                  []model.PanelHost{},
+			Language:               "en",
 		}
 	}
 	if settings.Hostname == "" {
@@ -332,6 +333,9 @@ func (r *Repository) GetSettings() (*model.PanelSettings, error) {
 	}
 	if settings.Port == 0 {
 		settings.Port = 8443
+	}
+	if settings.Language == "" {
+		settings.Language = "en"
 	}
 
 	var cleanHosts []model.PanelHost

@@ -102,7 +102,7 @@ func (h *DatabaseHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := DBPageData{
-		BasePageData:        NewBaseData(r, "Databases", "Multi-Database Engine Provisioning", "databases", settings.Hostname),
+		BasePageData:        NewBaseData(r, "Databases", "Multi-Database Engine Provisioning", "databases", settings.Hostname, settings.Language),
 		Databases:           dbs,
 		PhpMyAdminInstalled: h.sm.IsInstalled("phpmyadmin"),
 		PhpPgAdminInstalled: h.sm.IsInstalled("phppgadmin"),

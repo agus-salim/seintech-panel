@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/seintech/panel/internal/core/i18n"
 	"github.com/seintech/panel/internal/core/ssl"
 	"github.com/seintech/panel/internal/core/system"
 	"github.com/seintech/panel/internal/model"
@@ -48,7 +50,7 @@ func (h *SettingsHandler) View(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := SettingsPageData{
-		BasePageData: NewBaseData(r, "Panel Settings", "Panel & Server Configuration", "settings", settings.Hostname),
+		BasePageData: NewBaseData(r, "Panel Settings", "Panel & Server Configuration", "settings", settings.Hostname, settings.Language),
 		Settings:     settings,
 	}
 
@@ -62,9 +64,27 @@ func (h *SettingsHandler) Save(w http.ResponseWriter, r *http.Request) {
 	settings.DefaultPHPVersion = r.FormValue("default_php_version")
 	settings.SecurityHeadersEnabled = r.FormValue("security_headers") == "true"
 
+	newLang := r.FormValue("language")
+	if newLang != "" {
+		settings.Language = i18n.NormalizeLang(newLang)
+		http.SetCookie(w, &http.Cookie{
+			Name:     "seintech_lang",
+			Value:    settings.Language,
+			Path:     "/",
+			Expires:  time.Now().Add(365 * 24 * time.Hour),
+			HttpOnly: false,
+			SameSite: http.SameSiteLaxMode,
+		})
+	}
+
 	_ = h.repo.SaveSettings(*settings)
 
-	http.Redirect(w, r, "/settings?msg=Konfigurasi+server+berhasil+disimpan&type=success", http.StatusSeeOther)
+	msg := "Server configuration saved successfully"
+	if settings.Language == i18n.LangID {
+		msg = "Konfigurasi server berhasil disimpan"
+	}
+
+	http.Redirect(w, r, "/settings?msg="+url.QueryEscape(msg)+"&type=success", http.StatusSeeOther)
 }
 
 func (h *SettingsHandler) AddHost(w http.ResponseWriter, r *http.Request) {

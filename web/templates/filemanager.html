@@ -452,7 +452,7 @@
                 Delete
             </button>
             <button type="button" @click="selectedFiles = []" class="px-2.5 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-200/60 rounded-xl transition-colors">
-                Batal
+                {{ T "Cancel" }}
             </button>
         </div>
     </div>
@@ -588,11 +588,11 @@
                                     </svg>
                                 </button>
 
-                                <form action="/filemanager/delete" method="POST" class="inline" onsubmit="return confirm('Hapus permanen file/folder ini?');">
+                                <form action="/filemanager/delete" method="POST" class="inline" onsubmit="return confirm('Permanently delete this file or folder?');">
                                     <input type="hidden" name="path" value="{{ .Path }}">
                                     <button type="submit"
                                             class="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors"
-                                            title="Hapus Permanen (Delete)">
+                                            title="Permanently Delete">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
                                         </svg>
@@ -654,10 +654,10 @@
                 </template>
 
                 <div>
-                    <h4 class="text-xs font-bold text-slate-800" x-show="uploadStatus === 'uploading'">Mengunggah File...</h4>
-                    <h4 class="text-xs font-bold text-amber-700" x-show="uploadStatus === 'processing'">Menyimpan ke Server...</h4>
-                    <h4 class="text-xs font-bold text-emerald-700" x-show="uploadStatus === 'success'">Upload Selesai!</h4>
-                    <h4 class="text-xs font-bold text-rose-700" x-show="uploadStatus === 'error'">Upload Gagal</h4>
+                    <h4 class="text-xs font-bold text-slate-800" x-show="uploadStatus === 'uploading'">{{ T "Uploading File..." }}</h4>
+                    <h4 class="text-xs font-bold text-amber-700" x-show="uploadStatus === 'processing'">{{ T "Processing..." }}</h4>
+                    <h4 class="text-xs font-bold text-emerald-700" x-show="uploadStatus === 'success'">{{ T "Upload Complete!" }}</h4>
+                    <h4 class="text-xs font-bold text-rose-700" x-show="uploadStatus === 'error'">{{ T "Upload Failed" }}</h4>
                     <p class="text-[11px] text-slate-500 font-mono truncate max-w-[200px]" x-text="uploadFileName"></p>
                 </div>
             </div>
@@ -665,7 +665,7 @@
             <div class="flex items-center space-x-1">
                 <template x-if="uploadStatus === 'uploading'">
                     <button @click="cancelUpload()" class="text-[11px] text-rose-600 hover:text-rose-700 font-semibold px-2 py-1 hover:bg-rose-50 rounded-lg transition-colors">
-                        Batal
+                        {{ T "Cancel" }}
                     </button>
                 </template>
                 <template x-if="uploadStatus === 'error'">
@@ -717,19 +717,19 @@
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
                     </div>
                     <div>
-                        <h3 class="text-sm font-bold text-slate-900">Ekstrak Arsip</h3>
+                        <h3 class="text-sm font-bold text-slate-900">{{ T "Extract Archive" }}</h3>
                         <p class="text-xs text-slate-500 font-mono truncate max-w-xs" x-text="extractName"></p>
                     </div>
                 </div>
-                <p class="text-[11px] text-slate-500 mb-3">Mendukung format arsip <code class="bg-slate-100 px-1 py-0.5 rounded text-slate-700 font-mono">.tar.gz</code>, <code class="bg-slate-100 px-1 py-0.5 rounded text-slate-700 font-mono">.zip</code>, <code class="bg-slate-100 px-1 py-0.5 rounded text-slate-700 font-mono">.tgz</code>, <code class="bg-slate-100 px-1 py-0.5 rounded text-slate-700 font-mono">.tar</code>.</p>
+                <p class="text-[11px] text-slate-500 mb-3">{{ T "Supported archive formats:" }} <code class="bg-slate-100 px-1 py-0.5 rounded text-slate-700 font-mono">.tar.gz</code>, <code class="bg-slate-100 px-1 py-0.5 rounded text-slate-700 font-mono">.zip</code>, <code class="bg-slate-100 px-1 py-0.5 rounded text-slate-700 font-mono">.tgz</code>, <code class="bg-slate-100 px-1 py-0.5 rounded text-slate-700 font-mono">.tar</code>.</p>
                 <form @submit.prevent="executeExtract()">
                     <div class="mb-4">
-                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Direktori Tujuan</label>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">{{ T "Destination Directory" }}</label>
                         <input type="text" x-model="extractDest" required class="w-full px-3.5 py-2 text-xs font-mono border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none">
                     </div>
                     <div class="flex justify-end space-x-2">
-                        <button type="button" @click="extractModal = false" class="px-3.5 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-xl">Batal</button>
-                        <button type="submit" class="px-4 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm transition-colors">Ekstrak Sekarang</button>
+                        <button type="button" @click="extractModal = false" class="px-3.5 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-xl">{{ T "Cancel" }}</button>
+                        <button type="submit" class="px-4 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm transition-colors">{{ T "Extract Now" }}</button>
                     </div>
                 </form>
             </div>
@@ -745,23 +745,23 @@
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
                     </div>
                     <div>
-                        <h3 class="text-sm font-bold text-slate-900">Kompres File & Folder</h3>
-                        <p class="text-xs text-slate-500"><span x-text="selectedFiles.length"></span> item akan dimasukkan ke arsip</p>
+                        <h3 class="text-sm font-bold text-slate-900">{{ T "Compress Files" }}</h3>
+                        <p class="text-xs text-slate-500"><span x-text="selectedFiles.length"></span> {{ T "items will be added to archive" }}</p>
                     </div>
                 </div>
                 <form @submit.prevent="executeCompress()">
                     <div class="mb-4">
-                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Nama File Arsip (.zip / .tar.gz)</label>
-                        <input type="text" x-model="compressName" required placeholder="archive.zip atau archive.tar.gz" class="w-full px-3.5 py-2 text-xs font-mono border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">{{ T "Archive Name" }} (.zip / .tar.gz)</label>
+                        <input type="text" x-model="compressName" required placeholder="archive.zip" class="w-full px-3.5 py-2 text-xs font-mono border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
                         <div class="flex items-center space-x-2 mt-2">
-                            <span class="text-[11px] text-slate-400">Pilihan format:</span>
+                            <span class="text-[11px] text-slate-400">Format:</span>
                             <button type="button" @click="compressName = compressName.replace(/\.(zip|tar\.gz|tgz|tar)$/i, '') + '.zip'" class="px-2 py-0.5 text-[11px] font-mono rounded bg-slate-100 hover:bg-slate-200 text-slate-700">.zip</button>
                             <button type="button" @click="compressName = compressName.replace(/\.(zip|tar\.gz|tgz|tar)$/i, '') + '.tar.gz'" class="px-2 py-0.5 text-[11px] font-mono rounded bg-slate-100 hover:bg-slate-200 text-slate-700">.tar.gz</button>
                         </div>
                     </div>
                     <div class="flex justify-end space-x-2">
-                        <button type="button" @click="compressModal = false" class="px-3.5 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-xl">Batal</button>
-                        <button type="submit" class="px-4 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm transition-colors">Kompres Sekarang</button>
+                        <button type="button" @click="compressModal = false" class="px-3.5 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-xl">{{ T "Cancel" }}</button>
+                        <button type="submit" class="px-4 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm transition-colors">{{ T "Compress Now" }}</button>
                     </div>
                 </form>
             </div>
@@ -777,16 +777,16 @@
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                     </div>
                     <div>
-                        <h3 class="text-sm font-bold text-slate-900">Hapus Permanen?</h3>
-                        <p class="text-xs text-slate-500">Anda akan menghapus <span class="font-bold text-rose-600" x-text="selectedFiles.length"></span> item yang dipilih.</p>
+                        <h3 class="text-sm font-bold text-slate-900">{{ T "Permanently Delete?" }}</h3>
+                        <p class="text-xs text-slate-500"><span class="font-bold text-rose-600" x-text="selectedFiles.length"></span> {{ T "items will be permanently removed from disk." }}</p>
                     </div>
                 </div>
                 <p class="text-xs text-slate-600 mb-4 bg-rose-50/70 border border-rose-100 rounded-xl p-3">
-                    Peringatan: File atau folder yang dihapus tidak dapat dipulihkan kembali.
+                    {{ T "Are you sure you want to proceed with this action?" }}
                 </p>
                 <div class="flex justify-end space-x-2">
-                    <button type="button" @click="bulkDeleteModal = false" class="px-3.5 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-xl">Batal</button>
-                    <button type="button" @click="executeBulkDelete(); bulkDeleteModal = false" class="px-4 py-1.5 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-sm transition-colors">Ya, Hapus Semua</button>
+                    <button type="button" @click="bulkDeleteModal = false" class="px-3.5 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-xl">{{ T "Cancel" }}</button>
+                    <button type="button" @click="executeBulkDelete(); bulkDeleteModal = false" class="px-4 py-1.5 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-sm transition-colors">{{ T "Yes, Delete All" }}</button>
                 </div>
             </div>
         </div>
@@ -829,7 +829,7 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path>
                                 </svg>
                             </template>
-                            <span x-text="editorSaving ? 'Menyimpan...' : (editorSaved ? 'Tersimpan!' : 'Simpan Perubahan')"></span>
+                            <span x-text="editorSaving ? 'Saving...' : (editorSaved ? 'Saved!' : 'Save Changes')"></span>
                         </button>
                         <button @click="editorOpen = false" class="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200/60 transition-colors">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
@@ -848,14 +848,14 @@
     <template x-teleport="body">
         <div x-show="newFileModal" x-cloak class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" @click.self="newFileModal = false" style="display: none;">
             <div class="bg-white rounded-2xl p-6 w-full max-w-md border border-slate-200 shadow-2xl max-h-[92vh] overflow-y-auto">
-                <h3 class="text-sm font-bold text-slate-900 mb-3">Create New File</h3>
+                <h3 class="text-sm font-bold text-slate-900 mb-3">{{ T "Create New File" }}</h3>
                 <form action="/filemanager/create-file" method="POST">
                     <input type="hidden" name="site" value="{{ .ActiveSite }}">
                     <input type="hidden" name="path" value="{{ .CurrentPath }}">
                     <input type="text" name="filename" required placeholder="index.php" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none mb-4">
                     <div class="flex justify-end space-x-2">
-                        <button type="button" @click="newFileModal = false" class="px-3.5 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-xl">Cancel</button>
-                        <button type="submit" class="px-4 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm transition-colors">Create</button>
+                        <button type="button" @click="newFileModal = false" class="px-3.5 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-xl">{{ T "Cancel" }}</button>
+                        <button type="submit" class="px-4 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm transition-colors">{{ T "Create" }}</button>
                     </div>
                 </form>
             </div>
@@ -865,14 +865,14 @@
     <template x-teleport="body">
         <div x-show="newDirModal" x-cloak class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" @click.self="newDirModal = false" style="display: none;">
             <div class="bg-white rounded-2xl p-6 w-full max-w-md border border-slate-200 shadow-2xl max-h-[92vh] overflow-y-auto">
-                <h3 class="text-sm font-bold text-slate-900 mb-3">Create New Directory</h3>
+                <h3 class="text-sm font-bold text-slate-900 mb-3">{{ T "Create New Directory" }}</h3>
                 <form action="/filemanager/create-dir" method="POST">
                     <input type="hidden" name="site" value="{{ .ActiveSite }}">
                     <input type="hidden" name="path" value="{{ .CurrentPath }}">
                     <input type="text" name="dirname" required placeholder="assets" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none mb-4">
                     <div class="flex justify-end space-x-2">
-                        <button type="button" @click="newDirModal = false" class="px-3.5 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-xl">Cancel</button>
-                        <button type="submit" class="px-4 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm transition-colors">Create</button>
+                        <button type="button" @click="newDirModal = false" class="px-3.5 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-xl">{{ T "Cancel" }}</button>
+                        <button type="submit" class="px-4 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm transition-colors">{{ T "Create" }}</button>
                     </div>
                 </form>
             </div>
@@ -883,17 +883,17 @@
     <template x-teleport="body">
         <div x-show="renameModal" x-cloak class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" @click.self="renameModal = false" style="display: none;">
             <div class="bg-white rounded-2xl p-6 w-full max-w-md border border-slate-200 shadow-2xl max-h-[92vh] overflow-y-auto">
-                <h3 class="text-sm font-bold text-slate-900 mb-3">Rename Item</h3>
+                <h3 class="text-sm font-bold text-slate-900 mb-3">{{ T "Rename Item" }}</h3>
                 <form action="/filemanager/rename" method="POST">
                     <input type="hidden" name="site" value="{{ .ActiveSite }}">
                     <input type="hidden" name="old_path" x-model="renameOld">
                     <div class="mb-4">
-                        <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">New Name</label>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">{{ T "New Name" }}</label>
                         <input type="text" name="new_name" x-model="renameNew" required class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-mono">
                     </div>
                     <div class="flex justify-end space-x-2">
-                        <button type="button" @click="renameModal = false" class="px-3.5 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-xl">Cancel</button>
-                        <button type="submit" class="px-4 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm transition-colors">Rename</button>
+                        <button type="button" @click="renameModal = false" class="px-3.5 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-xl">{{ T "Cancel" }}</button>
+                        <button type="submit" class="px-4 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm transition-colors">{{ T "Apply" }}</button>
                     </div>
                 </form>
             </div>
@@ -904,17 +904,17 @@
     <template x-teleport="body">
         <div x-show="chmodModal" x-cloak class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" @click.self="chmodModal = false" style="display: none;">
             <div class="bg-white rounded-2xl p-6 w-full max-w-md border border-slate-200 shadow-2xl max-h-[92vh] overflow-y-auto">
-                <h3 class="text-sm font-bold text-slate-900 mb-3">Change Permissions (chmod)</h3>
+                <h3 class="text-sm font-bold text-slate-900 mb-3">{{ T "Change Permissions (chmod)" }}</h3>
                 <form action="/filemanager/chmod" method="POST">
                     <input type="hidden" name="site" value="{{ .ActiveSite }}">
                     <input type="hidden" name="path" x-model="chmodTarget">
                     <div class="mb-4">
-                        <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">Octal Mode (e.g. 0755, 0644)</label>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase mb-1">{{ T "Octal Mode (e.g. 0755, 0644)" }}</label>
                         <input type="text" name="mode" x-model="chmodVal" required class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-mono">
                     </div>
                     <div class="flex justify-end space-x-2">
-                        <button type="button" @click="chmodModal = false" class="px-3.5 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-xl">Cancel</button>
-                        <button type="submit" class="px-4 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm transition-colors">Apply</button>
+                        <button type="button" @click="chmodModal = false" class="px-3.5 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-xl">{{ T "Cancel" }}</button>
+                        <button type="submit" class="px-4 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm transition-colors">{{ T "Apply" }}</button>
                     </div>
                 </form>
             </div>

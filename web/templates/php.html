@@ -113,16 +113,16 @@
                 <button type="button" onclick="switchConfigTab('directives')" id="tabBtnDirectives" 
                         class="px-4 py-2 text-xs font-bold rounded-t-xl border-b-2 border-indigo-600 text-indigo-600 bg-white shadow-xs transition-all flex items-center gap-1.5">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
-                    <span>Pengaturan Populer</span>
+                    <span>{{ T "Popular Settings" }}</span>
                 </button>
                 <button type="button" onclick="switchConfigTab('raw')" id="tabBtnRaw" 
                         class="px-4 py-2 text-xs font-semibold rounded-t-xl border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition-all flex items-center gap-1.5">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
-                    <span>Editor php.ini Lengkap</span>
+                    <span>{{ T "Full php.ini Editor" }}</span>
                 </button>
             </div>
             <div class="text-[11px] text-slate-400 font-medium hidden sm:block">
-                Setelah disimpan, service PHP-FPM akan otomatis di-restart
+                {{ T "After saving, PHP-FPM service will automatically reload" }}
             </div>
         </div>
 
@@ -292,13 +292,13 @@
         <!-- Modal Footer -->
         <div class="p-4 border-t border-slate-100 bg-slate-50/70 flex items-center justify-between gap-3">
             <button type="button" onclick="closeConfigModal()" class="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors">
-                Tutup
+                {{ T "Close" }}
             </button>
             <div class="flex items-center gap-2">
                 <button type="button" id="btnSaveConfig" onclick="savePhpConfig()" 
                         class="px-5 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-95 rounded-xl shadow-md shadow-indigo-500/20 transition-all inline-flex items-center gap-2">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                    <span>Simpan & Terapkan</span>
+                    <span>{{ T "Save & Apply" }}</span>
                 </button>
             </div>
         </div>

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/seintech/panel/internal/core/auth"
+	"github.com/seintech/panel/internal/core/i18n"
 	"github.com/seintech/panel/internal/http/middleware"
 	"github.com/seintech/panel/internal/model"
 	"github.com/seintech/panel/internal/storage"
@@ -21,6 +22,18 @@ type BasePageData struct {
 	UserRole        string
 	FlashMessage    string
 	FlashType       string
+	Lang            string
+}
+
+func (b BasePageData) GetLang() string {
+	if b.Lang != "" {
+		return b.Lang
+	}
+	return "en"
+}
+
+func (b BasePageData) T(phrase string, args ...any) string {
+	return i18n.T(b.GetLang(), phrase, args...)
 }
 
 func GetSession(r *http.Request) *auth.Session {
@@ -34,7 +47,7 @@ func GetSession(r *http.Request) *auth.Session {
 	return sess
 }
 
-func NewBaseData(r *http.Request, title, pageTitle, activeNav, hostname string) BasePageData {
+func NewBaseData(r *http.Request, title, pageTitle, activeNav, hostname string, defaultLang ...string) BasePageData {
 	sess := GetSession(r)
 	initial := "A"
 	if len(sess.Username) > 0 {
@@ -49,14 +62,21 @@ func NewBaseData(r *http.Request, title, pageTitle, activeNav, hostname string) 
 		}
 	}
 
+	lang := "en"
+	if len(defaultLang) > 0 && defaultLang[0] != "" {
+		lang = defaultLang[0]
+	}
+	lang = i18n.GetLangFromRequest(r, lang)
+
 	return BasePageData{
-		Title:           title,
-		PageTitle:       pageTitle,
+		Title:           i18n.T(lang, title),
+		PageTitle:       i18n.T(lang, pageTitle),
 		ActiveNav:       activeNav,
 		Hostname:        hostname,
 		Username:        sess.Username,
 		UsernameInitial: initial,
 		UserRole:        string(sess.Role),
+		Lang:            lang,
 	}
 }
 

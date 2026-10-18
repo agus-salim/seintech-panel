@@ -62,7 +62,7 @@ func (h *ServicesHandler) List(w http.ResponseWriter, r *http.Request) {
 		flashType = "info"
 	}
 
-	base := NewBaseData(r, "Services & Packages", "Service Manager & Package Installer", "services", settings.Hostname)
+	base := NewBaseData(r, "Services & Packages", "Service Manager & Package Installer", "services", settings.Hostname, settings.Language)
 	base.FlashMessage = flash
 	base.FlashType = flashType
 

@@ -37,7 +37,7 @@ func (h *PHPHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := PHPPageData{
-		BasePageData: NewBaseData(r, "PHP Engines", "Multi-PHP Version Engine & FPM Pools", "php", settings.Hostname),
+		BasePageData: NewBaseData(r, "PHP Engines", "Multi-PHP Version Engine & FPM Pools", "php", settings.Hostname, settings.Language),
 		Versions:     installed,
 	}
 

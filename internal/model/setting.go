@@ -26,6 +26,7 @@ type PanelSettings struct {
 	SSLKeyPath             string      `json:"ssl_key_path"`
 	AutoRenewSSL           bool        `json:"auto_renew_ssl"`
 	AllowedIPs             []string    `json:"allowed_ips,omitempty"`
+	Language               string      `json:"language,omitempty"` // "en" (default) or "id"
 }
 
 type PHPConfig struct {

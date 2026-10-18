@@ -117,7 +117,7 @@ func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := UsersPageData{
-		BasePageData: NewBaseData(r, "Users & Quotas", "User, Reseller & RBAC Administration", "users", settings.Hostname),
+		BasePageData: NewBaseData(r, "Users & Quotas", "User, Reseller & RBAC Administration", "users", settings.Hostname, settings.Language),
 		Users:        items,
 		IsReseller:   sess.Role == model.RoleReseller,
 		IsAdmin:      sess.Role == model.RoleAdmin,

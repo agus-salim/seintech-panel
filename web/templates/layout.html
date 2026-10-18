@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="id" class="h-full bg-slate-50">
+<html lang="{{ if .Lang }}{{ .Lang }}{{ else }}en{{ end }}" class="h-full bg-slate-50">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -105,9 +105,9 @@
             <!-- Server Quick Status Badge -->
             <div :class="sidebarCollapsed ? 'md:hidden block' : 'block'" class="mx-4 my-3 p-2.5 bg-slate-50 border border-slate-200/60 rounded-xl">
                 <div class="flex items-center justify-between text-xs mb-1">
-                    <span class="text-slate-500 font-medium">Node Host</span>
+                    <span class="text-slate-500 font-medium">{{ T "Node Host" }}</span>
                     <span class="inline-flex items-center font-mono font-medium text-emerald-600 text-[11px]">
-                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 pulse-indicator"></span> Online
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 pulse-indicator"></span> {{ T "Online" }}
                     </span>
                 </div>
                 <div class="text-xs font-mono font-medium text-slate-700 truncate">
@@ -116,7 +116,7 @@
             </div>
 
             <!-- Mini Status Dot (When collapsed on desktop) -->
-            <div :class="sidebarCollapsed ? 'hidden md:flex' : 'hidden'" class="my-3 justify-center" title="Node Host Online: {{ .Hostname }}">
+            <div :class="sidebarCollapsed ? 'hidden md:flex' : 'hidden'" class="my-3 justify-center" title="{{ T "Node Host" }} {{ T "Online" }}: {{ .Hostname }}">
                 <span class="relative flex h-2.5 w-2.5">
                     <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                     <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
@@ -125,57 +125,57 @@
 
             <!-- Navigation Links -->
             <nav class="py-2 space-y-1 transition-all" :class="sidebarCollapsed ? 'md:px-2 px-3' : 'px-3'">
-                <a href="/" title="Dashboard" class="flex items-center py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "dashboard" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}" :class="sidebarCollapsed ? 'md:justify-center md:px-0 px-3' : 'px-3'">
+                <a href="/" title="{{ T "Dashboard" }}" class="flex items-center py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "dashboard" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}" :class="sidebarCollapsed ? 'md:justify-center md:px-0 px-3' : 'px-3'">
                     <svg class="w-5 h-5 flex-shrink-0 transition-all {{ if eq .ActiveNav "dashboard" }}text-indigo-600{{ else }}text-slate-400{{ end }}" :class="sidebarCollapsed ? 'md:mr-0 mr-3' : 'mr-3'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
-                    <span :class="sidebarCollapsed ? 'md:hidden block' : 'block'" class="truncate">Dashboard</span>
+                    <span :class="sidebarCollapsed ? 'md:hidden block' : 'block'" class="truncate">{{ T "Dashboard" }}</span>
                 </a>
 
-                <a href="/domains" title="Virtual Hosts & Web" class="flex items-center py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "domains" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}" :class="sidebarCollapsed ? 'md:justify-center md:px-0 px-3' : 'px-3'">
+                <a href="/domains" title="{{ T "Virtual Hosts & Web" }}" class="flex items-center py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "domains" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}" :class="sidebarCollapsed ? 'md:justify-center md:px-0 px-3' : 'px-3'">
                     <svg class="w-5 h-5 flex-shrink-0 transition-all {{ if eq .ActiveNav "domains" }}text-indigo-600{{ else }}text-slate-400{{ end }}" :class="sidebarCollapsed ? 'md:mr-0 mr-3' : 'mr-3'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg>
-                    <span :class="sidebarCollapsed ? 'md:hidden block' : 'block'" class="truncate">Virtual Hosts & Web</span>
+                    <span :class="sidebarCollapsed ? 'md:hidden block' : 'block'" class="truncate">{{ T "Virtual Hosts & Web" }}</span>
                 </a>
 
-                <a href="/filemanager" title="Web File Manager" class="flex items-center py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "filemanager" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}" :class="sidebarCollapsed ? 'md:justify-center md:px-0 px-3' : 'px-3'">
+                <a href="/filemanager" title="{{ T "Web File Manager" }}" class="flex items-center py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "filemanager" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}" :class="sidebarCollapsed ? 'md:justify-center md:px-0 px-3' : 'px-3'">
                     <svg class="w-5 h-5 flex-shrink-0 transition-all {{ if eq .ActiveNav "filemanager" }}text-indigo-600{{ else }}text-slate-400{{ end }}" :class="sidebarCollapsed ? 'md:mr-0 mr-3' : 'mr-3'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
-                    <span :class="sidebarCollapsed ? 'md:hidden block' : 'block'" class="truncate">Web File Manager</span>
+                    <span :class="sidebarCollapsed ? 'md:hidden block' : 'block'" class="truncate">{{ T "Web File Manager" }}</span>
                 </a>
 
-                <a href="/databases" title="Databases" class="flex items-center py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "databases" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}" :class="sidebarCollapsed ? 'md:justify-center md:px-0 px-3' : 'px-3'">
+                <a href="/databases" title="{{ T "Databases" }}" class="flex items-center py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "databases" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}" :class="sidebarCollapsed ? 'md:justify-center md:px-0 px-3' : 'px-3'">
                     <svg class="w-5 h-5 flex-shrink-0 transition-all {{ if eq .ActiveNav "databases" }}text-indigo-600{{ else }}text-slate-400{{ end }}" :class="sidebarCollapsed ? 'md:mr-0 mr-3' : 'mr-3'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
-                    <span :class="sidebarCollapsed ? 'md:hidden block' : 'block'" class="truncate">Databases</span>
+                    <span :class="sidebarCollapsed ? 'md:hidden block' : 'block'" class="truncate">{{ T "Databases" }}</span>
                 </a>
 
                 {{ if or (eq .UserRole "admin") (eq .UserRole "reseller") }}
-                <a href="/users" title="Users & Quotas" class="flex items-center py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "users" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}" :class="sidebarCollapsed ? 'md:justify-center md:px-0 px-3' : 'px-3'">
+                <a href="/users" title="{{ T "Users & Quotas" }}" class="flex items-center py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "users" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}" :class="sidebarCollapsed ? 'md:justify-center md:px-0 px-3' : 'px-3'">
                     <svg class="w-5 h-5 flex-shrink-0 transition-all {{ if eq .ActiveNav "users" }}text-indigo-600{{ else }}text-slate-400{{ end }}" :class="sidebarCollapsed ? 'md:mr-0 mr-3' : 'mr-3'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
-                    <span :class="sidebarCollapsed ? 'md:hidden block' : 'block'" class="truncate">Users & Quotas</span>
+                    <span :class="sidebarCollapsed ? 'md:hidden block' : 'block'" class="truncate">{{ T "Users & Quotas" }}</span>
                 </a>
                 {{ end }}
 
                 {{ if eq .UserRole "admin" }}
-                <a href="/php" title="PHP Engines" class="flex items-center py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "php" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}" :class="sidebarCollapsed ? 'md:justify-center md:px-0 px-3' : 'px-3'">
+                <a href="/php" title="{{ T "PHP Engines" }}" class="flex items-center py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "php" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}" :class="sidebarCollapsed ? 'md:justify-center md:px-0 px-3' : 'px-3'">
                     <svg class="w-5 h-5 flex-shrink-0 transition-all {{ if eq .ActiveNav "php" }}text-indigo-600{{ else }}text-slate-400{{ end }}" :class="sidebarCollapsed ? 'md:mr-0 mr-3' : 'mr-3'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
-                    <span :class="sidebarCollapsed ? 'md:hidden block' : 'block'" class="truncate">PHP Engines</span>
+                    <span :class="sidebarCollapsed ? 'md:hidden block' : 'block'" class="truncate">{{ T "PHP Engines" }}</span>
                 </a>
 
-                <a href="/ssl" title="SSL & Certificates" class="flex items-center py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "ssl" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}" :class="sidebarCollapsed ? 'md:justify-center md:px-0 px-3' : 'px-3'">
+                <a href="/ssl" title="{{ T "SSL & Certificates" }}" class="flex items-center py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "ssl" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}" :class="sidebarCollapsed ? 'md:justify-center md:px-0 px-3' : 'px-3'">
                     <svg class="w-5 h-5 flex-shrink-0 transition-all {{ if eq .ActiveNav "ssl" }}text-indigo-600{{ else }}text-slate-400{{ end }}" :class="sidebarCollapsed ? 'md:mr-0 mr-3' : 'mr-3'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-                    <span :class="sidebarCollapsed ? 'md:hidden block' : 'block'" class="truncate">SSL & Certificates</span>
+                    <span :class="sidebarCollapsed ? 'md:hidden block' : 'block'" class="truncate">{{ T "SSL & Certificates" }}</span>
                 </a>
 
                 <div class="pt-4 pb-1">
-                    <span :class="sidebarCollapsed ? 'md:hidden block' : 'block'" class="px-3 text-[11px] font-semibold tracking-wider text-slate-400 uppercase">System Admin</span>
+                    <span :class="sidebarCollapsed ? 'md:hidden block' : 'block'" class="px-3 text-[11px] font-semibold tracking-wider text-slate-400 uppercase">{{ T "System Admin" }}</span>
                     <hr :class="sidebarCollapsed ? 'hidden md:block' : 'hidden'" class="border-slate-200 my-1 mx-2">
                 </div>
 
-                <a href="/services" title="Services & Packages" class="flex items-center py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "services" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}" :class="sidebarCollapsed ? 'md:justify-center md:px-0 px-3' : 'px-3'">
+                <a href="/services" title="{{ T "Services & Packages" }}" class="flex items-center py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "services" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}" :class="sidebarCollapsed ? 'md:justify-center md:px-0 px-3' : 'px-3'">
                     <svg class="w-5 h-5 flex-shrink-0 transition-all {{ if eq .ActiveNav "services" }}text-indigo-600{{ else }}text-slate-400{{ end }}" :class="sidebarCollapsed ? 'md:mr-0 mr-3' : 'mr-3'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-                    <span :class="sidebarCollapsed ? 'md:hidden block' : 'block'" class="truncate">Services & Packages</span>
+                    <span :class="sidebarCollapsed ? 'md:hidden block' : 'block'" class="truncate">{{ T "Services & Packages" }}</span>
                 </a>
 
-                <a href="/settings" title="Panel Settings" class="flex items-center py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "settings" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}" :class="sidebarCollapsed ? 'md:justify-center md:px-0 px-3' : 'px-3'">
+                <a href="/settings" title="{{ T "Panel Settings" }}" class="flex items-center py-2 text-sm font-medium rounded-lg transition-colors {{ if eq .ActiveNav "settings" }}bg-indigo-50 text-indigo-700 font-semibold{{ else }}text-slate-600 hover:text-slate-900 hover:bg-slate-100/70{{ end }}" :class="sidebarCollapsed ? 'md:justify-center md:px-0 px-3' : 'px-3'">
                     <svg class="w-5 h-5 flex-shrink-0 transition-all {{ if eq .ActiveNav "settings" }}text-indigo-600{{ else }}text-slate-400{{ end }}" :class="sidebarCollapsed ? 'md:mr-0 mr-3' : 'mr-3'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                    <span :class="sidebarCollapsed ? 'md:hidden block' : 'block'" class="truncate">Panel Settings</span>
+                    <span :class="sidebarCollapsed ? 'md:hidden block' : 'block'" class="truncate">{{ T "Panel Settings" }}</span>
                 </a>
                 {{ end }}
             </nav>
@@ -194,7 +194,7 @@
                     </div>
                 </div>
                 <form action="/logout" method="POST" class="m-0">
-                    <button type="submit" title="Logout" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors flex items-center justify-center">
+                    <button type="submit" title="{{ T "Logout" }}" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors flex items-center justify-center">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
                     </button>
                 </form>
@@ -249,9 +249,9 @@
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                     </div>
                     <div class="min-w-0 flex-1">
-                        <h3 id="confirm-modal-title" class="text-base font-bold text-slate-900 leading-tight">Konfirmasi Penghapusan</h3>
+                        <h3 id="confirm-modal-title" class="text-base font-bold text-slate-900 leading-tight">{{ T "Confirm Deletion" }}</h3>
                         <p id="confirm-modal-message" class="text-xs text-slate-500 mt-1.5 leading-relaxed">
-                            Apakah Anda yakin ingin menghapus layanan ini? Paket sistem dan berkas dependensi terkait akan dibersihkan dari server.
+                            {{ T "Are you sure you want to proceed with this action?" }}
                         </p>
                     </div>
                 </div>
@@ -259,19 +259,19 @@
                 <div id="confirm-modal-extra" class="mt-4 p-3 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between gap-2">
                     <div class="flex items-center gap-2 min-w-0">
                         <span class="w-2 h-2 rounded-full bg-rose-500 flex-shrink-0"></span>
-                        <span id="confirm-modal-target" class="text-xs font-mono font-bold text-slate-800 truncate">Layanan</span>
+                        <span id="confirm-modal-target" class="text-xs font-mono font-bold text-slate-800 truncate">{{ T "Action" }}</span>
                     </div>
-                    <span class="text-[11px] font-semibold text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-100">Permanen</span>
+                    <span class="text-[11px] font-semibold text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-100">{{ T "Permanent" }}</span>
                 </div>
             </div>
 
             <div class="px-6 py-4 bg-slate-50/70 border-t border-slate-100 flex items-center justify-end gap-2.5">
                 <button type="button" onclick="hideConfirmModal()" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors shadow-sm active:scale-95">
-                    Batal
+                    {{ T "Cancel" }}
                 </button>
                 <button type="button" id="confirm-modal-ok" class="px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-all shadow-sm flex items-center gap-1.5 active:scale-95">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                    <span id="confirm-modal-ok-text">Uninstall Layanan</span>
+                    <span id="confirm-modal-ok-text">{{ T "Confirm" }}</span>
                 </button>
             </div>
         </div>
@@ -290,8 +290,8 @@
                     </div>
                 </div>
                 <div class="min-w-0">
-                    <h3 class="font-bold text-slate-900 text-base" id="install-modal-title">Installing Package...</h3>
-                    <p class="text-xs text-slate-500 mt-0.5">This may take a few minutes. Please do not close this page.</p>
+                    <h3 class="font-bold text-slate-900 text-base" id="install-modal-title">{{ T "Installing Package..." }}</h3>
+                    <p class="text-xs text-slate-500 mt-0.5">{{ T "This may take a few minutes. Please do not close this page." }}</p>
                 </div>
             </div>
             <!-- Progress bar -->
@@ -299,7 +299,7 @@
                 <div id="install-modal-bar" class="h-full bg-indigo-500 rounded-full animate-progress-indeterminate"></div>
             </div>
             <!-- Status message -->
-            <p id="install-modal-msg" class="text-xs text-slate-500 text-center font-mono leading-relaxed">Connecting to APT repository...</p>
+            <p id="install-modal-msg" class="text-xs text-slate-500 text-center font-mono leading-relaxed">{{ T "Connecting to APT repository..." }}</p>
         </div>
     </div>
 
@@ -321,7 +321,7 @@
                 </div>
                 <div class="min-w-0 flex-1">
                     <h3 class="font-bold text-slate-900 text-base flex items-center gap-1.5" id="ssl-modal-title">
-                        Mengaktifkan SSL Let's Encrypt
+                        {{ T "Activating Let's Encrypt SSL" }}
                     </h3>
                     <p class="text-xs text-indigo-600 font-mono font-medium truncate mt-0.5" id="ssl-modal-domain">domain.com</p>
                 </div>
@@ -336,10 +336,10 @@
             <div class="bg-slate-50 border border-slate-100 rounded-xl p-3.5 mb-2">
                 <div class="flex items-center gap-2.5">
                     <span class="w-2 h-2 rounded-full bg-indigo-500 animate-ping" id="ssl-modal-dot"></span>
-                    <p id="ssl-modal-msg" class="text-xs text-slate-700 font-medium leading-relaxed">1. Memeriksa konfigurasi DNS & resolusi domain...</p>
+                    <p id="ssl-modal-msg" class="text-xs text-slate-700 font-medium leading-relaxed">Checking DNS configuration &amp; domain resolution...</p>
                 </div>
             </div>
-            <p class="text-[11px] text-slate-400 text-center">Memvalidasi sertifikat otomatis melalui Let's Encrypt ACME. Mohon tunggu sejenak.</p>
+            <p class="text-[11px] text-slate-400 text-center">Validating domain certificate via Let's Encrypt ACME. Please wait a moment.</p>
         </div>
     </div>
 
@@ -396,6 +396,8 @@
         setTimeout(() => el.remove(), 300);
     }
 
+    window.__LANG = '{{ if .Lang }}{{ .Lang }}{{ else }}en{{ end }}';
+
     // ---- Elegant Confirmation Modal Engine ----
     let _onConfirmAction = null;
 
@@ -405,8 +407,9 @@
         const card = document.getElementById('confirm-modal-card');
         if (!modal || !card) return;
 
-        document.getElementById('confirm-modal-title').textContent = opts.title || 'Konfirmasi Penghapusan';
-        document.getElementById('confirm-modal-message').textContent = opts.message || 'Apakah Anda yakin ingin melanjutkan tindakan ini?';
+        const isId = window.__LANG === 'id';
+        document.getElementById('confirm-modal-title').textContent = opts.title || (isId ? 'Konfirmasi Penghapusan' : 'Confirm Deletion');
+        document.getElementById('confirm-modal-message').textContent = opts.message || (isId ? 'Apakah Anda yakin ingin melanjutkan tindakan ini?' : 'Are you sure you want to proceed with this action?');
         
         const targetEl = document.getElementById('confirm-modal-target');
         const extraEl = document.getElementById('confirm-modal-extra');
@@ -580,7 +583,14 @@
         const successIcon = document.getElementById('ssl-modal-success-icon');
         const bar = document.getElementById('ssl-modal-bar');
 
-        if (title) title.textContent = isRenew ? 'Memperbarui SSL Let\'s Encrypt' : 'Mengaktifkan SSL Let\'s Encrypt';
+        const isId = window.__LANG === 'id';
+        if (title) {
+            if (isRenew) {
+                title.textContent = isId ? 'Memperbarui SSL Let\'s Encrypt' : 'Renewing Let\'s Encrypt SSL';
+            } else {
+                title.textContent = isId ? 'Mengaktifkan SSL Let\'s Encrypt' : 'Activating Let\'s Encrypt SSL';
+            }
+        }
         if (domainEl) domainEl.textContent = domainName;
         if (spinner) spinner.classList.remove('hidden');
         if (successIcon) successIcon.classList.add('hidden');
@@ -589,12 +599,18 @@
             bar.style.width = '';
         }
 
-        const steps = [
+        const steps = isId ? [
             '1. Memeriksa konfigurasi DNS & resolusi domain...',
             '2. Menyiapkan direktori tantangan ACME HTTP-01...',
             '3. Menghubungi Certificate Authority (Let\'s Encrypt)...',
             '4. Memvalidasi tantangan otentikasi domain...',
             '5. Menerbitkan sertifikat SSL & reload web server...'
+        ] : [
+            '1. Checking DNS configuration & domain resolution...',
+            '2. Preparing ACME HTTP-01 challenge directory...',
+            '3. Contacting Certificate Authority (Let\'s Encrypt)...',
+            '4. Validating domain ownership challenge...',
+            '5. Issuing SSL certificate & reloading web server...'
         ];
         let stepIdx = 0;
         if (msgEl) msgEl.textContent = steps[0];
@@ -635,7 +651,7 @@
         .then(async res => {
             const data = await res.json().catch(() => ({}));
             if (!res.ok || !data.success) {
-                throw new Error(data.error || 'Terjadi kesalahan saat memproses sertifikat SSL.');
+                throw new Error(data.error || (isId ? 'Terjadi kesalahan saat memproses sertifikat SSL.' : 'An error occurred while processing the SSL certificate.'));
             }
             return data;
         })
@@ -643,15 +659,15 @@
             clearInterval(_sslStepTimer);
             if (spinner) spinner.classList.add('hidden');
             if (successIcon) successIcon.classList.remove('hidden');
-            if (title) title.textContent = 'SSL Berhasil Diaktifkan! 🎉';
-            if (msgEl) msgEl.textContent = 'Sertifikat Let\'s Encrypt berhasil terbit dan terpasang aktif.';
+            if (title) title.textContent = isId ? 'SSL Berhasil Diaktifkan! 🎉' : 'SSL Activated Successfully! 🎉';
+            if (msgEl) msgEl.textContent = isId ? 'Sertifikat Let\'s Encrypt berhasil terbit dan terpasang aktif.' : 'Let\'s Encrypt certificate has been successfully issued and activated.';
             if (bar) {
                 bar.classList.remove('animate-progress-indeterminate');
                 bar.className = 'h-full bg-emerald-500 rounded-full transition-all duration-500';
                 bar.style.width = '100%';
             }
 
-            showToast(data.message || `Sertifikat SSL Let's Encrypt untuk ${domainName} aktif!`, 'success');
+            showToast(data.message || (isId ? `Sertifikat SSL Let's Encrypt untuk ${domainName} aktif!` : `Let's Encrypt SSL certificate for ${domainName} is active!`), 'success');
 
             setTimeout(() => {
                 window.location.reload();

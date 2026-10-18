@@ -170,7 +170,7 @@ func (h *FileManagerHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := FMPageData{
-		BasePageData:    NewBaseData(r, "File Manager", "Web File Manager & Code Editor", "filemanager", settings.Hostname),
+		BasePageData:    NewBaseData(r, "File Manager", "Web File Manager & Code Editor", "filemanager", settings.Hostname, settings.Language),
 		CurrentPath:     cleanPath,
 		ParentPath:      parent,
 		Breadcrumbs:     crumbs,

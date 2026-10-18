@@ -36,6 +36,14 @@ if [ -f "./web/static/adminer.css" ]; then
     chmod 644 /usr/share/adminer/adminer.css
     chown www-data:www-data /usr/share/adminer/adminer.css 2>/dev/null || true
 fi
+if [ -f "./web/static/index.php" ]; then
+    cp ./web/static/index.php /usr/share/adminer/index.php
+    chmod 644 /usr/share/adminer/index.php
+    chown www-data:www-data /usr/share/adminer/index.php 2>/dev/null || true
+    echo "<?php require_once __DIR__ . '/index.php';" > /usr/share/adminer/sso.php
+    chmod 644 /usr/share/adminer/sso.php
+    chown www-data:www-data /usr/share/adminer/sso.php 2>/dev/null || true
+fi
 
 # 2. Configure APT Repositories for PHP (Debian/Ubuntu)
 if command -v apt-get >/dev/null 2>&1; then

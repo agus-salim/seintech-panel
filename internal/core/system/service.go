@@ -1058,6 +1058,7 @@ func (sm *ServiceManager) AutoConfigureAdminer(ctx context.Context) {
 // Seintech Panel SSO & Modern Theme Wrapper for Adminer
 declare(strict_types=1);
 
+chdir(__DIR__);
 @ini_set('display_errors', '0');
 @ini_set('log_errors', '1');
 
@@ -1134,6 +1135,27 @@ function adminer_object() {
                 function name() {
                     return '<a href="/databases" class="seintech-brand" style="text-decoration:none;color:inherit;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2 3.5 3 8 3s8-1 8-3V7M4 7c0 2 3.5 3 8 3s8-1 8-3M4 7c0-2 3.5-3 8-3s8 1 8 3m0 5c0 2-3.5 3-8 3s-8-1-8-3"/></svg> Seintech Database Manager</a>';
                 }
+                function head() {
+                    $v = file_exists(__DIR__ . '/adminer.css') ? filemtime(__DIR__ . '/adminer.css') : time();
+                    echo '<link rel="stylesheet" type="text/css" href="/adminer/adminer.css?v=' . $v . '">';
+                    echo '<style>
+                    #menu { position: fixed !important; top: 0 !important; left: 0 !important; bottom: 0 !important; width: 260px !important; margin: 0 !important; padding: 20px 16px !important; z-index: 100 !important; background: #ffffff !important; border-right: 1px solid #e2e8f0 !important; box-shadow: 1px 0 3px rgba(0,0,0,0.03) !important; overflow-y: auto !important; }
+                    #menu h1, h1 { background: transparent !important; border: none !important; border-bottom: 1px solid #e2e8f0 !important; padding: 0 0 14px 0 !important; margin: 0 0 16px 0 !important; font-size: 14.5px !important; font-weight: 700 !important; }
+                    #menu .version { display: inline-block !important; font-size: 11px !important; color: #64748b !important; background: #f1f5f9 !important; padding: 1px 6px !important; border-radius: 4px !important; margin-left: 6px !important; }
+                    #version { display: none !important; }
+                    #breadcrumb { position: fixed !important; top: 0 !important; left: 260px !important; right: 0 !important; height: 52px !important; line-height: 52px !important; margin: 0 !important; padding: 0 32px !important; background: #ffffff !important; border-bottom: 1px solid #e2e8f0 !important; z-index: 90 !important; display: flex !important; align-items: center !important; font-size: 13px !important; color: #64748b !important; white-space: nowrap !important; overflow-x: auto !important; }
+                    #breadcrumb a { color: #4f46e5 !important; font-weight: 600 !important; }
+                    .logout, p.logout, form.logout { position: fixed !important; top: 10px !important; right: 24px !important; margin: 0 !important; padding: 0 !important; z-index: 95 !important; }
+                    .logout input[type="submit"], .logout button { font-size: 12px !important; font-weight: 600 !important; padding: 6px 14px !important; color: #dc2626 !important; background: #fee2e2 !important; border: 1px solid #fecaca !important; border-radius: 6px !important; cursor: pointer !important; }
+                    #content { margin-left: 260px !important; margin-top: 52px !important; margin-right: 0 !important; margin-bottom: 0 !important; padding: 28px 36px !important; max-width: 1400px !important; min-height: calc(100vh - 52px) !important; position: relative !important; }
+                    h2 { font-size: 20px !important; font-weight: 700 !important; color: #0f172a !important; margin: 0 0 20px 0 !important; padding: 0 !important; background: transparent !important; border: none !important; display: flex !important; align-items: center !important; gap: 8px !important; letter-spacing: -0.02em !important; }
+                    </style>';
+                    return true;
+                }
+                function css() {
+                    $v = file_exists(__DIR__ . '/adminer.css') ? filemtime(__DIR__ . '/adminer.css') : time();
+                    return ['adminer.css?v=' . $v];
+                }
                 function credentials() {
                     $auth = $_SESSION['seintech_auth'] ?? [];
                     if (!empty($auth['password'])) {
@@ -1167,6 +1189,27 @@ function adminer_object() {
         class SeintechAdminer4 extends Adminer {
             function name() {
                 return '<a href="/databases" class="seintech-brand" style="text-decoration:none;color:inherit;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2 3.5 3 8 3s8-1 8-3V7M4 7c0 2 3.5 3 8 3s8-1 8-3M4 7c0-2 3.5-3 8-3s8 1 8 3m0 5c0 2-3.5 3-8 3s-8-1-8-3"/></svg> Seintech Database Manager</a>';
+            }
+            function head() {
+                $v = file_exists(__DIR__ . '/adminer.css') ? filemtime(__DIR__ . '/adminer.css') : time();
+                echo '<link rel="stylesheet" type="text/css" href="/adminer/adminer.css?v=' . $v . '">';
+                echo '<style>
+                #menu { position: fixed !important; top: 0 !important; left: 0 !important; bottom: 0 !important; width: 260px !important; margin: 0 !important; padding: 20px 16px !important; z-index: 100 !important; background: #ffffff !important; border-right: 1px solid #e2e8f0 !important; box-shadow: 1px 0 3px rgba(0,0,0,0.03) !important; overflow-y: auto !important; }
+                #menu h1, h1 { background: transparent !important; border: none !important; border-bottom: 1px solid #e2e8f0 !important; padding: 0 0 14px 0 !important; margin: 0 0 16px 0 !important; font-size: 14.5px !important; font-weight: 700 !important; }
+                #menu .version { display: inline-block !important; font-size: 11px !important; color: #64748b !important; background: #f1f5f9 !important; padding: 1px 6px !important; border-radius: 4px !important; margin-left: 6px !important; }
+                #version { display: none !important; }
+                #breadcrumb { position: fixed !important; top: 0 !important; left: 260px !important; right: 0 !important; height: 52px !important; line-height: 52px !important; margin: 0 !important; padding: 0 32px !important; background: #ffffff !important; border-bottom: 1px solid #e2e8f0 !important; z-index: 90 !important; display: flex !important; align-items: center !important; font-size: 13px !important; color: #64748b !important; white-space: nowrap !important; overflow-x: auto !important; }
+                #breadcrumb a { color: #4f46e5 !important; font-weight: 600 !important; }
+                .logout, p.logout, form.logout { position: fixed !important; top: 10px !important; right: 24px !important; margin: 0 !important; padding: 0 !important; z-index: 95 !important; }
+                .logout input[type="submit"], .logout button { font-size: 12px !important; font-weight: 600 !important; padding: 6px 14px !important; color: #dc2626 !important; background: #fee2e2 !important; border: 1px solid #fecaca !important; border-radius: 6px !important; cursor: pointer !important; }
+                #content { margin-left: 260px !important; margin-top: 52px !important; margin-right: 0 !important; margin-bottom: 0 !important; padding: 28px 36px !important; max-width: 1400px !important; min-height: calc(100vh - 52px) !important; position: relative !important; }
+                h2 { font-size: 20px !important; font-weight: 700 !important; color: #0f172a !important; margin: 0 0 20px 0 !important; padding: 0 !important; background: transparent !important; border: none !important; display: flex !important; align-items: center !important; gap: 8px !important; letter-spacing: -0.02em !important; }
+                </style>';
+                return true;
+            }
+            function css() {
+                $v = file_exists(__DIR__ . '/adminer.css') ? filemtime(__DIR__ . '/adminer.css') : time();
+                return ['adminer.css?v=' . $v];
             }
             function credentials() {
                 $auth = $_SESSION['seintech_auth'] ?? [];

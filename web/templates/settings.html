@@ -149,20 +149,6 @@
             </table>
         </div>
 
-        <!-- Help Info Footer -->
-        <div class="p-4 bg-slate-50 border-t border-slate-100 text-xs text-slate-500 flex items-start gap-2.5">
-            <svg class="w-4 h-4 text-indigo-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            <div class="space-y-1">
-                <div>
-                    <span class="font-semibold text-slate-700">{{ T "Clean Access Without Port (Reverse Proxy Port 443)" }}:</span>
-                    {{ T "Panel domains with SSL are automatically routed via Nginx port 443 directly to the panel backend. You can open" }} <strong class="text-indigo-600 font-mono">https://{{ .Settings.Hostname }}/</strong> {{ T "without entering port :8443 in your URL" }}.
-                </div>
-                <div>
-                    <span class="font-semibold text-slate-700">{{ T "Let's Encrypt SSL Activation" }}:</span>
-                    {{ T "Ensure the DNS A Record for your panel domain points to this server's public IP address before issuing certificates." }}
-                </div>
-            </div>
-        </div>
     </div>
 
     <!-- Web Server & Environment Defaults Form -->

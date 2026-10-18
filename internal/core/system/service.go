@@ -32,8 +32,6 @@ var AllowedServices = map[string]bool{
 	"php8.4-fpm":  true,
 	"php8.5-fpm":  true,
 	"adminer":     true,
-	"phpmyadmin":  true,
-	"phppgadmin":  true,
 	"seintech":    true,
 }
 
@@ -253,7 +251,7 @@ func (sm *ServiceManager) isServiceDisabled(serviceName string) bool {
 
 // GetStatus checks if the service is currently running.
 func (sm *ServiceManager) GetStatus(ctx context.Context, serviceName string) (ServiceState, error) {
-	if serviceName == "adminer" || serviceName == "phpmyadmin" || serviceName == "phppgadmin" {
+	if serviceName == "adminer" {
 		if !sm.IsInstalled(serviceName) {
 			return ServiceState{
 				Name:   serviceName,
@@ -285,15 +283,9 @@ func (sm *ServiceManager) GetStatus(ctx context.Context, serviceName string) (Se
 }
 
 func (sm *ServiceManager) Start(ctx context.Context, serviceName string) error {
-	if serviceName == "adminer" || serviceName == "phpmyadmin" || serviceName == "phppgadmin" {
+	if serviceName == "adminer" {
 		_ = os.Remove(disabledFilePath(serviceName))
-		if serviceName == "adminer" {
-			sm.AutoConfigureAdminer(ctx)
-		} else if serviceName == "phpmyadmin" {
-			sm.AutoConfigurePhpMyAdmin(ctx)
-		} else {
-			sm.AutoConfigurePhpPgAdmin(ctx)
-		}
+		sm.AutoConfigureAdminer(ctx)
 		_, err := sm.ExecuteSystemctl(ctx, "reload", "nginx")
 		return err
 	}
@@ -305,7 +297,7 @@ func (sm *ServiceManager) Start(ctx context.Context, serviceName string) error {
 }
 
 func (sm *ServiceManager) Stop(ctx context.Context, serviceName string) error {
-	if serviceName == "adminer" || serviceName == "phpmyadmin" || serviceName == "phppgadmin" {
+	if serviceName == "adminer" {
 		_ = os.MkdirAll("/var/lib/seintech/services", 0755)
 		_ = os.WriteFile(disabledFilePath(serviceName), []byte("stopped"), 0644)
 		_, err := sm.ExecuteSystemctl(ctx, "reload", "nginx")
@@ -316,15 +308,9 @@ func (sm *ServiceManager) Stop(ctx context.Context, serviceName string) error {
 }
 
 func (sm *ServiceManager) Restart(ctx context.Context, serviceName string) error {
-	if serviceName == "adminer" || serviceName == "phpmyadmin" || serviceName == "phppgadmin" {
+	if serviceName == "adminer" {
 		_ = os.Remove(disabledFilePath(serviceName))
-		if serviceName == "adminer" {
-			sm.AutoConfigureAdminer(ctx)
-		} else if serviceName == "phpmyadmin" {
-			sm.AutoConfigurePhpMyAdmin(ctx)
-		} else {
-			sm.AutoConfigurePhpPgAdmin(ctx)
-		}
+		sm.AutoConfigureAdminer(ctx)
 		_, err := sm.ExecuteSystemctl(ctx, "reload", "nginx")
 		return err
 	}
@@ -336,7 +322,7 @@ func (sm *ServiceManager) Restart(ctx context.Context, serviceName string) error
 }
 
 func (sm *ServiceManager) Reload(ctx context.Context, serviceName string) error {
-	if serviceName == "adminer" || serviceName == "phpmyadmin" || serviceName == "phppgadmin" {
+	if serviceName == "adminer" {
 		_, err := sm.ExecuteSystemctl(ctx, "reload", "nginx")
 		return err
 	}
@@ -401,10 +387,6 @@ func (sm *ServiceManager) InstallService(ctx context.Context, serviceName string
 	if targetDef.Category == "php" {
 		sm.ensureSuryPHPRepo(ctx)
 	}
-	if serviceName == "phpmyadmin" {
-		sm.ensurePhpMyAdminPrerequisites(ctx)
-	}
-
 	// Web server port pre-configurations before installation starts
 	if serviceName == "apache2" {
 		sm.ensureApachePorts(ctx)
@@ -445,26 +427,6 @@ func (sm *ServiceManager) InstallService(ctx context.Context, serviceName string
 		if sm.IsInstalled("adminer") {
 			err = nil
 		}
-	} else if err != nil && serviceName == "phpmyadmin" {
-		// Fallback for phpmyadmin if APT package is unavailable in Debian testing/trixie:
-		// Download official standalone release archive directly
-		fbScript := `
-			export DEBIAN_FRONTEND=noninteractive
-			apt-get install -y curl wget tar php-mysql php-mbstring php-xml php-curl php-zip php-gd || true
-			mkdir -p /usr/share/phpmyadmin /var/lib/phpmyadmin/tmp /etc/phpmyadmin/conf.d
-			curl -fsSL https://files.phpmyadmin.net/phpMyAdmin/5.2.2/phpMyAdmin-5.2.2-all-languages.tar.gz -o /tmp/pma.tar.gz || \
-			wget -qO /tmp/pma.tar.gz https://files.phpmyadmin.net/phpMyAdmin/5.2.2/phpMyAdmin-5.2.2-all-languages.tar.gz || \
-			curl -fsSL https://files.phpmyadmin.net/phpMyAdmin/5.2.1/phpMyAdmin-5.2.1-all-languages.tar.gz -o /tmp/pma.tar.gz || true
-			if [ -f "/tmp/pma.tar.gz" ] && [ -s "/tmp/pma.tar.gz" ]; then
-				tar -xzf /tmp/pma.tar.gz -C /usr/share/phpmyadmin --strip-components=1
-				rm -f /tmp/pma.tar.gz
-				chown -R www-data:www-data /usr/share/phpmyadmin
-			fi
-		`
-		_ = exec.CommandContext(ctx, "bash", "-c", fbScript).Run()
-		if sm.IsInstalled("phpmyadmin") {
-			err = nil
-		}
 	}
 	if err != nil {
 		return fmt.Errorf("package installation failed: %w (%s)", err, strings.TrimSpace(string(out)))
@@ -477,14 +439,6 @@ func (sm *ServiceManager) InstallService(ctx context.Context, serviceName string
 	if serviceName == "adminer" {
 		_ = os.Remove(disabledFilePath("adminer"))
 		sm.AutoConfigureAdminer(ctx)
-	}
-	if serviceName == "phpmyadmin" {
-		_ = os.Remove(disabledFilePath("phpmyadmin"))
-		sm.AutoConfigurePhpMyAdmin(ctx)
-	}
-	if serviceName == "phppgadmin" {
-		_ = os.Remove(disabledFilePath("phppgadmin"))
-		sm.AutoConfigurePhpPgAdmin(ctx)
 	}
 
 	// Enable and start the installed service
@@ -1442,11 +1396,8 @@ legend {
 
 // EnsureDatabaseTools preseeds debconf and auto-configures database tools if present.
 func (sm *ServiceManager) EnsureDatabaseTools(ctx context.Context) {
-	sm.ensurePhpMyAdminPrerequisites(ctx)
 	sm.PreseedDebconf(ctx)
 	sm.AutoConfigureAdminer(ctx)
-	sm.AutoConfigurePhpMyAdmin(ctx)
-	sm.AutoConfigurePhpPgAdmin(ctx)
 }
 
 // EnsureSystemRepositories automatically configures official APT repositories for PHP (Sury/PPA) and database tools.

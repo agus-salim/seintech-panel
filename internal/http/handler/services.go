@@ -112,7 +112,7 @@ func (h *ServicesHandler) ExecuteAction(w http.ResponseWriter, r *http.Request) 
 			msg = fmt.Sprintf("Error performing %s on %s: %v", action, service, err)
 		}
 		msgType = "error"
-	} else if service == "adminer" || service == "phpmyadmin" || service == "phppgadmin" || strings.HasPrefix(service, "php") {
+	} else if service == "adminer" || strings.HasPrefix(service, "php") {
 		if h.sslMgr != nil {
 			_ = h.sslMgr.SyncPanelNginxReverseProxy(ctx)
 		}
@@ -135,7 +135,7 @@ func (h *ServicesHandler) StartInstallJob(w http.ResponseWriter, r *http.Request
 	// Run in background goroutine
 	go func() {
 		h.sm.RunInstallJob(job.ID, service)
-		if h.sslMgr != nil && (service == "adminer" || service == "phpmyadmin" || service == "phppgadmin" || strings.HasPrefix(service, "php")) {
+		if h.sslMgr != nil && (service == "adminer" || strings.HasPrefix(service, "php")) {
 			_ = h.sslMgr.SyncPanelNginxReverseProxy(context.Background())
 		}
 	}()
@@ -158,7 +158,7 @@ func (h *ServicesHandler) StartUninstallJob(w http.ResponseWriter, r *http.Reque
 	// Run in background goroutine
 	go func() {
 		h.sm.RunUninstallJob(job.ID, service)
-		if h.sslMgr != nil && (service == "adminer" || service == "phpmyadmin" || service == "phppgadmin" || strings.HasPrefix(service, "php")) {
+		if h.sslMgr != nil && (service == "adminer" || strings.HasPrefix(service, "php")) {
 			_ = h.sslMgr.SyncPanelNginxReverseProxy(context.Background())
 		}
 	}()

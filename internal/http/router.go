@@ -107,6 +107,13 @@ func NewRouter(
 		pr.Get("/domains/logs", domainH.GetLogs)
 		pr.Post("/domains/clear-logs", domainH.ClearLogs)
 		pr.Post("/domains/fix-permissions", domainH.FixPermissions)
+		pr.Get("/domains/databases", domainH.GetDatabases)
+		pr.Post("/domains/terminal", domainH.RunTerminal)
+		pr.Get("/domains/vhost", domainH.GetVHost)
+		pr.Post("/domains/vhost", domainH.SaveVHost)
+		pr.Post("/domains/status", domainH.SetStatus)
+		pr.Get("/domains/backup/download", domainH.DownloadBackup)
+		pr.Post("/domains/backup/gdrive", domainH.SendGDriveBackup)
 		pr.Post("/domains/delete", domainH.Delete)
 
 		// File Manager

@@ -134,6 +134,253 @@
             this.dbSetupLoading = false;
             showToast('Error: ' + err.message, 'error');
         });
+    },
+
+    // Site Settings Modal state & methods
+    siteSettingsModal: false,
+    siteSettingsTab: 'files',
+    siteData: { id: '', domain: '', docroot: '', siteUser: '', siteGroup: '', webserver: 'nginx', php: '8.4', sslEnabled: false, sslProvider: '', sslExpiry: '', status: 'active' },
+    siteDBs: [],
+    siteDBsLoading: false,
+    termInput: '',
+    termHistory: [],
+    termHistoryIdx: -1,
+    termOutput: '',
+    termLoading: false,
+    vhostEngine: 'nginx',
+    vhostPath: '',
+    vhostContent: '',
+    vhostLoading: false,
+    vhostSaving: false,
+    backupLoadingGDrive: false,
+    statusLoading: false,
+
+    openSiteSettings(data, initialTab = 'files') {
+        this.siteData = Object.assign({}, data);
+        this.siteSettingsTab = initialTab;
+        this.siteSettingsModal = true;
+        this.onSiteTabSwitch(initialTab);
+    },
+    onSiteTabSwitch(tab) {
+        this.siteSettingsTab = tab;
+        if (tab === 'databases') {
+            this.fetchSiteDatabases();
+        } else if (tab === 'terminal') {
+            if (!this.termOutput) {
+                this.termOutput = `Connecting to ${this.siteData.domain} environment...\nDocumentRoot: ${this.siteData.docroot}\nUser: ${this.siteData.siteUser || 'site'}\nType commands below (e.g. ls -la, git status, composer install) and press Enter.\n\n`;
+            }
+            this.scrollTerminal();
+        } else if (tab === 'vhost') {
+            this.fetchSiteVHost();
+        } else if (tab === 'logs') {
+            this.logId = this.siteData.id;
+            this.logDomain = this.siteData.domain;
+            this.logEngine = this.siteData.webserver;
+            this.fetchLogs();
+        }
+    },
+    fetchSiteDatabases() {
+        this.siteDBsLoading = true;
+        fetch('/domains/databases?id=' + encodeURIComponent(this.siteData.id))
+            .then(r => r.json())
+            .then(data => {
+                this.siteDBsLoading = false;
+                if (data.success) {
+                    this.siteDBs = data.databases || [];
+                } else {
+                    showToast(data.error || 'Gagal memuat database', 'error');
+                }
+            })
+            .catch(err => {
+                this.siteDBsLoading = false;
+                showToast('Error: ' + err.message, 'error');
+            });
+    },
+    runSiteTerminal(customCmd) {
+        const cmd = customCmd || this.termInput;
+        if (!cmd || !cmd.trim()) return;
+        this.termLoading = true;
+        const currentCmd = cmd.trim();
+        if (!customCmd) {
+            this.termHistory.push(currentCmd);
+            this.termHistoryIdx = this.termHistory.length;
+            this.termInput = '';
+        }
+
+        this.termOutput += `$ ${currentCmd}\n`;
+        this.scrollTerminal();
+
+        const params = new URLSearchParams();
+        params.append('id', this.siteData.id);
+        params.append('command', currentCmd);
+
+        fetch('/domains/terminal', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: params.toString()
+        })
+        .then(r => r.json())
+        .then(data => {
+            this.termLoading = false;
+            if (data.success) {
+                this.termOutput += (data.output || '') + '\n\n';
+            } else {
+                this.termOutput += `[ERROR] ${data.error || 'Eksekusi gagal'}\n\n`;
+            }
+            this.scrollTerminal();
+        })
+        .catch(err => {
+            this.termLoading = false;
+            this.termOutput += `[FETCH ERROR] ${err.message}\n\n`;
+            this.scrollTerminal();
+        });
+    },
+    scrollTerminal() {
+        this.$nextTick(() => {
+            const el = document.getElementById('siteTerminalOutput');
+            if (el) el.scrollTop = el.scrollHeight;
+        });
+    },
+    clearSiteTerminal() {
+        this.termOutput = `Console cleared.\nDocumentRoot: ${this.siteData.docroot}\n\n`;
+    },
+    navigateTermHistory(dir) {
+        if (this.termHistory.length === 0) return;
+        if (dir === 'up') {
+            if (this.termHistoryIdx > 0) this.termHistoryIdx--;
+            this.termInput = this.termHistory[this.termHistoryIdx] || '';
+        } else if (dir === 'down') {
+            if (this.termHistoryIdx < this.termHistory.length - 1) {
+                this.termHistoryIdx++;
+                this.termInput = this.termHistory[this.termHistoryIdx] || '';
+            } else {
+                this.termHistoryIdx = this.termHistory.length;
+                this.termInput = '';
+            }
+        }
+    },
+    fetchSiteVHost() {
+        this.vhostLoading = true;
+        fetch('/domains/vhost?id=' + encodeURIComponent(this.siteData.id))
+            .then(r => r.json())
+            .then(data => {
+                this.vhostLoading = false;
+                if (data.success) {
+                    this.vhostEngine = data.engine;
+                    this.vhostPath = data.path;
+                    this.vhostContent = data.content;
+                } else {
+                    showToast(data.error || 'Gagal memuat vhost', 'error');
+                }
+            })
+            .catch(err => {
+                this.vhostLoading = false;
+                showToast('Error: ' + err.message, 'error');
+            });
+    },
+    saveSiteVHost() {
+        if (!confirm('Simpan perubahan dan validasi sintaks konfigurasi webserver?')) return;
+        this.vhostSaving = true;
+        showToast('Memvalidasi sintaks dan menerapkan konfigurasi...', 'info');
+
+        const params = new URLSearchParams();
+        params.append('id', this.siteData.id);
+        params.append('content', this.vhostContent);
+
+        fetch('/domains/vhost', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: params.toString()
+        })
+        .then(r => r.json())
+        .then(data => {
+            this.vhostSaving = false;
+            if (data.success) {
+                showToast(data.message, 'success');
+            } else {
+                alert(data.error || 'Gagal menyimpan konfigurasi');
+                showToast('Uji konfigurasi gagal! Perubahan dibatalkan.', 'error');
+            }
+        })
+        .catch(err => {
+            this.vhostSaving = false;
+            showToast('Error: ' + err.message, 'error');
+        });
+    },
+    sendSiteBackupGDrive() {
+        this.backupLoadingGDrive = true;
+        showToast('Membuat arsip backup dan memproses ke Google Drive...', 'info');
+
+        const params = new URLSearchParams();
+        params.append('id', this.siteData.id);
+
+        fetch('/domains/backup/gdrive', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: params.toString()
+        })
+        .then(r => r.json())
+        .then(data => {
+            this.backupLoadingGDrive = false;
+            if (data.success) {
+                showToast(data.message, 'success');
+            } else {
+                showToast(data.error || 'Gagal membuat backup', 'error');
+            }
+        })
+        .catch(err => {
+            this.backupLoadingGDrive = false;
+            showToast('Error: ' + err.message, 'error');
+        });
+    },
+    updateSiteStatus(action) {
+        const actionLabel = action === 'restart' ? 'merestart situs & PHP-FPM' : (action === 'disable' ? 'menonaktifkan situs ini' : 'mengaktifkan kembali situs ini');
+        if (!confirm('Apakah Anda yakin ingin ' + actionLabel + '?')) return;
+
+        this.statusLoading = true;
+        showToast('Memproses status situs...', 'info');
+
+        const params = new URLSearchParams();
+        params.append('id', this.siteData.id);
+        params.append('action', action);
+
+        fetch('/domains/status', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: params.toString()
+        })
+        .then(r => r.json())
+        .then(data => {
+            this.statusLoading = false;
+            if (data.success) {
+                showToast(data.message, 'success');
+                if (data.status) {
+                    this.siteData.status = data.status;
+                }
+            } else {
+                showToast(data.error || 'Gagal memperbarui status', 'error');
+            }
+        })
+        .catch(err => {
+            this.statusLoading = false;
+            showToast('Error: ' + err.message, 'error');
+        });
     }
 }">
 
@@ -272,9 +519,17 @@
                             {{ end }}
                         </td>
 
-                        <!-- Actions Column: Icon Buttons (Edit, Log, Files, Delete) -->
+                        <!-- Actions Column: Icon Buttons (Settings, Edit, Log, Files, Delete) -->
                         <td class="py-4 px-6 text-right">
                             <div class="inline-flex items-center gap-1 justify-end">
+                                <!-- Site Settings Icon (Gear) -->
+                                <button type="button" 
+                                        @click="openSiteSettings({ id: '{{ .ID }}', domain: '{{ .DomainName }}', docroot: '{{ .DocumentRoot }}', siteUser: '{{ .SiteUser }}', siteGroup: '{{ .SiteGroup }}', webserver: '{{ .WebServerType }}', php: '{{ .PHPVersion }}', sslEnabled: {{ .SSLEnabled }}, sslProvider: '{{ .SSLProvider }}', sslExpiry: '{{ if .SSLExpiry }}{{ .SSLExpiry.Format "02 Jan 2006" }}{{ end }}', status: '{{ if .Status }}{{ .Status }}{{ else }}active{{ end }}' })"
+                                        title="{{ T "Site Settings" }} (Files, Databases, Terminal, SSL, Logs, Backup, VHost, Status)"
+                                        class="p-1.5 text-indigo-600 hover:text-indigo-800 bg-indigo-50/70 hover:bg-indigo-100 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-xs">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                </button>
+
                                 <!-- Edit Icon -->
                                 <button type="button" 
                                         @click="editData = { id: '{{ .ID }}', domain: '{{ .DomainName }}', aliases: '{{ range $i, $a := .Aliases }}{{ if $i }},{{ end }}{{ $a }}{{ end }}', webserver: '{{ .WebServerType }}', php: '{{ .PHPVersion }}', mode: '{{ if .IsReverseProxy }}proxy{{ else if .IsStatic }}static{{ else }}php{{ end }}', proxy: '{{ .ProxyTarget }}' || 'http://127.0.0.1:8080', docroot: '{{ .DocumentRoot }}' }; editModal = true"
@@ -747,9 +1002,602 @@
         </div>
     </template>
 
+    <!-- Comprehensive Site Settings Modal (8 Features) -->
+    <template x-teleport="body">
+        <div x-show="siteSettingsModal" x-cloak class="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm" @click.self="siteSettingsModal = false" style="display: none;">
+            <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl h-[88vh] flex flex-col overflow-hidden" @click.away="siteSettingsModal = false">
+                
+                <!-- Modal Header -->
+                <div class="px-6 py-4 border-b border-slate-150 flex items-center justify-between bg-slate-50/80">
+                    <div class="flex items-center space-x-3.5 min-w-0">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white flex items-center justify-center shadow-md flex-shrink-0">
+                            <svg class="w-5 h-5 animate-[spin_10s_linear_infinite]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <h3 class="font-bold text-slate-900 text-base leading-tight">Site Settings: <span class="font-mono text-indigo-600" x-text="siteData.domain"></span></h3>
+                                <span class="text-[10px] font-mono uppercase bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-semibold" x-text="siteData.webserver"></span>
+                                <span x-show="siteData.status === 'disabled'" class="text-[10px] uppercase bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full font-semibold">Disabled</span>
+                                <span x-show="siteData.status !== 'disabled'" class="text-[10px] uppercase bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-semibold flex items-center gap-1">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                    <span>Active</span>
+                                </span>
+                            </div>
+                            <p class="text-xs text-slate-400 font-mono truncate mt-0.5" x-text="siteData.docroot || '/var/www'"></p>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center gap-2">
+                        <a :href="'http://' + siteData.domain" target="_blank" class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-indigo-600 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl transition-all shadow-xs" title="Buka website di tab baru">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                            <span>Kunjungi</span>
+                        </a>
+                        <button type="button" @click="siteSettingsModal = false" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition-colors">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Modal Body: Sidebar Tabs + Content Area -->
+                <div class="flex-1 flex overflow-hidden">
+                    
+                    <!-- Left Sidebar Menu (8 Features) -->
+                    <div class="w-56 sm:w-64 bg-slate-50/70 border-r border-slate-200/80 p-3 flex flex-col justify-between overflow-y-auto">
+                        <div class="space-y-1">
+                            <!-- 1. Files -->
+                            <button type="button" 
+                                    @click="onSiteTabSwitch('files')"
+                                    :class="siteSettingsTab === 'files' ? 'bg-indigo-600 text-white font-semibold shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'"
+                                    class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs transition-all text-left">
+                                <svg class="w-4 h-4 flex-shrink-0" :class="siteSettingsTab === 'files' ? 'text-white' : 'text-slate-400'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+                                <span class="truncate">1. Files</span>
+                            </button>
+
+                            <!-- 2. Databases -->
+                            <button type="button" 
+                                    @click="onSiteTabSwitch('databases')"
+                                    :class="siteSettingsTab === 'databases' ? 'bg-indigo-600 text-white font-semibold shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'"
+                                    class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs transition-all text-left">
+                                <svg class="w-4 h-4 flex-shrink-0" :class="siteSettingsTab === 'databases' ? 'text-white' : 'text-slate-400'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/></svg>
+                                <span class="truncate">2. Databases</span>
+                            </button>
+
+                            <!-- 3. Terminal -->
+                            <button type="button" 
+                                    @click="onSiteTabSwitch('terminal')"
+                                    :class="siteSettingsTab === 'terminal' ? 'bg-indigo-600 text-white font-semibold shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'"
+                                    class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs transition-all text-left">
+                                <svg class="w-4 h-4 flex-shrink-0" :class="siteSettingsTab === 'terminal' ? 'text-white' : 'text-slate-400'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                <span class="truncate">3. Terminal</span>
+                            </button>
+
+                            <!-- 4. SSL -->
+                            <button type="button" 
+                                    @click="onSiteTabSwitch('ssl')"
+                                    :class="siteSettingsTab === 'ssl' ? 'bg-indigo-600 text-white font-semibold shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'"
+                                    class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs transition-all text-left">
+                                <svg class="w-4 h-4 flex-shrink-0" :class="siteSettingsTab === 'ssl' ? 'text-white' : 'text-slate-400'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                                <span class="truncate">4. SSL (Let's Encrypt)</span>
+                            </button>
+
+                            <!-- 5. Logs Viewer -->
+                            <button type="button" 
+                                    @click="onSiteTabSwitch('logs')"
+                                    :class="siteSettingsTab === 'logs' ? 'bg-indigo-600 text-white font-semibold shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'"
+                                    class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs transition-all text-left">
+                                <svg class="w-4 h-4 flex-shrink-0" :class="siteSettingsTab === 'logs' ? 'text-white' : 'text-slate-400'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                <span class="truncate">5. Logs Viewer</span>
+                            </button>
+
+                            <!-- 6. Backup -->
+                            <button type="button" 
+                                    @click="onSiteTabSwitch('backup')"
+                                    :class="siteSettingsTab === 'backup' ? 'bg-indigo-600 text-white font-semibold shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'"
+                                    class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs transition-all text-left">
+                                <svg class="w-4 h-4 flex-shrink-0" :class="siteSettingsTab === 'backup' ? 'text-white' : 'text-slate-400'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/></svg>
+                                <span class="truncate">6. Backup &amp; Cloud</span>
+                            </button>
+
+                            <!-- 7. Manual setting (VHost) -->
+                            <button type="button" 
+                                    @click="onSiteTabSwitch('vhost')"
+                                    :class="siteSettingsTab === 'vhost' ? 'bg-indigo-600 text-white font-semibold shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'"
+                                    class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs transition-all text-left">
+                                <svg class="w-4 h-4 flex-shrink-0" :class="siteSettingsTab === 'vhost' ? 'text-white' : 'text-slate-400'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+                                <span class="truncate">7. Manual setting</span>
+                            </button>
+
+                            <!-- 8. Status -->
+                            <button type="button" 
+                                    @click="onSiteTabSwitch('status')"
+                                    :class="siteSettingsTab === 'status' ? 'bg-indigo-600 text-white font-semibold shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'"
+                                    class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs transition-all text-left">
+                                <svg class="w-4 h-4 flex-shrink-0" :class="siteSettingsTab === 'status' ? 'text-white' : 'text-slate-400'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                                <span class="truncate">8. Status &amp; Controls</span>
+                            </button>
+                        </div>
+
+                        <!-- Bottom Fast Info -->
+                        <div class="p-3 bg-white rounded-xl border border-slate-200/80 text-[11px] text-slate-500 space-y-1">
+                            <div class="flex justify-between">
+                                <span>PHP:</span>
+                                <span class="font-mono font-semibold text-slate-700" x-text="'PHP ' + (siteData.php || 'Default')"></span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>Owner:</span>
+                                <span class="font-mono text-indigo-600 truncate max-w-[100px]" x-text="siteData.siteUser || 'root'"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Tab Content Area -->
+                    <div class="flex-1 p-5 sm:p-6 overflow-y-auto bg-white flex flex-col">
+                        
+                        <!-- TAB 1: FILES -->
+                        <div x-show="siteSettingsTab === 'files'" class="space-y-5">
+                            <div>
+                                <h4 class="text-sm font-bold text-slate-900">Manajemen Berkas &amp; Direktori Situs</h4>
+                                <p class="text-xs text-slate-500 mt-0.5">Akses berkas website langsung di DocumentRoot dan kelola hak akses sistem.</p>
+                            </div>
+
+                            <!-- Document Root Path Info -->
+                            <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Direktori Situs (Document Root)</label>
+                                    <div class="flex items-center gap-2">
+                                        <div class="flex-1 px-3.5 py-2 bg-white border border-slate-200 rounded-xl font-mono text-xs text-slate-800 break-all select-all font-semibold" x-text="siteData.docroot"></div>
+                                        <button type="button" @click="copyPath(siteData.docroot, $el)" class="px-3.5 py-2 text-xs font-medium text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl transition-all shadow-xs flex items-center gap-1.5 shrink-0">
+                                            <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                                            <span>Salin Path</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 text-xs">
+                                    <div class="p-2.5 bg-white rounded-lg border border-slate-200/80">
+                                        <span class="text-slate-400 block text-[10px] uppercase font-semibold">User Sistem:</span>
+                                        <span class="font-mono font-bold text-indigo-700" x-text="siteData.siteUser || 'www-data'"></span>
+                                    </div>
+                                    <div class="p-2.5 bg-white rounded-lg border border-slate-200/80">
+                                        <span class="text-slate-400 block text-[10px] uppercase font-semibold">Standar Izin:</span>
+                                        <span class="font-semibold text-emerald-700">Folder 755 &bull; File 644</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Actions Grid -->
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                                <!-- Card: Buka File Manager -->
+                                <a :href="'/filemanager?path=' + encodeURIComponent(siteData.docroot)" target="_blank" class="group p-5 rounded-2xl border border-indigo-200/80 bg-indigo-50/40 hover:bg-indigo-50 hover:border-indigo-300 transition-all shadow-xs flex flex-col justify-between">
+                                    <div>
+                                        <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md mb-3 group-hover:scale-105 transition-transform">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+                                        </div>
+                                        <h5 class="font-bold text-slate-900 text-sm">Buka File Manager Langsung</h5>
+                                        <p class="text-xs text-slate-600 mt-1">Buka web file manager langsung terarah pada folder website ini untuk upload, edit berkas, unzip, dan chmod.</p>
+                                    </div>
+                                    <div class="mt-4 pt-3 border-t border-indigo-100 flex items-center text-xs font-semibold text-indigo-700 gap-1 group-hover:gap-2 transition-all">
+                                        <span>Buka File Manager</span>
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                                    </div>
+                                </a>
+
+                                <!-- Card: Reset Izin -->
+                                <div class="p-5 rounded-2xl border border-slate-200 bg-white hover:border-slate-300 transition-all shadow-xs flex flex-col justify-between">
+                                    <div>
+                                        <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shadow-xs mb-3">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                                        </div>
+                                        <h5 class="font-bold text-slate-900 text-sm">Pulihkan Hak Akses &amp; Izin Default</h5>
+                                        <p class="text-xs text-slate-500 mt-1">Perbaiki masalah Forbidden (403) atau Permission Denied dengan mereset izin standar 755 untuk folder dan 644 untuk berkas.</p>
+                                    </div>
+                                    <div class="mt-4 pt-3 border-t border-slate-100">
+                                        <button type="button" @click="fixDomainPermissions(siteData.id, siteData.domain)" class="w-full px-4 py-2 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-all shadow-xs">
+                                            Reset Izin Direktori (755/644)
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- TAB 2: DATABASES -->
+                        <div x-show="siteSettingsTab === 'databases'" class="space-y-4">
+                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                <div>
+                                    <h4 class="text-sm font-bold text-slate-900">Daftar Database Situs</h4>
+                                    <p class="text-xs text-slate-500 mt-0.5">Database MySQL &amp; PostgreSQL yang terasosiasi dengan domain ini.</p>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <a href="/adminer/" target="_blank" class="px-3 py-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-xl transition-colors shadow-xs inline-flex items-center gap-1.5">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                                        <span>Buka Adminer</span>
+                                    </a>
+                                    <button type="button" @click="openDBSetup(siteData.id, siteData.domain); siteSettingsModal = false;" class="px-3.5 py-1.5 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 rounded-xl transition-colors shadow-xs inline-flex items-center gap-1.5">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                                        <span>Setup Database Baru</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Database List Table -->
+                            <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                                <div x-show="siteDBsLoading" class="py-12 text-center text-slate-400 text-xs">
+                                    <svg class="w-6 h-6 animate-spin mx-auto text-indigo-600 mb-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+                                    Memuat daftar database situs...
+                                </div>
+
+                                <div x-show="!siteDBsLoading && siteDBs.length === 0" class="py-12 text-center text-slate-400 text-xs">
+                                    <svg class="w-10 h-10 text-slate-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/></svg>
+                                    <p class="font-medium text-slate-600">Belum ada database yang terasosiasi dengan domain ini.</p>
+                                    <p class="text-[11px] text-slate-400 mt-1">Gunakan tombol "Setup Database Baru" di atas untuk membuat database secara otomatis.</p>
+                                </div>
+
+                                <table x-show="!siteDBsLoading && siteDBs.length > 0" class="w-full text-left text-xs">
+                                    <thead class="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase text-[10px] font-semibold tracking-wider">
+                                        <tr>
+                                            <th class="py-2.5 px-4">Nama Database</th>
+                                            <th class="py-2.5 px-4">Engine</th>
+                                            <th class="py-2.5 px-4">Database User</th>
+                                            <th class="py-2.5 px-4">Host</th>
+                                            <th class="py-2.5 px-4">Ukuran</th>
+                                            <th class="py-2.5 px-4 text-right">Aksi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100">
+                                        <template x-for="db in siteDBs" :key="db.id || db.name">
+                                            <tr class="hover:bg-slate-50/60 transition-colors">
+                                                <td class="py-3 px-4 font-mono font-bold text-slate-800" x-text="db.name"></td>
+                                                <td class="py-3 px-4">
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold uppercase" :class="db.type === 'postgres' ? 'bg-sky-50 text-sky-700 border border-sky-200' : 'bg-amber-50 text-amber-700 border border-amber-200'" x-text="db.type"></span>
+                                                </td>
+                                                <td class="py-3 px-4 font-mono text-slate-600" x-text="db.username"></td>
+                                                <td class="py-3 px-4 font-mono text-slate-500" x-text="db.host || 'localhost'"></td>
+                                                <td class="py-3 px-4 font-mono text-slate-600" x-text="db.size_human || '0 B'"></td>
+                                                <td class="py-3 px-4 text-right">
+                                                    <a :href="'/adminer/?server=' + encodeURIComponent(db.host || 'localhost') + '&username=' + encodeURIComponent(db.username) + '&db=' + encodeURIComponent(db.name)" target="_blank" class="px-2.5 py-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-colors inline-flex items-center gap-1 shadow-xs">
+                                                        <span>Login Adminer</span>
+                                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- TAB 3: TERMINAL -->
+                        <div x-show="siteSettingsTab === 'terminal'" class="space-y-3 flex-1 flex flex-col">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h4 class="text-sm font-bold text-slate-900">Web Terminal / Command Runner</h4>
+                                    <p class="text-xs text-slate-500 mt-0.5">Eksekusi perintah terminal langsung di dalam direktori situs (<code class="font-mono text-indigo-600 font-semibold" x-text="siteData.docroot"></code>).</p>
+                                </div>
+                                <button type="button" @click="clearSiteTerminal()" class="px-2.5 py-1 text-xs text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors flex items-center gap-1">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                    <span>Bersihkan</span>
+                                </button>
+                            </div>
+
+                            <!-- Terminal CLI Window -->
+                            <div class="flex-1 min-h-[300px] flex flex-col bg-slate-950 rounded-2xl border border-slate-800 shadow-xl overflow-hidden font-mono text-xs">
+                                <!-- CLI Header Bar -->
+                                <div class="px-4 py-2.5 bg-slate-900/90 border-b border-slate-800/80 flex items-center justify-between">
+                                    <div class="flex items-center space-x-2">
+                                        <div class="w-3 h-3 rounded-full bg-rose-500"></div>
+                                        <div class="w-3 h-3 rounded-full bg-amber-500"></div>
+                                        <div class="w-3 h-3 rounded-full bg-emerald-500"></div>
+                                        <span class="text-[11px] text-slate-400 ml-2" x-text="(siteData.siteUser || 'site') + '@seintech:' + (siteData.docroot || '~')"></span>
+                                    </div>
+                                    <span class="text-[10px] text-slate-500 uppercase font-semibold">Bash / Shell</span>
+                                </div>
+
+                                <!-- Output Box -->
+                                <div id="siteTerminalOutput" class="flex-1 p-4 overflow-y-auto whitespace-pre-wrap text-emerald-400 font-mono text-xs select-text leading-relaxed" x-text="termOutput"></div>
+
+                                <!-- Input Bar -->
+                                <div class="p-3 bg-slate-900 border-t border-slate-800 flex items-center gap-2">
+                                    <span class="text-indigo-400 font-semibold select-none flex items-center gap-1">
+                                        <span x-text="siteData.siteUser || 'site'"></span><span class="text-slate-500">$</span>
+                                    </span>
+                                    <input type="text" 
+                                           x-model="termInput" 
+                                           @keydown.enter.prevent="runSiteTerminal()" 
+                                           @keydown.up.prevent="navigateTermHistory('up')"
+                                           @keydown.down.prevent="navigateTermHistory('down')"
+                                           placeholder="Ketik perintah (e.g. ls -la, git status, composer install)..." 
+                                           :disabled="termLoading"
+                                           class="flex-1 bg-transparent text-slate-100 placeholder-slate-500 outline-none font-mono text-xs">
+                                    <button type="button" 
+                                            @click="runSiteTerminal()" 
+                                            :disabled="termLoading || !termInput.trim()"
+                                            class="px-3.5 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 rounded-xl transition-all shadow-xs flex items-center gap-1.5">
+                                        <svg x-show="termLoading" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+                                        <span x-text="termLoading ? 'Menjalankan...' : 'Jalankan'"></span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Shortcut Chips -->
+                            <div class="flex items-center gap-1.5 flex-wrap pt-1 text-xs">
+                                <span class="text-[11px] text-slate-400 font-medium">Perintah Cepat:</span>
+                                <button type="button" @click="runSiteTerminal('ls -lah')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-mono text-[11px] transition-colors">ls -lah</button>
+                                <button type="button" @click="runSiteTerminal('pwd')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-mono text-[11px] transition-colors">pwd</button>
+                                <button type="button" @click="runSiteTerminal('php -v')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-mono text-[11px] transition-colors">php -v</button>
+                                <button type="button" @click="runSiteTerminal('composer -v')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-mono text-[11px] transition-colors">composer -v</button>
+                                <button type="button" @click="runSiteTerminal('git status')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-mono text-[11px] transition-colors">git status</button>
+                                <button type="button" @click="runSiteTerminal('df -h .')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-mono text-[11px] transition-colors">df -h .</button>
+                            </div>
+                        </div>
+
+                        <!-- TAB 4: SSL (LET'S ENCRYPT) -->
+                        <div x-show="siteSettingsTab === 'ssl'" class="space-y-5">
+                            <div>
+                                <h4 class="text-sm font-bold text-slate-900">Sertifikat SSL &amp; Enkripsi HTTPS</h4>
+                                <p class="text-xs text-slate-500 mt-0.5">Kelola penerbitan sertifikat SSL otomatis Let's Encrypt untuk keamanan koneksi situs.</p>
+                            </div>
+
+                            <!-- SSL Status Banner -->
+                            <div class="p-5 rounded-2xl border transition-all" :class="siteData.sslEnabled ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900' : 'bg-amber-50/70 border-amber-200 text-amber-900'">
+                                <div class="flex items-start justify-between gap-4">
+                                    <div class="flex items-center space-x-3.5">
+                                        <div class="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm" :class="siteData.sslEnabled ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-white'">
+                                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                                        </div>
+                                        <div>
+                                            <h5 class="font-bold text-base" x-text="siteData.sslEnabled ? 'Sertifikat SSL Let\'s Encrypt Aktif' : 'Sertifikat SSL Belum Diterbitkan'"></h5>
+                                            <p class="text-xs mt-0.5 opacity-90" x-text="siteData.sslEnabled ? ('Masa berlaku hingga: ' + (siteData.sslExpiry || 'Auto-renewal aktif')) : 'Website saat ini hanya melayani koneksi HTTP biasa tanpa enkripsi.'"></p>
+                                        </div>
+                                    </div>
+                                    <span class="px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider" :class="siteData.sslEnabled ? 'bg-emerald-200/80 text-emerald-800' : 'bg-amber-200/80 text-amber-800'" x-text="siteData.sslEnabled ? 'Aktif (HTTPS)' : 'Tidak Aktif'"></span>
+                                </div>
+                            </div>
+
+                            <!-- SSL Action Box -->
+                            <div class="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4">
+                                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                    <div>
+                                        <h5 class="font-bold text-slate-900 text-sm">Penerbitan Otomatis Let's Encrypt</h5>
+                                        <p class="text-xs text-slate-500 mt-0.5">Sertifikat valid 90 hari, gratis, dan otomatis diperbarui sebelum masa berlaku habis.</p>
+                                    </div>
+                                    <button type="button" 
+                                            @click="siteSettingsModal = false; activateLetsEncrypt(siteData.id, siteData.domain, null, siteData.sslEnabled)"
+                                            class="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-95 rounded-xl shadow-sm transition-all inline-flex items-center gap-2">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                                        <span x-text="siteData.sslEnabled ? 'Perbarui Sertifikat SSL Sekarang' : 'Terbitkan Let\'s Encrypt SSL'"></span>
+                                    </button>
+                                </div>
+
+                                <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs space-y-1.5">
+                                    <div class="font-semibold text-slate-700">Persyaratan Sebelum Menerbitkan:</div>
+                                    <ul class="list-disc list-inside text-slate-500 space-y-1 text-[11px]">
+                                        <li>DNS record domain <strong class="text-slate-800" x-text="siteData.domain"></strong> (dan subdomain aliases) sudah terarah ke IP server ini.</li>
+                                        <li>Port 80 (HTTP) dan Port 443 (HTTPS) tidak diblokir oleh firewall hosting / ISP.</li>
+                                        <li>Web server dapat merespons ACME challenge HTTP-01 pada <code class="font-mono text-indigo-600">/.well-known/acme-challenge/</code>.</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- TAB 5: LOGS VIEWER -->
+                        <div x-show="siteSettingsTab === 'logs'" class="space-y-3 flex-1 flex flex-col">
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <div>
+                                    <h4 class="text-sm font-bold text-slate-900">Catatan Webserver Log</h4>
+                                    <p class="text-xs text-slate-500 mt-0.5">Pantau aktivitas akses dan kendala server secara real-time.</p>
+                                </div>
+
+                                <div class="flex items-center gap-2">
+                                    <div class="flex items-center bg-slate-100 p-1 rounded-xl">
+                                        <button type="button" @click="switchLogType('access')" :class="logType === 'access' ? 'bg-white text-indigo-600 shadow-sm font-semibold' : 'text-slate-600 hover:text-slate-900'" class="px-3 py-1 rounded-lg text-xs transition-all">Access Log</button>
+                                        <button type="button" @click="switchLogType('error')" :class="logType === 'error' ? 'bg-white text-rose-600 shadow-sm font-semibold' : 'text-slate-600 hover:text-slate-900'" class="px-3 py-1 rounded-lg text-xs transition-all">Error Log</button>
+                                    </div>
+                                    <button type="button" @click="copyLog()" class="px-2.5 py-1 text-xs text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors flex items-center gap-1">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                                        <span>Salin</span>
+                                    </button>
+                                    <button type="button" @click="clearCurrentLog()" class="px-2.5 py-1 text-xs text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors flex items-center gap-1">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                        <span>Kosongkan</span>
+                                    </button>
+                                    <button type="button" @click="fetchLogs()" :disabled="logLoading" class="px-3 py-1 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-lg transition-all flex items-center gap-1">
+                                        <svg class="w-3.5 h-3.5" :class="logLoading ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                        <span>Segarkan</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <p class="text-[11px] font-mono text-slate-400 truncate" x-text="logPath || 'Path berkas log webserver'"></p>
+
+                            <!-- Log Viewer Window -->
+                            <div class="flex-1 min-h-[300px] bg-slate-950 rounded-2xl border border-slate-800 p-4 font-mono text-xs overflow-y-auto whitespace-pre-wrap leading-relaxed select-text" :class="logType === 'error' ? 'text-rose-400' : 'text-slate-300'" x-text="logContent"></div>
+                        </div>
+
+                        <!-- TAB 6: BACKUP -->
+                        <div x-show="siteSettingsTab === 'backup'" class="space-y-5">
+                            <div>
+                                <h4 class="text-sm font-bold text-slate-900">Backup &amp; Cadangan Situs</h4>
+                                <p class="text-xs text-slate-500 mt-0.5">Buat cadangan lengkap seluruh berkas situs web untuk diunduh langsung atau dikirim ke Google Drive.</p>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <!-- Option A: Download Direct -->
+                                <div class="p-5 rounded-2xl border border-slate-200 bg-white hover:border-slate-300 transition-all shadow-xs flex flex-col justify-between">
+                                    <div>
+                                        <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200/80 flex items-center justify-center shadow-xs mb-3">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                        </div>
+                                        <h5 class="font-bold text-slate-900 text-sm">Download Langsung (.zip)</h5>
+                                        <p class="text-xs text-slate-500 mt-1">Mengompresi direktori DocumentRoot secara on-the-fly dan mengunduh berkas .zip arsip langsung ke komputer Anda.</p>
+                                    </div>
+                                    <div class="mt-5 pt-3 border-t border-slate-100">
+                                        <a :href="'/domains/backup/download?id=' + encodeURIComponent(siteData.id)" class="w-full px-4 py-2.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-95 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                            <span>Download Backup (.zip)</span>
+                                        </a>
+                                    </div>
+                                </div>
+
+                                <!-- Option B: Send to Google Drive -->
+                                <div class="p-5 rounded-2xl border border-slate-200 bg-white hover:border-slate-300 transition-all shadow-xs flex flex-col justify-between">
+                                    <div>
+                                        <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 border border-amber-200/80 flex items-center justify-center shadow-xs mb-3">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                                        </div>
+                                        <h5 class="font-bold text-slate-900 text-sm">Kirim ke Google Drive</h5>
+                                        <p class="text-xs text-slate-500 mt-1">Menyimpan arsip cadangan di server (<code class="font-mono text-[10px]">/var/lib/seintech/backups</code>) dan mengunggahnya otomatis ke akun Google Drive yang terhubung melalui Rclone.</p>
+                                    </div>
+                                    <div class="mt-5 pt-3 border-t border-slate-100">
+                                        <button type="button" 
+                                                @click="sendSiteBackupGDrive()"
+                                                :disabled="backupLoadingGDrive"
+                                                class="w-full px-4 py-2.5 text-xs font-semibold text-amber-900 bg-amber-100 hover:bg-amber-200 active:scale-95 disabled:opacity-50 border border-amber-300 rounded-xl shadow-xs transition-all flex items-center justify-center gap-2">
+                                            <svg x-show="backupLoadingGDrive" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+                                            <svg x-show="!backupLoadingGDrive" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                                            <span x-text="backupLoadingGDrive ? 'Memproses Cadangan...' : 'Kirim Backup ke Google Drive'"></span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- TAB 7: MANUAL SETTING (NGINX / VHOST) -->
+                        <div x-show="siteSettingsTab === 'vhost'" class="space-y-3 flex-1 flex flex-col">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h4 class="text-sm font-bold text-slate-900">Manual Setting: Virtual Host Configuration</h4>
+                                    <p class="text-xs text-slate-500 mt-0.5">Edit konfigurasi raw webserver langsung (<span class="font-mono text-indigo-600 font-semibold" x-text="vhostPath || 'Config Path'"></span>).</p>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button type="button" @click="fetchSiteVHost()" :disabled="vhostLoading" class="px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors flex items-center gap-1.5">
+                                        <svg class="w-3.5 h-3.5" :class="vhostLoading ? 'animate-spin' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                        <span>Muat Ulang</span>
+                                    </button>
+                                    <button type="button" @click="saveSiteVHost()" :disabled="vhostSaving || vhostLoading" class="px-4 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-xl shadow-xs transition-all flex items-center gap-1.5">
+                                        <svg x-show="vhostSaving" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+                                        <svg x-show="!vhostSaving" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                        <span x-text="vhostSaving ? 'Menguji &amp; Menyimpan...' : 'Validasi &amp; Simpan Konfigurasi'"></span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-[11px] flex items-center gap-2">
+                                <svg class="w-4 h-4 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                                <span><strong>Proteksi Otomatis:</strong> Setiap perubahan akan diverifikasi dengan <code>nginx -t</code>. Jika ada sintaks yang keliru, perubahan otomatis dibatalkan agar webserver tidak terhenti.</span>
+                            </div>
+
+                            <!-- Raw VHost Editor Box -->
+                            <div class="flex-1 min-h-[350px] flex flex-col bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden shadow-inner">
+                                <textarea x-model="vhostContent" 
+                                          spellcheck="false" 
+                                          class="flex-1 p-4 bg-transparent text-slate-100 font-mono text-xs leading-relaxed outline-none resize-none select-text focus:ring-0" 
+                                          placeholder="Memuat isi konfigurasi..."></textarea>
+                            </div>
+                        </div>
+
+                        <!-- TAB 8: STATUS & CONTROLS -->
+                        <div x-show="siteSettingsTab === 'status'" class="space-y-5">
+                            <div>
+                                <h4 class="text-sm font-bold text-slate-900">Status Operasional &amp; Kontrol Situs</h4>
+                                <p class="text-xs text-slate-500 mt-0.5">Aktifkan, nonaktifkan, atau restart layanan virtualhost dan PHP-FPM situs ini.</p>
+                            </div>
+
+                            <!-- Current Status Overview -->
+                            <div class="p-5 rounded-2xl border transition-all" :class="siteData.status === 'disabled' ? 'bg-rose-50/70 border-rose-200' : 'bg-emerald-50/70 border-emerald-200'">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center space-x-3.5">
+                                        <div class="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm" :class="siteData.status === 'disabled' ? 'bg-rose-600 text-white' : 'bg-emerald-600 text-white'">
+                                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                                        </div>
+                                        <div>
+                                            <div class="flex items-center gap-2">
+                                                <h5 class="font-bold text-base text-slate-900" x-text="siteData.status === 'disabled' ? 'Situs Dinonaktifkan (Disabled)' : 'Situs Aktif &amp; Beroperasi (Active)'"></h5>
+                                                <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase" :class="siteData.status === 'disabled' ? 'bg-rose-200 text-rose-800' : 'bg-emerald-200 text-emerald-800'" x-text="siteData.status === 'disabled' ? 'Offline' : 'Online'"></span>
+                                            </div>
+                                            <p class="text-xs text-slate-600 mt-0.5" x-text="siteData.status === 'disabled' ? 'Virtualhost dicabut dari sites-enabled. Domain tidak akan merespons permintaan publik.' : 'Virtualhost aktif di sites-enabled dan melayani traffic publik.'"></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Action Controls Grid -->
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+                                <!-- Action: Nonaktifkan / Stop -->
+                                <div class="p-4 rounded-xl border border-slate-200 bg-white hover:border-rose-200 transition-all shadow-xs flex flex-col justify-between">
+                                    <div>
+                                        <div class="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center mb-2.5">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                        </div>
+                                        <h6 class="font-bold text-slate-900 text-xs">Nonaktifkan / Stop Situs</h6>
+                                        <p class="text-[11px] text-slate-500 mt-1">Mencabut virtualhost dari webserver tanpa menghapus berkas apapun.</p>
+                                    </div>
+                                    <div class="mt-4 pt-3 border-t border-slate-100">
+                                        <button type="button" 
+                                                @click="updateSiteStatus('disable')"
+                                                :disabled="statusLoading || siteData.status === 'disabled'"
+                                                class="w-full px-3 py-2 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 disabled:opacity-50 border border-rose-200 rounded-lg transition-colors">
+                                            Disable / Stop
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Action: Aktifkan / Enable -->
+                                <div class="p-4 rounded-xl border border-slate-200 bg-white hover:border-emerald-200 transition-all shadow-xs flex flex-col justify-between">
+                                    <div>
+                                        <div class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center mb-2.5">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                        </div>
+                                        <h6 class="font-bold text-slate-900 text-xs">Aktifkan / Start Situs</h6>
+                                        <p class="text-[11px] text-slate-500 mt-1">Mengaktifkan kembali konfigurasi virtualhost di webserver.</p>
+                                    </div>
+                                    <div class="mt-4 pt-3 border-t border-slate-100">
+                                        <button type="button" 
+                                                @click="updateSiteStatus('enable')"
+                                                :disabled="statusLoading || siteData.status === 'active'"
+                                                class="w-full px-3 py-2 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 border border-emerald-200 rounded-lg transition-colors">
+                                            Enable / Start
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Action: Restart Service -->
+                                <div class="p-4 rounded-xl border border-slate-200 bg-white hover:border-indigo-200 transition-all shadow-xs flex flex-col justify-between">
+                                    <div>
+                                        <div class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center mb-2.5">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                        </div>
+                                        <h6 class="font-bold text-slate-900 text-xs">Restart Situs &amp; PHP-FPM</h6>
+                                        <p class="text-[11px] text-slate-500 mt-1">Reload webserver dan restart pool PHP-FPM untuk membersihkan opcode cache.</p>
+                                    </div>
+                                    <div class="mt-4 pt-3 border-t border-slate-100">
+                                        <button type="button" 
+                                                @click="updateSiteStatus('restart')"
+                                                :disabled="statusLoading"
+                                                class="w-full px-3 py-2 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-50 border border-indigo-200 rounded-lg transition-colors">
+                                            Restart
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </template>
+
 </div>
 
 <script>
+function openSiteSettings(data, initialTab = 'files') {
+    const root = getAlpineRoot();
+    if (root && typeof root.openSiteSettings === 'function') {
+        root.openSiteSettings(data, initialTab);
+    }
+}
+
 // Quick update web engine via dropdown
 function updateWebEngine(id, newEngine, selectEl) {
     const originalValue = selectEl.getAttribute('data-original') || selectEl.value;

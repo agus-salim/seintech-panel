@@ -1,15 +1,19 @@
 package handler
 
 import (
+	"archive/zip"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -768,3 +772,559 @@ func (h *DomainHandler) respondJSON(w http.ResponseWriter, success bool, message
 		"message": message,
 	})
 }
+
+func (h *DomainHandler) getDomainFromRequest(r *http.Request) (*model.Domain, error) {
+	id := strings.TrimSpace(r.FormValue("id"))
+	if id == "" {
+		id = strings.TrimSpace(r.URL.Query().Get("id"))
+	}
+	if id == "" {
+		return nil, fmt.Errorf("domain ID tidak boleh kosong")
+	}
+
+	domain, err := h.repo.GetDomainByID(id)
+	if err != nil {
+		domain, err = h.repo.GetDomainByName(id)
+		if err != nil {
+			return nil, fmt.Errorf("domain '%s' tidak ditemukan: %w", id, err)
+		}
+	}
+
+	sess := GetSession(r)
+	if !IsUserAccessible(sess, h.repo, domain.UserID) {
+		return nil, fmt.Errorf("akses ditolak: Anda tidak memiliki izin untuk domain ini")
+	}
+
+	return domain, nil
+}
+
+// GetDatabases returns databases associated with this site or its owner
+func (h *DomainHandler) GetDatabases(w http.ResponseWriter, r *http.Request) {
+	domain, err := h.getDomainFromRequest(r)
+	if err != nil {
+		h.respondJSON(w, false, err.Error())
+		return
+	}
+
+	allDBs, err := h.repo.GetDatabases()
+	if err != nil {
+		h.respondJSON(w, false, "Gagal mengambil data database: "+err.Error())
+		return
+	}
+
+	cleanDomainPrefix := strings.ToLower(strings.Split(domain.DomainName, ".")[0])
+	cleanUser := strings.ToLower(domain.SiteUser)
+
+	type DBItem struct {
+		ID        string `json:"id"`
+		Name      string `json:"name"`
+		Type      string `json:"type"`
+		Username  string `json:"username"`
+		Host      string `json:"host"`
+		Charset   string `json:"charset"`
+		SizeBytes int64  `json:"size_bytes"`
+		SizeHuman string `json:"size_human"`
+		CreatedAt string `json:"created_at"`
+		IsSiteDB  bool   `json:"is_site_db"`
+	}
+
+	var result []DBItem
+	for _, db := range allDBs {
+		isSiteDB := false
+		if domain.UserID != "" && db.UserID == domain.UserID {
+			isSiteDB = true
+		} else if cleanUser != "" && strings.Contains(strings.ToLower(db.Name), cleanUser) {
+			isSiteDB = true
+		} else if len(cleanDomainPrefix) >= 3 && strings.Contains(strings.ToLower(db.Name), cleanDomainPrefix) {
+			isSiteDB = true
+		}
+
+		sizeStr := "0 B"
+		if db.SizeBytes > 1024*1024 {
+			sizeStr = fmt.Sprintf("%.2f MB", float64(db.SizeBytes)/(1024*1024))
+		} else if db.SizeBytes > 1024 {
+			sizeStr = fmt.Sprintf("%.2f KB", float64(db.SizeBytes)/1024)
+		} else if db.SizeBytes > 0 {
+			sizeStr = fmt.Sprintf("%d B", db.SizeBytes)
+		}
+
+		result = append(result, DBItem{
+			ID:        db.ID,
+			Name:      db.Name,
+			Type:      string(db.Type),
+			Username:  db.Username,
+			Host:      db.Host,
+			Charset:   db.Charset,
+			SizeBytes: db.SizeBytes,
+			SizeHuman: sizeStr,
+			CreatedAt: db.CreatedAt.Format("02 Jan 2006 15:04"),
+			IsSiteDB:  isSiteDB,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"success":   true,
+		"domain":    domain.DomainName,
+		"databases": result,
+	})
+}
+
+// RunTerminal executes a shell command inside the site's document root
+func (h *DomainHandler) RunTerminal(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		h.respondJSON(w, false, "Permintaan tidak valid")
+		return
+	}
+
+	domain, err := h.getDomainFromRequest(r)
+	if err != nil {
+		h.respondJSON(w, false, err.Error())
+		return
+	}
+
+	command := strings.TrimSpace(r.FormValue("command"))
+	if command == "" {
+		h.respondJSON(w, false, "Perintah tidak boleh kosong")
+		return
+	}
+
+	targetDir := domain.DocumentRoot
+	if targetDir == "" {
+		targetDir = filepath.Join(h.cfg.WebRoot, domain.SiteUser, "data", "www", domain.DomainName)
+	}
+	if fi, err := os.Stat(targetDir); err != nil || !fi.IsDir() {
+		_ = os.MkdirAll(targetDir, 0755)
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+	defer cancel()
+
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		cmd = exec.CommandContext(ctx, "cmd", "/c", command)
+	} else {
+		if _, err := exec.LookPath("bash"); err == nil {
+			cmd = exec.CommandContext(ctx, "bash", "-c", command)
+		} else {
+			cmd = exec.CommandContext(ctx, "sh", "-c", command)
+		}
+	}
+	cmd.Dir = targetDir
+
+	out, runErr := cmd.CombinedOutput()
+	exitCode := 0
+	if cmd.ProcessState != nil {
+		exitCode = cmd.ProcessState.ExitCode()
+	} else if runErr != nil {
+		exitCode = 1
+	}
+
+	outStr := string(out)
+	if len(outStr) > 120000 {
+		outStr = outStr[:120000] + "\n... [Output dipotong karena melebihi batas 120KB]"
+	}
+	if outStr == "" && runErr == nil {
+		outStr = "[Perintah selesai tanpa keluaran output]"
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"success":   true,
+		"output":    outStr,
+		"exit_code": exitCode,
+		"cwd":       targetDir,
+		"command":   command,
+	})
+}
+
+// GetVHost returns the raw virtualhost configuration file for this domain
+func (h *DomainHandler) GetVHost(w http.ResponseWriter, r *http.Request) {
+	domain, err := h.getDomainFromRequest(r)
+	if err != nil {
+		h.respondJSON(w, false, err.Error())
+		return
+	}
+
+	ws, err := h.registry.Get(domain.WebServerType)
+	var confPath string
+	if err == nil {
+		confPath = ws.ConfigPath(domain)
+	} else {
+		confPath = filepath.Join("/etc/nginx/sites-available", domain.DomainName+".conf")
+	}
+
+	contentBytes, err := os.ReadFile(confPath)
+	var content string
+	if err != nil {
+		if alt, err2 := os.ReadFile(filepath.Join("/etc/nginx/conf.d", domain.DomainName+".conf")); err2 == nil {
+			confPath = filepath.Join("/etc/nginx/conf.d", domain.DomainName+".conf")
+			content = string(alt)
+		} else {
+			content = fmt.Sprintf("# Berkas konfigurasi belum ditemukan di %s\n# Menyimpan perubahan akan membuat konfigurasi baru secara otomatis.\n", confPath)
+		}
+	} else {
+		content = string(contentBytes)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"success": true,
+		"engine":  domain.WebServerType,
+		"path":    confPath,
+		"content": content,
+	})
+}
+
+// SaveVHost updates and tests the raw virtualhost configuration file
+func (h *DomainHandler) SaveVHost(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		h.respondJSON(w, false, "Permintaan tidak valid")
+		return
+	}
+
+	domain, err := h.getDomainFromRequest(r)
+	if err != nil {
+		h.respondJSON(w, false, err.Error())
+		return
+	}
+
+	newContent := r.FormValue("content")
+	if strings.TrimSpace(newContent) == "" {
+		h.respondJSON(w, false, "Isi konfigurasi tidak boleh kosong")
+		return
+	}
+
+	ws, err := h.registry.Get(domain.WebServerType)
+	if err != nil {
+		h.respondJSON(w, false, "Web server engine tidak didukung: "+err.Error())
+		return
+	}
+
+	confPath := ws.ConfigPath(domain)
+	_ = os.MkdirAll(filepath.Dir(confPath), 0755)
+
+	origContent, _ := os.ReadFile(confPath)
+
+	if err := os.WriteFile(confPath, []byte(newContent), 0644); err != nil {
+		h.respondJSON(w, false, "Gagal menulis berkas konfigurasi: "+err.Error())
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	testOut, testErr := ws.TestConfig(ctx)
+	if testErr != nil {
+		if len(origContent) > 0 {
+			_ = os.WriteFile(confPath, origContent, 0644)
+		} else {
+			_ = os.Remove(confPath)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": false,
+			"error":   fmt.Sprintf("Uji sintaks %s gagal! Perubahan dibatalkan demi keamanan.\n\n%s", ws.Name(), testOut),
+		})
+		return
+	}
+
+	_ = ws.Reload(ctx)
+
+	h.respondJSON(w, true, fmt.Sprintf("Konfigurasi Virtualhost %s berhasil divalidasi dan web server di-reload!", domain.DomainName))
+}
+
+// SetStatus manages site enable, disable, stop, and restart
+func (h *DomainHandler) SetStatus(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		h.respondJSON(w, false, "Permintaan tidak valid")
+		return
+	}
+
+	domain, err := h.getDomainFromRequest(r)
+	if err != nil {
+		h.respondJSON(w, false, err.Error())
+		return
+	}
+
+	action := strings.ToLower(strings.TrimSpace(r.FormValue("action")))
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+
+	ws, _ := h.registry.Get(domain.WebServerType)
+
+	switch action {
+	case "restart":
+		if ws != nil {
+			_ = ws.Reload(ctx)
+		}
+		if domain.PHPVersion != "" && domain.PHPVersion != "static" && domain.PHPVersion != "proxy" {
+			_ = h.sm.Restart(ctx, "php"+domain.PHPVersion+"-fpm")
+		}
+		h.respondJSON(w, true, fmt.Sprintf("Situs %s dan PHP-FPM berhasil direstart!", domain.DomainName))
+		return
+
+	case "disable", "stop":
+		nginxEnabled := filepath.Join("/etc/nginx/sites-enabled", domain.DomainName+".conf")
+		_ = os.Remove(nginxEnabled)
+
+		apacheEnabled := filepath.Join("/etc/apache2/sites-enabled", domain.DomainName+".conf")
+		_ = os.Remove(apacheEnabled)
+
+		if ws != nil {
+			_ = ws.Reload(ctx)
+		}
+
+		domain.Status = "disabled"
+		_ = h.repo.UpsertDomain(*domain)
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": true,
+			"status":  "disabled",
+			"message": fmt.Sprintf("Situs %s berhasil dinonaktifkan (disabled).", domain.DomainName),
+		})
+		return
+
+	case "enable", "start":
+		availFile := filepath.Join("/etc/nginx/sites-available", domain.DomainName+".conf")
+		enabledFile := filepath.Join("/etc/nginx/sites-enabled", domain.DomainName+".conf")
+
+		if ws != nil {
+			availFile = ws.ConfigPath(domain)
+		}
+
+		if _, err := os.Stat(availFile); os.IsNotExist(err) {
+			if ws != nil {
+				_ = ws.GenerateVHost(ctx, domain)
+			}
+		}
+
+		_ = os.Remove(enabledFile)
+		if err := os.Symlink(availFile, enabledFile); err != nil {
+			if b, errRead := os.ReadFile(availFile); errRead == nil {
+				_ = os.WriteFile(enabledFile, b, 0644)
+			}
+		}
+
+		if domain.WebServerType == model.WebServerApache {
+			apacheAvail := filepath.Join("/etc/apache2/sites-available", domain.DomainName+".conf")
+			apacheEnabled := filepath.Join("/etc/apache2/sites-enabled", domain.DomainName+".conf")
+			_ = os.Remove(apacheEnabled)
+			_ = os.Symlink(apacheAvail, apacheEnabled)
+		}
+
+		if ws != nil {
+			_ = ws.Reload(ctx)
+		}
+
+		domain.Status = "active"
+		_ = h.repo.UpsertDomain(*domain)
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": true,
+			"status":  "active",
+			"message": fmt.Sprintf("Situs %s berhasil diaktifkan kembali (active)!", domain.DomainName),
+		})
+		return
+
+	default:
+		h.respondJSON(w, false, "Aksi tidak dikenal. Gunakan: enable, disable, stop, atau restart.")
+	}
+}
+
+// DownloadBackup streams a zip archive of the site's DocumentRoot directly to browser
+func (h *DomainHandler) DownloadBackup(w http.ResponseWriter, r *http.Request) {
+	domain, err := h.getDomainFromRequest(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+
+	targetDir := domain.DocumentRoot
+	if fi, err := os.Stat(targetDir); err != nil || !fi.IsDir() {
+		http.Error(w, "Direktori situs web tidak ditemukan: "+targetDir, http.StatusNotFound)
+		return
+	}
+
+	zipFileName := fmt.Sprintf("backup-%s-%s.zip", domain.DomainName, time.Now().Format("20060102-150405"))
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", zipFileName))
+
+	zw := zip.NewWriter(w)
+	defer zw.Close()
+
+	_ = filepath.Walk(targetDir, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil || info == nil {
+			return nil
+		}
+
+		if info.Mode()&os.ModeSocket != 0 || info.Mode()&os.ModeNamedPipe != 0 {
+			return nil
+		}
+
+		relPath, err := filepath.Rel(targetDir, path)
+		if err != nil || relPath == "." {
+			return nil
+		}
+
+		zipPath := filepath.ToSlash(relPath)
+		if info.IsDir() {
+			zipPath += "/"
+		}
+
+		header, err := zip.FileInfoHeader(info)
+		if err != nil {
+			return nil
+		}
+		header.Name = zipPath
+		header.Method = zip.Deflate
+
+		writer, err := zw.CreateHeader(header)
+		if err != nil {
+			return nil
+		}
+
+		if info.IsDir() {
+			return nil
+		}
+
+		file, err := os.Open(path)
+		if err != nil {
+			return nil
+		}
+		defer file.Close()
+
+		_, _ = io.Copy(writer, file)
+		return nil
+	})
+}
+
+// SendGDriveBackup creates a backup archive and uploads it to Google Drive via rclone if configured
+func (h *DomainHandler) SendGDriveBackup(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		h.respondJSON(w, false, "Permintaan tidak valid")
+		return
+	}
+
+	domain, err := h.getDomainFromRequest(r)
+	if err != nil {
+		h.respondJSON(w, false, err.Error())
+		return
+	}
+
+	targetDir := domain.DocumentRoot
+	if fi, err := os.Stat(targetDir); err != nil || !fi.IsDir() {
+		h.respondJSON(w, false, "Direktori situs web tidak ditemukan: "+targetDir)
+		return
+	}
+
+	backupDir := filepath.Join("/var/lib/seintech/backups", domain.DomainName)
+	_ = os.MkdirAll(backupDir, 0755)
+
+	zipFileName := fmt.Sprintf("backup-%s-%s.zip", domain.DomainName, time.Now().Format("20060102-150405"))
+	destZip := filepath.Join(backupDir, zipFileName)
+
+	outFile, err := os.Create(destZip)
+	if err != nil {
+		backupDir = filepath.Join(os.TempDir(), "seintech-backups")
+		_ = os.MkdirAll(backupDir, 0755)
+		destZip = filepath.Join(backupDir, zipFileName)
+		outFile, err = os.Create(destZip)
+		if err != nil {
+			h.respondJSON(w, false, "Gagal membuat berkas arsip backup: "+err.Error())
+			return
+		}
+	}
+
+	zw := zip.NewWriter(outFile)
+	_ = filepath.Walk(targetDir, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil || info == nil {
+			return nil
+		}
+		if info.Mode()&os.ModeSocket != 0 || info.Mode()&os.ModeNamedPipe != 0 {
+			return nil
+		}
+		relPath, err := filepath.Rel(targetDir, path)
+		if err != nil || relPath == "." {
+			return nil
+		}
+		zipPath := filepath.ToSlash(relPath)
+		if info.IsDir() {
+			zipPath += "/"
+		}
+		header, err := zip.FileInfoHeader(info)
+		if err != nil {
+			return nil
+		}
+		header.Name = zipPath
+		header.Method = zip.Deflate
+		writer, err := zw.CreateHeader(header)
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() {
+			return nil
+		}
+		f, err := os.Open(path)
+		if err != nil {
+			return nil
+		}
+		defer f.Close()
+		_, _ = io.Copy(writer, f)
+		return nil
+	})
+	_ = zw.Close()
+	_ = outFile.Close()
+
+	ctx, cancel := context.WithTimeout(r.Context(), 180*time.Second)
+	defer cancel()
+
+	rclonePath, err := exec.LookPath("rclone")
+	if err == nil {
+		testCmd := exec.CommandContext(ctx, rclonePath, "listremotes")
+		remotes, _ := testCmd.Output()
+		remoteStr := string(remotes)
+
+		targetRemote := ""
+		if strings.Contains(remoteStr, "gdrive:") {
+			targetRemote = "gdrive:SeintechBackups/" + domain.DomainName + "/"
+		} else if strings.Contains(remoteStr, "drive:") {
+			targetRemote = "drive:SeintechBackups/" + domain.DomainName + "/"
+		}
+
+		if targetRemote != "" {
+			copyCmd := exec.CommandContext(ctx, rclonePath, "copy", destZip, targetRemote)
+			if out, copyErr := copyCmd.CombinedOutput(); copyErr == nil {
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"success":         true,
+					"message":         fmt.Sprintf("Backup arsip berhasil dibuat dan dikirim ke Google Drive (%s)!", targetRemote),
+					"path":            destZip,
+					"gdrive_uploaded": true,
+				})
+				return
+			} else {
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"success":         true,
+					"message":         fmt.Sprintf("Arsip backup tersimpan di server (%s), namun pengiriman rclone gagal: %s", destZip, string(out)),
+					"path":            destZip,
+					"gdrive_uploaded": false,
+				})
+				return
+			}
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"success":         true,
+		"message":         fmt.Sprintf("Arsip backup tersimpan di server: %s. Untuk pengiriman otomatis ke Google Drive, konfigurasikan remote Google Drive via 'rclone config' di server Anda.", destZip),
+		"path":            destZip,
+		"gdrive_uploaded": false,
+	})
+}
+

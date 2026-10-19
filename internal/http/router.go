@@ -114,6 +114,16 @@ func NewRouter(
 		pr.Post("/domains/status", domainH.SetStatus)
 		pr.Get("/domains/backup/download", domainH.DownloadBackup)
 		pr.Post("/domains/backup/gdrive", domainH.SendGDriveBackup)
+		pr.Get("/domains/backup/list", domainH.ListBackups)
+		pr.Post("/domains/backup/create", domainH.CreateBackup)
+		pr.Get("/domains/backup/download-file", domainH.DownloadBackupFile)
+		pr.Post("/domains/backup/upload-gdrive", domainH.UploadBackupToGDrive)
+		pr.Post("/domains/backup/delete-file", domainH.DeleteBackupFile)
+		pr.Get("/domains/backup/google/settings", domainH.GetGoogleSettings)
+		pr.Post("/domains/backup/google/settings", domainH.SaveGoogleSettings)
+		pr.Get("/domains/backup/google/auth", domainH.GoogleOAuthRedirect)
+		pr.Get("/domains/backup/google/callback", domainH.GoogleOAuthCallback)
+		pr.Post("/domains/backup/google/disconnect", domainH.DisconnectGoogle)
 		pr.Post("/domains/delete", domainH.Delete)
 
 		// File Manager

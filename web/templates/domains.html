@@ -153,6 +153,14 @@
     vhostLoading: false,
     vhostSaving: false,
     backupLoadingGDrive: false,
+    backupsList: [],
+    backupsLoading: false,
+    backupCreating: false,
+    backupUploadingFile: '',
+    gdriveModal: false,
+    gdriveLoading: false,
+    gdriveSaving: false,
+    gdriveData: { connected: false, email: '', client_id: '', client_secret: '', refresh_token: '', target_folder: 'SeintechBackups', auto_sync: true, last_sync_at: '', has_rclone: false },
     statusLoading: false,
 
     openSiteSettings(data, initialTab = 'files') {
@@ -177,6 +185,8 @@
             this.logDomain = this.siteData.domain;
             this.logEngine = this.siteData.webserver;
             this.fetchLogs();
+        } else if (tab === 'backup') {
+            this.fetchBackups();
         }
     },
     fetchSiteDatabases() {
@@ -315,14 +325,34 @@
             showToast('Error: ' + err.message, 'error');
         });
     },
-    sendSiteBackupGDrive() {
-        this.backupLoadingGDrive = true;
-        showToast('Membuat arsip backup dan memproses ke Google Drive...', 'info');
+    fetchBackups() {
+        this.backupsLoading = true;
+        fetch('/domains/backup/list?id=' + encodeURIComponent(this.siteData.id))
+            .then(r => r.json())
+            .then(data => {
+                this.backupsLoading = false;
+                if (data.success) {
+                    this.backupsList = data.backups || [];
+                    if (data.google) {
+                        this.gdriveData = Object.assign(this.gdriveData, data.google);
+                    }
+                } else {
+                    showToast(data.error || 'Gagal memuat daftar backup', 'error');
+                }
+            })
+            .catch(err => {
+                this.backupsLoading = false;
+                showToast('Error: ' + err.message, 'error');
+            });
+    },
+    createNewBackup() {
+        this.backupCreating = true;
+        showToast('Sedang membuat berkas cadangan (.zip)...', 'info');
 
         const params = new URLSearchParams();
         params.append('id', this.siteData.id);
 
-        fetch('/domains/backup/gdrive', {
+        fetch('/domains/backup/create', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
@@ -333,17 +363,148 @@
         })
         .then(r => r.json())
         .then(data => {
-            this.backupLoadingGDrive = false;
+            this.backupCreating = false;
             if (data.success) {
                 showToast(data.message, 'success');
+                this.fetchBackups();
             } else {
                 showToast(data.error || 'Gagal membuat backup', 'error');
             }
         })
         .catch(err => {
-            this.backupLoadingGDrive = false;
+            this.backupCreating = false;
             showToast('Error: ' + err.message, 'error');
         });
+    },
+    uploadBackupGDrive(filename) {
+        this.backupUploadingFile = filename;
+        showToast('Mengirim ' + filename + ' ke Google Drive...', 'info');
+
+        const params = new URLSearchParams();
+        params.append('id', this.siteData.id);
+        params.append('filename', filename);
+
+        fetch('/domains/backup/upload-gdrive', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: params.toString()
+        })
+        .then(r => r.json())
+        .then(data => {
+            this.backupUploadingFile = '';
+            if (data.success) {
+                showToast(data.message, 'success');
+                this.fetchBackups();
+            } else {
+                showToast(data.error || 'Gagal mengirim ke Google Drive', 'error');
+            }
+        })
+        .catch(err => {
+            this.backupUploadingFile = '';
+            showToast('Error: ' + err.message, 'error');
+        });
+    },
+    deleteBackupFile(filename) {
+        if (!confirm('Hapus berkas backup ' + filename + ' dari server?')) return;
+
+        showToast('Menghapus berkas ' + filename + '...', 'info');
+        const params = new URLSearchParams();
+        params.append('id', this.siteData.id);
+        params.append('filename', filename);
+
+        fetch('/domains/backup/delete-file', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: params.toString()
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                showToast(data.message, 'success');
+                this.fetchBackups();
+            } else {
+                showToast(data.error || 'Gagal menghapus berkas', 'error');
+            }
+        })
+        .catch(err => {
+            showToast('Error: ' + err.message, 'error');
+        });
+    },
+    openGoogleSettings() {
+        this.gdriveLoading = true;
+        this.gdriveModal = true;
+        fetch('/domains/backup/google/settings')
+            .then(r => r.json())
+            .then(data => {
+                this.gdriveLoading = false;
+                if (data.success && data.google) {
+                    this.gdriveData = Object.assign(this.gdriveData, data.google);
+                }
+            })
+            .catch(err => {
+                this.gdriveLoading = false;
+            });
+    },
+    saveGoogleSettings() {
+        this.gdriveSaving = true;
+        const params = new URLSearchParams();
+        params.append('client_id', this.gdriveData.client_id || '');
+        params.append('client_secret', this.gdriveData.client_secret || '');
+        params.append('refresh_token', this.gdriveData.refresh_token || '');
+        params.append('target_folder', this.gdriveData.target_folder || 'SeintechBackups');
+        params.append('auto_sync', this.gdriveData.auto_sync ? '1' : '0');
+
+        fetch('/domains/backup/google/settings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: params.toString()
+        })
+        .then(r => r.json())
+        .then(data => {
+            this.gdriveSaving = false;
+            if (data.success) {
+                showToast(data.message, 'success');
+                this.gdriveModal = false;
+                this.fetchBackups();
+            } else {
+                showToast(data.error || 'Gagal menyimpan pengaturan', 'error');
+            }
+        })
+        .catch(err => {
+            this.gdriveSaving = false;
+            showToast('Error: ' + err.message, 'error');
+        });
+    },
+    disconnectGoogle() {
+        if (!confirm('Putuskan hubungan akun Google Drive ini?')) return;
+        fetch('/domains/backup/google/disconnect', {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                showToast(data.message, 'success');
+                this.gdriveData.connected = false;
+                this.gdriveData.email = '';
+                this.fetchBackups();
+            }
+        });
+    },
+    sendSiteBackupGDrive() {
+        this.createNewBackup();
     },
     updateSiteStatus(action) {
         const actionLabel = action === 'restart' ? 'merestart situs & PHP-FPM' : (action === 'disable' ? 'menonaktifkan situs ini' : 'mengaktifkan kembali situs ini');
@@ -1414,49 +1575,152 @@
                         </div>
 
                         <!-- TAB 6: BACKUP -->
-                        <div x-show="siteSettingsTab === 'backup'" class="space-y-5">
-                            <div>
-                                <h4 class="text-sm font-bold text-slate-900">Backup &amp; Cadangan Situs</h4>
-                                <p class="text-xs text-slate-500 mt-0.5">Buat cadangan lengkap seluruh berkas situs web untuk diunduh langsung atau dikirim ke Google Drive.</p>
+                        <div x-show="siteSettingsTab === 'backup'" class="space-y-4 flex-1 flex flex-col">
+                            <!-- Top Bar: Title & Action Buttons -->
+                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                <div>
+                                    <h4 class="text-sm font-bold text-slate-900">Backup &amp; Cadangan Situs</h4>
+                                    <p class="text-xs text-slate-500 mt-0.5">Buat file backup, unduh arsip lokal, atau sinkronkan otomatis ke Google Drive.</p>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <!-- Setting Akun Google Button -->
+                                    <button type="button" 
+                                            @click="openGoogleSettings()" 
+                                            class="px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all shadow-xs inline-flex items-center gap-2"
+                                            :class="gdriveData.connected ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border-emerald-200' : 'text-slate-700 bg-white hover:bg-slate-100 border-slate-200'">
+                                        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24">
+                                            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                                            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                                            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                                            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                                        </svg>
+                                        <span>Setting Akun Google</span>
+                                        <span x-show="gdriveData.connected" class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                    </button>
+
+                                    <!-- 1. Buat File Backup Button -->
+                                    <button type="button" 
+                                            @click="createNewBackup()" 
+                                            :disabled="backupCreating"
+                                            class="px-4 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-95 disabled:opacity-50 rounded-xl transition-all shadow-sm inline-flex items-center gap-2">
+                                        <svg x-show="backupCreating" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+                                        <svg x-show="!backupCreating" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                                        <span x-text="backupCreating ? 'Membuat Backup...' : 'Buat File Backup'"></span>
+                                    </button>
+                                </div>
                             </div>
 
-                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <!-- Option A: Download Direct -->
-                                <div class="p-5 rounded-2xl border border-slate-200 bg-white hover:border-slate-300 transition-all shadow-xs flex flex-col justify-between">
-                                    <div>
-                                        <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200/80 flex items-center justify-center shadow-xs mb-3">
-                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                                        </div>
-                                        <h5 class="font-bold text-slate-900 text-sm">Download Langsung (.zip)</h5>
-                                        <p class="text-xs text-slate-500 mt-1">Mengompresi direktori DocumentRoot secara on-the-fly dan mengunduh berkas .zip arsip langsung ke komputer Anda.</p>
-                                    </div>
-                                    <div class="mt-5 pt-3 border-t border-slate-100">
-                                        <a :href="'/domains/backup/download?id=' + encodeURIComponent(siteData.id)" class="w-full px-4 py-2.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-95 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                                            <span>Download Backup (.zip)</span>
-                                        </a>
+                            <!-- Google Drive Status Banner -->
+                            <div class="px-4 py-2.5 rounded-xl border flex items-center justify-between text-xs"
+                                 :class="gdriveData.connected ? 'bg-emerald-50/70 border-emerald-200 text-emerald-800' : 'bg-amber-50/70 border-amber-200 text-amber-800'">
+                                <div class="flex items-center gap-2.5 min-w-0">
+                                    <span class="w-2 h-2 rounded-full shrink-0" :class="gdriveData.connected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'"></span>
+                                    <div class="truncate">
+                                        <template x-if="gdriveData.connected">
+                                            <span>
+                                                <strong>Google Drive Terhubung:</strong> <span class="font-mono" x-text="gdriveData.email || 'Akun Google Aktif'"></span>
+                                                <span class="text-emerald-600 ml-1.5 font-medium" x-text="gdriveData.auto_sync ? '(Otomatis Kirim Backup: Aktif)' : '(Otomatis Kirim: Nonaktif)'"></span>
+                                            </span>
+                                        </template>
+                                        <template x-if="!gdriveData.connected">
+                                            <span><strong>Google Drive:</strong> Belum terhubung. Sambungkan akun Google Anda agar setiap backup dapat otomatis terunggah ke Google Drive.</span>
+                                        </template>
                                     </div>
                                 </div>
+                                <button type="button" @click="openGoogleSettings()" class="text-xs font-semibold underline underline-offset-2 shrink-0 ml-3 hover:opacity-80">
+                                    <span x-text="gdriveData.connected ? 'Kelola Akun' : 'Hubungkan Sekarang'"></span>
+                                </button>
+                            </div>
 
-                                <!-- Option B: Send to Google Drive -->
-                                <div class="p-5 rounded-2xl border border-slate-200 bg-white hover:border-slate-300 transition-all shadow-xs flex flex-col justify-between">
-                                    <div>
-                                        <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 border border-amber-200/80 flex items-center justify-center shadow-xs mb-3">
-                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
-                                        </div>
-                                        <h5 class="font-bold text-slate-900 text-sm">Kirim ke Google Drive</h5>
-                                        <p class="text-xs text-slate-500 mt-1">Menyimpan arsip cadangan di server (<code class="font-mono text-[10px]">/var/lib/seintech/backups</code>) dan mengunggahnya otomatis ke akun Google Drive yang terhubung melalui Rclone.</p>
-                                    </div>
-                                    <div class="mt-5 pt-3 border-t border-slate-100">
-                                        <button type="button" 
-                                                @click="sendSiteBackupGDrive()"
-                                                :disabled="backupLoadingGDrive"
-                                                class="w-full px-4 py-2.5 text-xs font-semibold text-amber-900 bg-amber-100 hover:bg-amber-200 active:scale-95 disabled:opacity-50 border border-amber-300 rounded-xl shadow-xs transition-all flex items-center justify-center gap-2">
-                                            <svg x-show="backupLoadingGDrive" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
-                                            <svg x-show="!backupLoadingGDrive" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
-                                            <span x-text="backupLoadingGDrive ? 'Memproses Cadangan...' : 'Kirim Backup ke Google Drive'"></span>
-                                        </button>
-                                    </div>
+                            <!-- 2. Muncul Daftar File Backup -->
+                            <div class="bg-white rounded-xl border border-slate-200 overflow-hidden flex-1 flex flex-col">
+                                <div x-show="backupsLoading" class="py-16 text-center text-slate-400 text-xs">
+                                    <svg class="w-6 h-6 animate-spin mx-auto text-indigo-600 mb-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+                                    Memuat daftar file backup...
+                                </div>
+
+                                <div x-show="!backupsLoading && backupsList.length === 0" class="py-16 text-center text-slate-400 text-xs">
+                                    <svg class="w-12 h-12 text-slate-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
+                                    <p class="font-medium text-slate-600">Belum ada file backup untuk situs ini.</p>
+                                    <p class="text-[11px] text-slate-400 mt-1">Klik tombol <strong>"Buat File Backup"</strong> di atas untuk membuat cadangan pertama Anda.</p>
+                                </div>
+
+                                <div x-show="!backupsLoading && backupsList.length > 0" class="overflow-x-auto flex-1">
+                                    <table class="w-full text-left text-xs">
+                                        <thead class="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase text-[10px] font-semibold tracking-wider">
+                                            <tr>
+                                                <th class="py-3 px-4">Nama File Backup</th>
+                                                <th class="py-3 px-4">Tanggal Dibuat</th>
+                                                <th class="py-3 px-4">Ukuran</th>
+                                                <th class="py-3 px-4">Google Drive</th>
+                                                <th class="py-3 px-4 text-right">Aksi</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-slate-100">
+                                            <template x-for="b in backupsList" :key="b.filename">
+                                                <tr class="hover:bg-slate-50/70 transition-colors">
+                                                    <td class="py-3 px-4">
+                                                        <div class="flex items-center gap-2 font-mono font-medium text-slate-800">
+                                                            <svg class="w-4 h-4 text-indigo-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                                                            <span x-text="b.filename"></span>
+                                                        </div>
+                                                    </td>
+                                                    <td class="py-3 px-4 text-slate-500" x-text="b.created_at"></td>
+                                                    <td class="py-3 px-4 font-mono font-semibold text-slate-700" x-text="b.size_human"></td>
+                                                    <td class="py-3 px-4">
+                                                        <template x-if="b.gdrive_synced">
+                                                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                                <svg class="w-3 h-3 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                                                Terkirim
+                                                            </span>
+                                                        </template>
+                                                        <template x-if="!b.gdrive_synced">
+                                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200">
+                                                                Hanya Lokal
+                                                            </span>
+                                                        </template>
+                                                    </td>
+                                                    <!-- 3. Dalam daftar file backup ada menu/icon: a. download, b. google drive, c. setting akun google, d. delete -->
+                                                    <td class="py-3 px-4 text-right">
+                                                        <div class="inline-flex items-center gap-1 justify-end">
+                                                            <!-- a. Download Icon -->
+                                                            <a :href="'/domains/backup/download-file?id=' + encodeURIComponent(siteData.id) + '&filename=' + encodeURIComponent(b.filename)" 
+                                                               title="Download File Backup (.zip)"
+                                                               class="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
+                                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                                            </a>
+
+                                                            <!-- b. Google Drive Icon -->
+                                                            <button type="button" 
+                                                                    @click="uploadBackupGDrive(b.filename)"
+                                                                    :disabled="backupUploadingFile === b.filename"
+                                                                    title="Kirim ke Google Drive"
+                                                                    class="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-amber-500/20">
+                                                                <svg x-show="backupUploadingFile === b.filename" class="w-4 h-4 animate-spin text-amber-600" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+                                                                <svg x-show="backupUploadingFile !== b.filename" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                                                            </button>
+
+                                                            <!-- c. Setting Akun Google Icon -->
+                                                            <button type="button" 
+                                                                    @click="openGoogleSettings()"
+                                                                    title="Setting Akun Google (SSO)"
+                                                                    class="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500/20">
+                                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                                            </button>
+
+                                                            <!-- d. Delete Icon -->
+                                                            <button type="button" 
+                                                                    @click="deleteBackupFile(b.filename)"
+                                                                    title="Hapus File Backup dari Server"
+                                                                    class="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-rose-500/20">
+                                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
                                 </div>
                             </div>
                         </div>
@@ -1581,6 +1845,191 @@
                             </div>
                         </div>
 
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </template>
+
+    <!-- MODAL: GOOGLE DRIVE ACCOUNT SETTINGS & SSO -->
+    <template x-teleport="body">
+        <div x-show="gdriveModal" 
+             class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             x-transition:leave="transition ease-in duration-150"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0"
+             style="display: none;">
+            
+            <div class="bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]"
+                 @click.away="gdriveModal = false">
+                
+                <!-- Modal Header -->
+                <div class="px-6 py-4 border-b border-slate-150 flex items-center justify-between bg-slate-50/80">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-400 text-white flex items-center justify-center shadow-md flex-shrink-0">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-slate-900 text-base leading-tight">Pengaturan Akun Google &amp; Google Drive</h3>
+                            <p class="text-xs text-slate-500 mt-0.5">Integrasikan backup situs dengan Google Drive melalui SSO atau OAuth token.</p>
+                        </div>
+                    </div>
+                    
+                    <button type="button" @click="gdriveModal = false" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+
+                <!-- Modal Body -->
+                <div class="p-6 overflow-y-auto space-y-5">
+                    
+                    <!-- Loading state -->
+                    <div x-show="gdriveLoading" class="py-12 text-center text-slate-400 text-xs">
+                        <svg class="w-6 h-6 animate-spin mx-auto text-amber-500 mb-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+                        Memuat pengaturan Google Drive...
+                    </div>
+
+                    <div x-show="!gdriveLoading" class="space-y-5">
+                        <!-- Status Banner (Connected / SSO) -->
+                        <div class="p-4 rounded-xl border transition-all"
+                             :class="gdriveData.connected ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950' : 'bg-slate-50 border-slate-200 text-slate-800'">
+                            <div class="flex items-center justify-between gap-3">
+                                <div class="flex items-center space-x-3">
+                                    <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 shadow-xs"
+                                         :class="gdriveData.connected ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'">
+                                        <!-- Google Logo / Drive Icon -->
+                                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                                            <path d="M12.0003 4.75C13.7703 4.75 15.3503 5.36 16.6003 6.54L20.0303 3.11C17.9503 1.19 15.1903 0 12.0003 0 7.39029 0 3.47029 2.65 1.57029 6.49L5.59029 9.6C6.54029 6.81 9.05029 4.75 12.0003 4.75Z" fill="#EA4335"/>
+                                            <path d="M23.49 12.27C23.49 11.48 23.42 10.73 23.3 10H12V14.51H18.47C18.18 15.99 17.34 17.25 16.08 18.1L19.95 21.1C22.2 19.01 23.49 15.92 23.49 12.27Z" fill="#4285F4"/>
+                                            <path d="M5.59 14.4C5.34 13.65 5.2 12.84 5.2 12C5.2 11.16 5.34 10.35 5.59 9.6L1.57 6.49C0.77 8.08 0.32 9.98 0.32 12C0.32 14.02 0.77 15.92 1.57 17.51L5.59 14.4Z" fill="#FBBC05"/>
+                                            <path d="M12.0003 24C15.2403 24 17.9703 22.92 19.9503 21.1L16.0803 18.1C15.0103 18.82 13.6203 19.25 12.0003 19.25C9.05029 19.25 6.54029 17.19 5.59029 14.4L1.57029 17.51C3.47029 21.35 7.39029 24 12.0003 24Z" fill="#34A853"/>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <div class="flex items-center gap-2">
+                                            <h4 class="font-bold text-xs uppercase tracking-wider" 
+                                                :class="gdriveData.connected ? 'text-emerald-700' : 'text-slate-500'" 
+                                                x-text="gdriveData.connected ? 'Akun Google Terhubung' : 'Google Drive Belum Terhubung'"></h4>
+                                            <span x-show="gdriveData.connected" class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                        </div>
+                                        <p class="text-xs font-semibold text-slate-800 mt-0.5" x-text="gdriveData.email || (gdriveData.connected ? 'Google Drive Aktif' : 'Hubungkan akun Anda agar backup otomatis tersimpan di cloud.')"></p>
+                                    </div>
+                                </div>
+                                <template x-if="gdriveData.connected">
+                                    <button type="button" 
+                                            @click="disconnectGoogle()"
+                                            class="px-2.5 py-1.5 text-xs font-semibold text-rose-700 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors">
+                                        Putuskan Akun
+                                    </button>
+                                </template>
+                            </div>
+                        </div>
+
+                        <!-- One-Click SSO Login Button -->
+                        <div class="p-4 rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50/60 to-purple-50/60 space-y-3">
+                            <div class="flex items-start justify-between gap-3">
+                                <div>
+                                    <h5 class="text-xs font-bold text-slate-900">Hubungkan Otomatis via Google SSO (OAuth)</h5>
+                                    <p class="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                                        Masuk langsung dengan akun Google Anda untuk memberikan otorisasi aman tanpa perlu mengatur API Key rumit.
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="pt-1">
+                                <a href="/domains/backup/google/auth" 
+                                   class="inline-flex items-center gap-2.5 px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-800 text-xs font-semibold border border-slate-300 rounded-xl shadow-xs transition-all hover:border-slate-400">
+                                    <svg class="w-4 h-4" viewBox="0 0 24 24">
+                                        <path d="M12.0003 4.75C13.7703 4.75 15.3503 5.36 16.6003 6.54L20.0303 3.11C17.9503 1.19 15.1903 0 12.0003 0 7.39029 0 3.47029 2.65 1.57029 6.49L5.59029 9.6C6.54029 6.81 9.05029 4.75 12.0003 4.75Z" fill="#EA4335"/>
+                                        <path d="M23.49 12.27C23.49 11.48 23.42 10.73 23.3 10H12V14.51H18.47C18.18 15.99 17.34 17.25 16.08 18.1L19.95 21.1C22.2 19.01 23.49 15.92 23.49 12.27Z" fill="#4285F4"/>
+                                        <path d="M5.59 14.4C5.34 13.65 5.2 12.84 5.2 12C5.2 11.16 5.34 10.35 5.59 9.6L1.57 6.49C0.77 8.08 0.32 9.98 0.32 12C0.32 14.02 0.77 15.92 1.57 17.51L5.59 14.4Z" fill="#FBBC05"/>
+                                        <path d="M12.0003 24C15.2403 24 17.9703 22.92 19.9503 21.1L16.0803 18.1C15.0103 18.82 13.6203 19.25 12.0003 19.25C9.05029 19.25 6.54029 17.19 5.59029 14.4L1.57029 17.51C3.47029 21.35 7.39029 24 12.0003 24Z" fill="#34A853"/>
+                                    </svg>
+                                    <span x-text="gdriveData.connected ? 'Hubungkan Ulang Akun Google' : 'Login & Hubungkan Akun Google'"></span>
+                                </a>
+                            </div>
+                        </div>
+
+                        <!-- Target Folder & Auto-sync -->
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-700 mb-1">Nama Folder Penyimpanan di Google Drive</label>
+                                <input type="text" 
+                                       x-model="gdriveData.target_folder" 
+                                       placeholder="SeintechBackups"
+                                       class="w-full px-3.5 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 outline-none">
+                                <p class="text-[11px] text-slate-500 mt-1">Folder ini akan dibuat otomatis di Google Drive Anda jika belum ada.</p>
+                            </div>
+
+                            <label class="flex items-start gap-3 p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-slate-50 cursor-pointer transition-colors">
+                                <input type="checkbox" 
+                                       x-model="gdriveData.auto_sync" 
+                                       class="mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-4 h-4">
+                                <div class="text-xs">
+                                    <span class="font-bold text-slate-800">Otomatis kirim backup ke Google Drive</span>
+                                    <p class="text-[11px] text-slate-500 mt-0.5">Ketika Anda menekan tombol "Buat File Backup", salinan berkas .zip akan otomatis diunggah ke Google Drive.</p>
+                                </div>
+                            </label>
+                        </div>
+
+                        <!-- Manual OAuth Credentials (Optional / Advanced) -->
+                        <div x-data="{ openAdvanced: false }" class="border border-slate-200 rounded-xl overflow-hidden">
+                            <button type="button" 
+                                    @click="openAdvanced = !openAdvanced"
+                                    class="w-full px-4 py-2.5 bg-slate-50 text-left text-xs font-semibold text-slate-700 hover:text-slate-900 flex items-center justify-between transition-colors">
+                                <span class="flex items-center gap-2">
+                                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                    <span>Pengaturan Kredensial Mandiri (Google Cloud Console / Rclone)</span>
+                                </span>
+                                <svg class="w-4 h-4 text-slate-400 transition-transform" :class="openAdvanced ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            </button>
+                            
+                            <div x-show="openAdvanced" class="p-4 space-y-3 bg-white border-t border-slate-100 text-xs">
+                                <p class="text-[11px] text-slate-500">
+                                    Jika Anda ingin menggunakan OAuth Client ID milik Anda sendiri dari Google Cloud Console:
+                                </p>
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-slate-700 mb-1">Google Client ID</label>
+                                    <input type="text" x-model="gdriveData.client_id" placeholder="apps.googleusercontent.com" class="w-full px-3 py-1.5 text-xs font-mono border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500/20">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-slate-700 mb-1">Google Client Secret</label>
+                                    <input type="password" x-model="gdriveData.client_secret" placeholder="••••••••••••" class="w-full px-3 py-1.5 text-xs font-mono border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500/20">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-slate-700 mb-1">Google Refresh Token (Opsional)</label>
+                                    <input type="password" x-model="gdriveData.refresh_token" placeholder="1//04..." class="w-full px-3 py-1.5 text-xs font-mono border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500/20">
+                                </div>
+                                <template x-if="gdriveData.has_rclone">
+                                    <div class="mt-2 p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-[11px] flex items-center gap-2">
+                                        <svg class="w-4 h-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                        <span>Rclone remote <code>gdrive:</code> terdeteksi di server dan siap digunakan sebagai metode transfer alternatif.</span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modal Footer -->
+                <div class="px-6 py-3.5 border-t border-slate-150 bg-slate-50 flex items-center justify-between">
+                    <span class="text-[11px] text-slate-400" x-text="gdriveData.last_sync_at ? ('Sinkronisasi terakhir: ' + gdriveData.last_sync_at) : ''"></span>
+                    <div class="flex items-center gap-2">
+                        <button type="button" 
+                                @click="gdriveModal = false" 
+                                class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-200/60 rounded-xl transition-colors">
+                            Batal
+                        </button>
+                        <button type="button" 
+                                @click="saveGoogleSettings()"
+                                :disabled="gdriveSaving"
+                                class="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-xl transition-all shadow-xs flex items-center gap-1.5">
+                            <svg x-show="gdriveSaving" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+                            <span x-text="gdriveSaving ? 'Menyimpan...' : 'Simpan Pengaturan'"></span>
+                        </button>
                     </div>
                 </div>
 

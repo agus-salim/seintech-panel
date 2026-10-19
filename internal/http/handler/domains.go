@@ -2,12 +2,14 @@ package handler
 
 import (
 	"archive/zip"
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"os"
@@ -1135,75 +1137,105 @@ func (h *DomainHandler) SetStatus(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// DownloadBackup streams a zip archive of the site's DocumentRoot directly to browser
-func (h *DomainHandler) DownloadBackup(w http.ResponseWriter, r *http.Request) {
+func (h *DomainHandler) getBackupDir(domainName string) string {
+	baseDir := "/var/lib/seintech/backups"
+	dir := filepath.Join(baseDir, domainName)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		dir = filepath.Join(os.TempDir(), "seintech-backups", domainName)
+		_ = os.MkdirAll(dir, 0755)
+	}
+	return dir
+}
+
+type BackupItem struct {
+	Filename     string `json:"filename"`
+	SizeBytes    int64  `json:"size_bytes"`
+	SizeHuman    string `json:"size_human"`
+	CreatedAt    string `json:"created_at"`
+	ModTime      int64  `json:"mod_time"`
+	GDriveSynced bool   `json:"gdrive_synced"`
+}
+
+// ListBackups returns all created backup archives for this domain
+func (h *DomainHandler) ListBackups(w http.ResponseWriter, r *http.Request) {
 	domain, err := h.getDomainFromRequest(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusForbidden)
+		h.respondJSON(w, false, err.Error())
 		return
 	}
 
-	targetDir := domain.DocumentRoot
-	if fi, err := os.Stat(targetDir); err != nil || !fi.IsDir() {
-		http.Error(w, "Direktori situs web tidak ditemukan: "+targetDir, http.StatusNotFound)
-		return
+	backupDir := h.getBackupDir(domain.DomainName)
+	entries, _ := os.ReadDir(backupDir)
+
+	var backups []BackupItem
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(strings.ToLower(entry.Name()), ".zip") {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+
+		sizeBytes := info.Size()
+		sizeStr := "0 B"
+		if sizeBytes > 1024*1024*1024 {
+			sizeStr = fmt.Sprintf("%.2f GB", float64(sizeBytes)/(1024*1024*1024))
+		} else if sizeBytes > 1024*1024 {
+			sizeStr = fmt.Sprintf("%.2f MB", float64(sizeBytes)/(1024*1024))
+		} else if sizeBytes > 1024 {
+			sizeStr = fmt.Sprintf("%.2f KB", float64(sizeBytes)/1024)
+		} else {
+			sizeStr = fmt.Sprintf("%d B", sizeBytes)
+		}
+
+		markerPath := filepath.Join(backupDir, entry.Name()+".gdrive")
+		_, hasMarker := os.Stat(markerPath)
+
+		backups = append(backups, BackupItem{
+			Filename:     entry.Name(),
+			SizeBytes:    sizeBytes,
+			SizeHuman:    sizeStr,
+			CreatedAt:    info.ModTime().Format("02 Jan 2006 15:04"),
+			ModTime:      info.ModTime().Unix(),
+			GDriveSynced: hasMarker == nil,
+		})
 	}
 
-	zipFileName := fmt.Sprintf("backup-%s-%s.zip", domain.DomainName, time.Now().Format("20060102-150405"))
-	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", zipFileName))
+	// Sort newest first
+	sort.Slice(backups, func(i, j int) bool {
+		return backups[i].ModTime > backups[j].ModTime
+	})
 
-	zw := zip.NewWriter(w)
-	defer zw.Close()
-
-	_ = filepath.Walk(targetDir, func(path string, info os.FileInfo, walkErr error) error {
-		if walkErr != nil || info == nil {
-			return nil
+	settings, _ := h.repo.GetSettings()
+	hasRcloneGDrive := false
+	if rclonePath, err := exec.LookPath("rclone"); err == nil {
+		cmd := exec.CommandContext(r.Context(), rclonePath, "listremotes")
+		if remotes, err := cmd.Output(); err == nil {
+			remoteStr := string(remotes)
+			if strings.Contains(remoteStr, "gdrive:") || strings.Contains(remoteStr, "drive:") {
+				hasRcloneGDrive = true
+			}
 		}
+	}
 
-		if info.Mode()&os.ModeSocket != 0 || info.Mode()&os.ModeNamedPipe != 0 {
-			return nil
-		}
-
-		relPath, err := filepath.Rel(targetDir, path)
-		if err != nil || relPath == "." {
-			return nil
-		}
-
-		zipPath := filepath.ToSlash(relPath)
-		if info.IsDir() {
-			zipPath += "/"
-		}
-
-		header, err := zip.FileInfoHeader(info)
-		if err != nil {
-			return nil
-		}
-		header.Name = zipPath
-		header.Method = zip.Deflate
-
-		writer, err := zw.CreateHeader(header)
-		if err != nil {
-			return nil
-		}
-
-		if info.IsDir() {
-			return nil
-		}
-
-		file, err := os.Open(path)
-		if err != nil {
-			return nil
-		}
-		defer file.Close()
-
-		_, _ = io.Copy(writer, file)
-		return nil
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"success": true,
+		"domain":  domain.DomainName,
+		"backups": backups,
+		"google": map[string]any{
+			"connected":     settings.GoogleDrive.Connected || hasRcloneGDrive,
+			"email":         settings.GoogleDrive.Email,
+			"auto_sync":     settings.GoogleDrive.AutoSync,
+			"target_folder": settings.GoogleDrive.TargetFolder,
+			"has_rclone":    hasRcloneGDrive,
+		},
 	})
 }
 
-// SendGDriveBackup creates a backup archive and uploads it to Google Drive via rclone if configured
-func (h *DomainHandler) SendGDriveBackup(w http.ResponseWriter, r *http.Request) {
+// CreateBackup generates a new zip backup of the site's DocumentRoot
+func (h *DomainHandler) CreateBackup(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		h.respondJSON(w, false, "Permintaan tidak valid")
 		return
@@ -1221,22 +1253,14 @@ func (h *DomainHandler) SendGDriveBackup(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	backupDir := filepath.Join("/var/lib/seintech/backups", domain.DomainName)
-	_ = os.MkdirAll(backupDir, 0755)
-
+	backupDir := h.getBackupDir(domain.DomainName)
 	zipFileName := fmt.Sprintf("backup-%s-%s.zip", domain.DomainName, time.Now().Format("20060102-150405"))
 	destZip := filepath.Join(backupDir, zipFileName)
 
 	outFile, err := os.Create(destZip)
 	if err != nil {
-		backupDir = filepath.Join(os.TempDir(), "seintech-backups")
-		_ = os.MkdirAll(backupDir, 0755)
-		destZip = filepath.Join(backupDir, zipFileName)
-		outFile, err = os.Create(destZip)
-		if err != nil {
-			h.respondJSON(w, false, "Gagal membuat berkas arsip backup: "+err.Error())
-			return
-		}
+		h.respondJSON(w, false, "Gagal membuat berkas arsip backup: "+err.Error())
+		return
 	}
 
 	zw := zip.NewWriter(outFile)
@@ -1279,52 +1303,544 @@ func (h *DomainHandler) SendGDriveBackup(w http.ResponseWriter, r *http.Request)
 	_ = zw.Close()
 	_ = outFile.Close()
 
-	ctx, cancel := context.WithTimeout(r.Context(), 180*time.Second)
-	defer cancel()
+	settings, _ := h.repo.GetSettings()
+	gdriveUploaded := false
+	gdriveMsg := ""
 
-	rclonePath, err := exec.LookPath("rclone")
-	if err == nil {
-		testCmd := exec.CommandContext(ctx, rclonePath, "listremotes")
-		remotes, _ := testCmd.Output()
-		remoteStr := string(remotes)
-
-		targetRemote := ""
-		if strings.Contains(remoteStr, "gdrive:") {
-			targetRemote = "gdrive:SeintechBackups/" + domain.DomainName + "/"
-		} else if strings.Contains(remoteStr, "drive:") {
-			targetRemote = "drive:SeintechBackups/" + domain.DomainName + "/"
-		}
-
-		if targetRemote != "" {
-			copyCmd := exec.CommandContext(ctx, rclonePath, "copy", destZip, targetRemote)
-			if out, copyErr := copyCmd.CombinedOutput(); copyErr == nil {
-				w.Header().Set("Content-Type", "application/json")
-				_ = json.NewEncoder(w).Encode(map[string]any{
-					"success":         true,
-					"message":         fmt.Sprintf("Backup arsip berhasil dibuat dan dikirim ke Google Drive (%s)!", targetRemote),
-					"path":            destZip,
-					"gdrive_uploaded": true,
-				})
-				return
-			} else {
-				w.Header().Set("Content-Type", "application/json")
-				_ = json.NewEncoder(w).Encode(map[string]any{
-					"success":         true,
-					"message":         fmt.Sprintf("Arsip backup tersimpan di server (%s), namun pengiriman rclone gagal: %s", destZip, string(out)),
-					"path":            destZip,
-					"gdrive_uploaded": false,
-				})
-				return
-			}
+	if settings != nil && settings.GoogleDrive.AutoSync {
+		if err := h.uploadToGoogleDrive(r.Context(), domain.DomainName, destZip, zipFileName); err == nil {
+			gdriveUploaded = true
+			gdriveMsg = " dan otomatis terkirim ke Google Drive"
+			_ = os.WriteFile(destZip+".gdrive", []byte(time.Now().Format(time.RFC3339)), 0644)
 		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"success":         true,
-		"message":         fmt.Sprintf("Arsip backup tersimpan di server: %s. Untuk pengiriman otomatis ke Google Drive, konfigurasikan remote Google Drive via 'rclone config' di server Anda.", destZip),
-		"path":            destZip,
-		"gdrive_uploaded": false,
+		"message":         fmt.Sprintf("Berkas backup %s berhasil dibuat%s!", zipFileName, gdriveMsg),
+		"filename":        zipFileName,
+		"gdrive_uploaded": gdriveUploaded,
 	})
 }
+
+// DownloadBackup streams a zip archive of the site's DocumentRoot on-the-fly directly to browser
+func (h *DomainHandler) DownloadBackup(w http.ResponseWriter, r *http.Request) {
+	domain, err := h.getDomainFromRequest(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+
+	targetDir := domain.DocumentRoot
+	if fi, err := os.Stat(targetDir); err != nil || !fi.IsDir() {
+		http.Error(w, "Direktori situs web tidak ditemukan: "+targetDir, http.StatusNotFound)
+		return
+	}
+
+	zipFileName := fmt.Sprintf("backup-%s-%s.zip", domain.DomainName, time.Now().Format("20060102-150405"))
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", zipFileName))
+
+	zw := zip.NewWriter(w)
+	defer zw.Close()
+
+	_ = filepath.Walk(targetDir, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil || info == nil {
+			return nil
+		}
+		if info.Mode()&os.ModeSocket != 0 || info.Mode()&os.ModeNamedPipe != 0 {
+			return nil
+		}
+		relPath, err := filepath.Rel(targetDir, path)
+		if err != nil || relPath == "." {
+			return nil
+		}
+		zipPath := filepath.ToSlash(relPath)
+		if info.IsDir() {
+			zipPath += "/"
+		}
+		header, err := zip.FileInfoHeader(info)
+		if err != nil {
+			return nil
+		}
+		header.Name = zipPath
+		header.Method = zip.Deflate
+		writer, err := zw.CreateHeader(header)
+		if err != nil {
+			return nil
+		}
+		if info.IsDir() {
+			return nil
+		}
+		file, err := os.Open(path)
+		if err != nil {
+			return nil
+		}
+		defer file.Close()
+		_, _ = io.Copy(writer, file)
+		return nil
+	})
+}
+
+// DownloadBackupFile downloads a specific existing backup zip file from server disk
+func (h *DomainHandler) DownloadBackupFile(w http.ResponseWriter, r *http.Request) {
+	domain, err := h.getDomainFromRequest(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+
+	rawFilename := strings.TrimSpace(r.URL.Query().Get("filename"))
+	cleanFilename := filepath.Base(rawFilename)
+	if cleanFilename == "." || cleanFilename == "/" || !strings.HasSuffix(strings.ToLower(cleanFilename), ".zip") {
+		http.Error(w, "Nama berkas tidak valid", http.StatusBadRequest)
+		return
+	}
+
+	filePath := filepath.Join(h.getBackupDir(domain.DomainName), cleanFilename)
+	if _, err := os.Stat(filePath); err != nil {
+		http.Error(w, "Berkas backup tidak ditemukan", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", cleanFilename))
+	http.ServeFile(w, r, filePath)
+}
+
+// UploadBackupToGDrive uploads a specific existing backup zip to Google Drive
+func (h *DomainHandler) UploadBackupToGDrive(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		h.respondJSON(w, false, "Permintaan tidak valid")
+		return
+	}
+
+	domain, err := h.getDomainFromRequest(r)
+	if err != nil {
+		h.respondJSON(w, false, err.Error())
+		return
+	}
+
+	rawFilename := strings.TrimSpace(r.FormValue("filename"))
+	cleanFilename := filepath.Base(rawFilename)
+	if cleanFilename == "." || !strings.HasSuffix(strings.ToLower(cleanFilename), ".zip") {
+		h.respondJSON(w, false, "Nama berkas tidak valid")
+		return
+	}
+
+	filePath := filepath.Join(h.getBackupDir(domain.DomainName), cleanFilename)
+	if _, err := os.Stat(filePath); err != nil {
+		h.respondJSON(w, false, "Berkas backup tidak ditemukan di server: "+cleanFilename)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 180*time.Second)
+	defer cancel()
+
+	if err := h.uploadToGoogleDrive(ctx, domain.DomainName, filePath, cleanFilename); err != nil {
+		h.respondJSON(w, false, err.Error())
+		return
+	}
+
+	_ = os.WriteFile(filePath+".gdrive", []byte(time.Now().Format(time.RFC3339)), 0644)
+	h.respondJSON(w, true, fmt.Sprintf("Berkas %s berhasil dikirim ke Google Drive!", cleanFilename))
+}
+
+// DeleteBackupFile permanently deletes a specific backup zip file from server disk
+func (h *DomainHandler) DeleteBackupFile(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		h.respondJSON(w, false, "Permintaan tidak valid")
+		return
+	}
+
+	domain, err := h.getDomainFromRequest(r)
+	if err != nil {
+		h.respondJSON(w, false, err.Error())
+		return
+	}
+
+	rawFilename := strings.TrimSpace(r.FormValue("filename"))
+	cleanFilename := filepath.Base(rawFilename)
+	if cleanFilename == "." || !strings.HasSuffix(strings.ToLower(cleanFilename), ".zip") {
+		h.respondJSON(w, false, "Nama berkas tidak valid")
+		return
+	}
+
+	filePath := filepath.Join(h.getBackupDir(domain.DomainName), cleanFilename)
+	if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
+		h.respondJSON(w, false, "Gagal menghapus berkas: "+err.Error())
+		return
+	}
+	_ = os.Remove(filePath + ".gdrive")
+
+	h.respondJSON(w, true, fmt.Sprintf("Berkas backup %s berhasil dihapus dari server.", cleanFilename))
+}
+
+// SendGDriveBackup creates a backup and uploads it (legacy compatibility)
+func (h *DomainHandler) SendGDriveBackup(w http.ResponseWriter, r *http.Request) {
+	h.CreateBackup(w, r)
+}
+
+// uploadToGoogleDrive uploads a local file to Google Drive using either OAuth direct API or Rclone
+func (h *DomainHandler) uploadToGoogleDrive(ctx context.Context, domainName, filePath, fileName string) error {
+	settings, err := h.repo.GetSettings()
+	if err != nil {
+		return fmt.Errorf("gagal membaca pengaturan panel: %w", err)
+	}
+
+	targetFolder := settings.GoogleDrive.TargetFolder
+	if targetFolder == "" {
+		targetFolder = "SeintechBackups"
+	}
+
+	// 1. Direct Google Drive API v3 via OAuth Tokens
+	if settings.GoogleDrive.Connected && settings.GoogleDrive.RefreshToken != "" && settings.GoogleDrive.ClientID != "" && settings.GoogleDrive.ClientSecret != "" {
+		accessToken := settings.GoogleDrive.AccessToken
+		if accessToken == "" || time.Now().After(settings.GoogleDrive.TokenExpiry) {
+			tokenURL := "https://oauth2.googleapis.com/token"
+			form := url.Values{
+				"client_id":     {settings.GoogleDrive.ClientID},
+				"client_secret": {settings.GoogleDrive.ClientSecret},
+				"refresh_token": {settings.GoogleDrive.RefreshToken},
+				"grant_type":    {"refresh_token"},
+			}
+			req, err := http.NewRequestWithContext(ctx, "POST", tokenURL, strings.NewReader(form.Encode()))
+			if err != nil {
+				return fmt.Errorf("gagal membuat request token: %w", err)
+			}
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				return fmt.Errorf("gagal menghubungi Google OAuth: %w", err)
+			}
+			defer resp.Body.Close()
+
+			var tokRes struct {
+				AccessToken string `json:"access_token"`
+				ExpiresIn   int    `json:"expires_in"`
+				Error       string `json:"error"`
+			}
+			_ = json.NewDecoder(resp.Body).Decode(&tokRes)
+			if tokRes.Error != "" || tokRes.AccessToken == "" {
+				return fmt.Errorf("Google OAuth refresh gagal: %s", tokRes.Error)
+			}
+			accessToken = tokRes.AccessToken
+			settings.GoogleDrive.AccessToken = accessToken
+			settings.GoogleDrive.TokenExpiry = time.Now().Add(time.Duration(tokRes.ExpiresIn-60) * time.Second)
+			_ = h.repo.SaveSettings(*settings)
+		}
+
+		file, err := os.Open(filePath)
+		if err != nil {
+			return fmt.Errorf("gagal membaca file backup: %w", err)
+		}
+		defer file.Close()
+
+		var body bytes.Buffer
+		writer := multipart.NewWriter(&body)
+
+		metaHeader := make(map[string][]string)
+		metaHeader["Content-Type"] = []string{"application/json; charset=UTF-8"}
+		metaPart, err := writer.CreatePart(metaHeader)
+		if err != nil {
+			return fmt.Errorf("gagal membuat multipart metadata: %w", err)
+		}
+		metaJSON := fmt.Sprintf(`{"name":"%s","description":"Backup Seintech Panel untuk %s"}`, fileName, domainName)
+		_, _ = metaPart.Write([]byte(metaJSON))
+
+		mediaHeader := make(map[string][]string)
+		mediaHeader["Content-Type"] = []string{"application/zip"}
+		mediaPart, err := writer.CreatePart(mediaHeader)
+		if err != nil {
+			return fmt.Errorf("gagal membuat multipart media: %w", err)
+		}
+		if _, err := io.Copy(mediaPart, file); err != nil {
+			return fmt.Errorf("gagal menyalin file backup: %w", err)
+		}
+		_ = writer.Close()
+
+		uploadURL := "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart"
+		upReq, err := http.NewRequestWithContext(ctx, "POST", uploadURL, &body)
+		if err != nil {
+			return fmt.Errorf("gagal membuat request upload Drive: %w", err)
+		}
+		upReq.Header.Set("Authorization", "Bearer "+accessToken)
+		upReq.Header.Set("Content-Type", "multipart/related; boundary="+writer.Boundary())
+
+		upResp, err := http.DefaultClient.Do(upReq)
+		if err != nil {
+			return fmt.Errorf("gagal mengunggah ke Google Drive: %w", err)
+		}
+		defer upResp.Body.Close()
+
+		if upResp.StatusCode < 200 || upResp.StatusCode >= 300 {
+			bodyBytes, _ := io.ReadAll(upResp.Body)
+			return fmt.Errorf("Google Drive API mengembalikan status %d: %s", upResp.StatusCode, string(bodyBytes))
+		}
+
+		settings.GoogleDrive.LastSyncAt = time.Now()
+		_ = h.repo.SaveSettings(*settings)
+		return nil
+	}
+
+	// 2. Rclone Google Drive Remote
+	rclonePath, err := exec.LookPath("rclone")
+	if err == nil {
+		testCmd := exec.CommandContext(ctx, rclonePath, "listremotes")
+		if remotes, err := testCmd.Output(); err == nil {
+			remoteStr := string(remotes)
+			targetRemote := ""
+			if strings.Contains(remoteStr, "gdrive:") {
+				targetRemote = "gdrive:" + targetFolder + "/" + domainName + "/"
+			} else if strings.Contains(remoteStr, "drive:") {
+				targetRemote = "drive:" + targetFolder + "/" + domainName + "/"
+			}
+
+			if targetRemote != "" {
+				copyCmd := exec.CommandContext(ctx, rclonePath, "copy", filePath, targetRemote)
+				if out, copyErr := copyCmd.CombinedOutput(); copyErr == nil {
+					settings.GoogleDrive.LastSyncAt = time.Now()
+					_ = h.repo.SaveSettings(*settings)
+					return nil
+				} else {
+					return fmt.Errorf("rclone copy gagal: %s", string(out))
+				}
+			}
+		}
+	}
+
+	return fmt.Errorf("Akun Google Drive belum terhubung. Silakan buka 'Setting Akun Google' untuk menyambungkan Google Drive.")
+}
+
+// GetGoogleSettings returns the current Google Drive configuration
+func (h *DomainHandler) GetGoogleSettings(w http.ResponseWriter, r *http.Request) {
+	settings, _ := h.repo.GetSettings()
+	hasRcloneGDrive := false
+	if rclonePath, err := exec.LookPath("rclone"); err == nil {
+		cmd := exec.CommandContext(r.Context(), rclonePath, "listremotes")
+		if remotes, err := cmd.Output(); err == nil {
+			remoteStr := string(remotes)
+			if strings.Contains(remoteStr, "gdrive:") || strings.Contains(remoteStr, "drive:") {
+				hasRcloneGDrive = true
+			}
+		}
+	}
+
+	targetFolder := settings.GoogleDrive.TargetFolder
+	if targetFolder == "" {
+		targetFolder = "SeintechBackups"
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"success": true,
+		"google": map[string]any{
+			"enabled":       settings.GoogleDrive.Enabled,
+			"connected":     settings.GoogleDrive.Connected || hasRcloneGDrive,
+			"email":         settings.GoogleDrive.Email,
+			"client_id":     settings.GoogleDrive.ClientID,
+			"has_secret":    settings.GoogleDrive.ClientSecret != "",
+			"has_token":     settings.GoogleDrive.RefreshToken != "",
+			"target_folder": targetFolder,
+			"auto_sync":     settings.GoogleDrive.AutoSync,
+			"last_sync_at":  settings.GoogleDrive.LastSyncAt.Format("02 Jan 2006 15:04"),
+			"has_rclone":    hasRcloneGDrive,
+		},
+	})
+}
+
+// SaveGoogleSettings saves Google Drive credentials & configuration
+func (h *DomainHandler) SaveGoogleSettings(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		h.respondJSON(w, false, "Permintaan tidak valid")
+		return
+	}
+
+	settings, err := h.repo.GetSettings()
+	if err != nil {
+		h.respondJSON(w, false, "Gagal membaca pengaturan: "+err.Error())
+		return
+	}
+
+	clientID := strings.TrimSpace(r.FormValue("client_id"))
+	clientSecret := strings.TrimSpace(r.FormValue("client_secret"))
+	refreshToken := strings.TrimSpace(r.FormValue("refresh_token"))
+	targetFolder := strings.TrimSpace(r.FormValue("target_folder"))
+	if targetFolder == "" {
+		targetFolder = "SeintechBackups"
+	}
+	autoSync := r.FormValue("auto_sync") == "1" || r.FormValue("auto_sync") == "true"
+
+	if clientID != "" {
+		settings.GoogleDrive.ClientID = clientID
+	}
+	if clientSecret != "" {
+		settings.GoogleDrive.ClientSecret = clientSecret
+	}
+	if refreshToken != "" {
+		settings.GoogleDrive.RefreshToken = refreshToken
+	}
+	settings.GoogleDrive.TargetFolder = targetFolder
+	settings.GoogleDrive.AutoSync = autoSync
+
+	// If refresh token is set, attempt verification
+	if settings.GoogleDrive.RefreshToken != "" && settings.GoogleDrive.ClientID != "" && settings.GoogleDrive.ClientSecret != "" {
+		tokenURL := "https://oauth2.googleapis.com/token"
+		form := url.Values{
+			"client_id":     {settings.GoogleDrive.ClientID},
+			"client_secret": {settings.GoogleDrive.ClientSecret},
+			"refresh_token": {settings.GoogleDrive.RefreshToken},
+			"grant_type":    {"refresh_token"},
+		}
+		resp, err := http.PostForm(tokenURL, form)
+		if err == nil {
+			var tokRes struct {
+				AccessToken string `json:"access_token"`
+				ExpiresIn   int    `json:"expires_in"`
+			}
+			_ = json.NewDecoder(resp.Body).Decode(&tokRes)
+			resp.Body.Close()
+			if tokRes.AccessToken != "" {
+				settings.GoogleDrive.Connected = true
+				settings.GoogleDrive.AccessToken = tokRes.AccessToken
+				settings.GoogleDrive.TokenExpiry = time.Now().Add(time.Duration(tokRes.ExpiresIn-60) * time.Second)
+
+				// Fetch user email
+				userReq, _ := http.NewRequest("GET", "https://www.googleapis.com/oauth2/v2/userinfo", nil)
+				userReq.Header.Set("Authorization", "Bearer "+tokRes.AccessToken)
+				if uResp, err := http.DefaultClient.Do(userReq); err == nil {
+					var uInfo struct {
+						Email string `json:"email"`
+					}
+					_ = json.NewDecoder(uResp.Body).Decode(&uInfo)
+					uResp.Body.Close()
+					if uInfo.Email != "" {
+						settings.GoogleDrive.Email = uInfo.Email
+					}
+				}
+			}
+		}
+	}
+
+	if err := h.repo.SaveSettings(*settings); err != nil {
+		h.respondJSON(w, false, "Gagal menyimpan pengaturan: "+err.Error())
+		return
+	}
+
+	h.respondJSON(w, true, "Pengaturan Google Drive berhasil disimpan!")
+}
+
+// GoogleOAuthRedirect initiates the Google OAuth SSO consent flow
+func (h *DomainHandler) GoogleOAuthRedirect(w http.ResponseWriter, r *http.Request) {
+	settings, err := h.repo.GetSettings()
+	if err != nil || settings.GoogleDrive.ClientID == "" {
+		http.Redirect(w, r, "/domains?msg=Silakan+masukkan+Client+ID+Google+OAuth+terlebih+dahulu&type=error", http.StatusSeeOther)
+		return
+	}
+
+	scheme := "http"
+	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+		scheme = "https"
+	}
+	redirectURI := fmt.Sprintf("%s://%s/domains/backup/google/callback", scheme, r.Host)
+
+	authURL := fmt.Sprintf("https://accounts.google.com/o/oauth2/v2/auth?client_id=%s&redirect_uri=%s&response_type=code&scope=https://www.googleapis.com/auth/drive.file%%20https://www.googleapis.com/auth/userinfo.email&access_type=offline&prompt=consent",
+		url.QueryEscape(settings.GoogleDrive.ClientID),
+		url.QueryEscape(redirectURI))
+
+	http.Redirect(w, r, authURL, http.StatusTemporaryRedirect)
+}
+
+// GoogleOAuthCallback handles the OAuth code return from Google
+func (h *DomainHandler) GoogleOAuthCallback(w http.ResponseWriter, r *http.Request) {
+	code := strings.TrimSpace(r.URL.Query().Get("code"))
+	if code == "" {
+		errStr := r.URL.Query().Get("error")
+		http.Redirect(w, r, "/domains?msg=Otorisasi+Google+dibatalkan:+"+url.QueryEscape(errStr)+"&type=error", http.StatusSeeOther)
+		return
+	}
+
+	settings, err := h.repo.GetSettings()
+	if err != nil || settings.GoogleDrive.ClientID == "" || settings.GoogleDrive.ClientSecret == "" {
+		http.Redirect(w, r, "/domains?msg=Konfigurasi+Google+OAuth+tidak+lengkap&type=error", http.StatusSeeOther)
+		return
+	}
+
+	scheme := "http"
+	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+		scheme = "https"
+	}
+	redirectURI := fmt.Sprintf("%s://%s/domains/backup/google/callback", scheme, r.Host)
+
+	tokenURL := "https://oauth2.googleapis.com/token"
+	form := url.Values{
+		"code":          {code},
+		"client_id":     {settings.GoogleDrive.ClientID},
+		"client_secret": {settings.GoogleDrive.ClientSecret},
+		"redirect_uri":  {redirectURI},
+		"grant_type":    {"authorization_code"},
+	}
+
+	resp, err := http.PostForm(tokenURL, form)
+	if err != nil {
+		http.Redirect(w, r, "/domains?msg=Gagal+menukar+kode+Google+OAuth:+"+url.QueryEscape(err.Error())+"&type=error", http.StatusSeeOther)
+		return
+	}
+	defer resp.Body.Close()
+
+	var tokRes struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+		ExpiresIn    int    `json:"expires_in"`
+		Error        string `json:"error"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&tokRes)
+	if tokRes.Error != "" || tokRes.AccessToken == "" {
+		http.Redirect(w, r, "/domains?msg=Gagal+mengambil+token+Google:+"+url.QueryEscape(tokRes.Error)+"&type=error", http.StatusSeeOther)
+		return
+	}
+
+	settings.GoogleDrive.Connected = true
+	settings.GoogleDrive.AccessToken = tokRes.AccessToken
+	if tokRes.RefreshToken != "" {
+		settings.GoogleDrive.RefreshToken = tokRes.RefreshToken
+	}
+	settings.GoogleDrive.TokenExpiry = time.Now().Add(time.Duration(tokRes.ExpiresIn-60) * time.Second)
+
+	// Fetch user email
+	userReq, _ := http.NewRequest("GET", "https://www.googleapis.com/oauth2/v2/userinfo", nil)
+	userReq.Header.Set("Authorization", "Bearer "+tokRes.AccessToken)
+	if uResp, err := http.DefaultClient.Do(userReq); err == nil {
+		var uInfo struct {
+			Email string `json:"email"`
+		}
+		_ = json.NewDecoder(uResp.Body).Decode(&uInfo)
+		uResp.Body.Close()
+		if uInfo.Email != "" {
+			settings.GoogleDrive.Email = uInfo.Email
+		}
+	}
+
+	_ = h.repo.SaveSettings(*settings)
+	http.Redirect(w, r, "/domains?msg=Akun+Google+Drive+berhasil+terhubung!&type=success", http.StatusSeeOther)
+}
+
+// DisconnectGoogle removes connected Google Drive account and tokens
+func (h *DomainHandler) DisconnectGoogle(w http.ResponseWriter, r *http.Request) {
+	settings, err := h.repo.GetSettings()
+	if err != nil {
+		h.respondJSON(w, false, err.Error())
+		return
+	}
+
+	settings.GoogleDrive.Connected = false
+	settings.GoogleDrive.Email = ""
+	settings.GoogleDrive.AccessToken = ""
+	settings.GoogleDrive.RefreshToken = ""
+	_ = h.repo.SaveSettings(*settings)
+
+	h.respondJSON(w, true, "Akun Google Drive berhasil diputuskan.")
+}
+
 

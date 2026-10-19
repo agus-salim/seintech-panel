@@ -117,6 +117,7 @@ func (h *SSLHandler) Issue(w http.ResponseWriter, r *http.Request) {
 				settings.SSLEnabled = true
 			}
 			_ = h.repo.SaveSettings(*settings)
+			_ = h.sslMgr.SyncPanelNginxReverseProxy(ctx)
 
 			msg := fmt.Sprintf("Sertifikat SSL Let's Encrypt untuk panel (%s) berhasil diaktifkan dan aktif!", targetHost.Hostname)
 			h.respond(w, r, true, msg)

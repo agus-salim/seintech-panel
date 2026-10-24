@@ -688,6 +688,66 @@
         });
     }
 
+    // Global helper for issuing Let's Encrypt SSL for panel host domains
+    function issueSSL(id, hostname, btnEl) {
+        hostname = (hostname || '').trim();
+        const isId = window.__LANG === 'id';
+
+        if (!hostname) {
+            const msg = isId 
+                ? 'Silakan tentukan nama domain terlebih dahulu sebelum menerbitkan sertifikat SSL.' 
+                : 'Please specify the domain name first before issuing SSL.';
+            if (typeof showToast === 'function') {
+                showToast(msg, 'warning');
+            } else {
+                alert(msg);
+            }
+            if (typeof openEditHostModal === 'function') {
+                openEditHostModal(id, '', '8443');
+            }
+            return;
+        }
+
+        // Validate that it is not a raw IP address
+        const isIP = /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname);
+        if (isIP) {
+            const msg = isId 
+                ? 'Sertifikat SSL Let\'s Encrypt hanya mendukung nama domain (contoh: cp.domainanda.com), bukan alamat IP. Silakan ubah ke nama domain.' 
+                : 'Let\'s Encrypt SSL certificates only support domain names, not IP addresses. Please change to a domain name.';
+            if (typeof showToast === 'function') {
+                showToast(msg, 'warning');
+            } else {
+                alert(msg);
+            }
+            if (typeof openEditHostModal === 'function') {
+                openEditHostModal(id, hostname, '8443');
+            }
+            return;
+        }
+
+        if (typeof activateLetsEncrypt === 'function') {
+            activateLetsEncrypt(id, hostname, btnEl, false);
+        } else {
+            // Fallback POST form
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/settings/hosts/ssl';
+            const hId = document.createElement('input');
+            hId.type = 'hidden';
+            hId.name = 'host_id';
+            hId.value = id;
+            const hName = document.createElement('input');
+            hName.type = 'hidden';
+            hName.name = 'hostname';
+            hName.value = hostname;
+            form.appendChild(hId);
+            form.appendChild(hName);
+            document.body.appendChild(form);
+            form.submit();
+        }
+    }
+    window.issueSSL = issueSSL;
+
     // Show flash messages from server as toasts on page load
     (function() {
         const params = new URLSearchParams(window.location.search);

@@ -366,12 +366,15 @@ function issueSSL(id, hostname, btnEl) {
 
     if (!hostname) {
         const msg = isId 
-            ? 'Silakan tentukan atau edit nama domain terlebih dahulu (klik tombol edit pensil) sebelum menerbitkan sertifikat SSL.' 
-            : 'Please specify or edit the domain name first before issuing SSL.';
+            ? 'Silakan tentukan nama domain terlebih dahulu sebelum menerbitkan sertifikat SSL.' 
+            : 'Please specify the domain name first before issuing SSL.';
         if (typeof showToast === 'function') {
-            showToast(msg, 'error');
+            showToast(msg, 'warning');
         } else {
             alert(msg);
+        }
+        if (typeof openEditHostModal === 'function') {
+            openEditHostModal(id, '', '8443');
         }
         return;
     }
@@ -380,12 +383,15 @@ function issueSSL(id, hostname, btnEl) {
     const isIP = /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname);
     if (isIP) {
         const msg = isId 
-            ? 'Sertifikat SSL Let\'s Encrypt hanya mendukung nama domain (contoh: cp.domainanda.com), bukan alamat IP.' 
-            : 'Let\'s Encrypt SSL certificates only support domain names, not IP addresses.';
+            ? 'Sertifikat SSL Let\'s Encrypt hanya mendukung nama domain (contoh: cp.domainanda.com), bukan alamat IP. Silakan ubah ke nama domain.' 
+            : 'Let\'s Encrypt SSL certificates only support domain names, not IP addresses. Please change to a domain name.';
         if (typeof showToast === 'function') {
-            showToast(msg, 'error');
+            showToast(msg, 'warning');
         } else {
             alert(msg);
+        }
+        if (typeof openEditHostModal === 'function') {
+            openEditHostModal(id, hostname, '8443');
         }
         return;
     }

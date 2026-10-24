@@ -40,12 +40,28 @@
     allFiles: [
         {{ range .Files }}'{{ .Path }}',{{ end }}
     ],
+    // Extract State & Progress
     extractModal: false,
     extractTarget: '',
     extractName: '',
     extractDest: '{{ .CurrentPath }}',
+    extracting: false,
+    extractProgress: 0,
+    extractStatus: 'idle', // 'idle', 'extracting', 'success', 'error'
+    extractStep: '',
+    extractErrorMsg: '',
+    extractInterval: null,
+
+    // Compress State & Progress
     compressModal: false,
     compressName: 'archive.zip',
+    compressing: false,
+    compressProgress: 0,
+    compressStatus: 'idle', // 'idle', 'compressing', 'success', 'error'
+    compressStep: '',
+    compressErrorMsg: '',
+    compressInterval: null,
+
     bulkDeleteModal: false,
 
     toggleSelectAll(e) {
@@ -62,6 +78,12 @@
         this.extractTarget = path;
         this.extractName = name;
         this.extractDest = this.currentPath;
+        this.extracting = false;
+        this.extractProgress = 0;
+        this.extractStatus = 'idle';
+        this.extractStep = '';
+        this.extractErrorMsg = '';
+        if (this.extractInterval) clearInterval(this.extractInterval);
         this.extractModal = true;
     },
     isSingleArchiveSelected() {
@@ -77,27 +99,64 @@
     },
     openCompressModal() {
         this.compressName = 'archive.zip';
+        this.compressing = false;
+        this.compressProgress = 0;
+        this.compressStatus = 'idle';
+        this.compressStep = '';
+        this.compressErrorMsg = '';
+        if (this.compressInterval) clearInterval(this.compressInterval);
         this.compressModal = true;
     },
     executeCompress() {
         if (this.selectedFiles.length === 0) return;
+        const isId = window.__LANG === 'id';
+        this.compressing = true;
+        this.compressStatus = 'compressing';
+        this.compressProgress = 15;
+        this.compressStep = isId ? 'Menyiapkan berkas untuk dikompres...' : 'Preparing selected files for compression...';
+        this.compressErrorMsg = '';
+
+        if (this.compressInterval) clearInterval(this.compressInterval);
+        this.compressInterval = setInterval(() => {
+            if (this.compressProgress < 45) {
+                this.compressProgress += 6;
+                this.compressStep = isId ? 'Membaca dan memadatkan data berkas...' : 'Reading and compressing files data...';
+            } else if (this.compressProgress < 75) {
+                this.compressProgress += 3;
+                this.compressStep = isId ? 'Mengemas ke dalam format arsip...' : 'Packaging into archive format...';
+            } else if (this.compressProgress < 90) {
+                this.compressProgress += 1;
+                this.compressStep = isId ? 'Menyimpan berkas arsip & hak akses...' : 'Saving archive file & permissions...';
+            }
+        }, 300);
+
         const formData = new FormData();
         formData.append('dest_dir', this.currentPath);
         formData.append('name', this.compressName);
         this.selectedFiles.forEach(p => formData.append('paths', p));
-        
-        const isId = window.__LANG === 'id';
+
         fetch('/filemanager/compress', {
             method: 'POST',
-            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
             body: formData
         }).then(res => res.json()).then(data => {
+            if (this.compressInterval) clearInterval(this.compressInterval);
             if (data.success) {
-                window.location.reload();
+                this.compressProgress = 100;
+                this.compressStatus = 'success';
+                this.compressStep = isId ? 'Kompresi selesai dengan sukses!' : 'Compression completed successfully!';
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
             } else {
-                this.showToast(isId ? 'Gagal Mengompres' : 'Compression Failed', data.error || (isId ? 'Terjadi kesalahan saat membuat arsip.' : 'An error occurred while creating archive.'), 'error');
+                this.compressStatus = 'error';
+                this.compressErrorMsg = data.error || (isId ? 'Terjadi kesalahan saat membuat arsip.' : 'An error occurred while creating archive.');
             }
-        }).catch(err => this.showToast(isId ? 'Gagal Mengompres' : 'Compression Failed', err.message || (isId ? 'Koneksi terputus.' : 'Connection lost.'), 'error'));
+        }).catch(err => {
+            if (this.compressInterval) clearInterval(this.compressInterval);
+            this.compressStatus = 'error';
+            this.compressErrorMsg = err.message || (isId ? 'Koneksi terputus.' : 'Connection lost.');
+        });
     },
     executeBulkDelete() {
         if (this.selectedFiles.length === 0) return;
@@ -108,7 +167,7 @@
 
         fetch('/filemanager/bulk-delete', {
             method: 'POST',
-            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
             body: formData
         }).then(res => res.json()).then(data => {
             if (data.success) {
@@ -120,21 +179,52 @@
     },
     executeExtract() {
         const isId = window.__LANG === 'id';
+        this.extracting = true;
+        this.extractStatus = 'extracting';
+        this.extractProgress = 15;
+        this.extractStep = isId ? 'Membaca struktur file arsip...' : 'Reading archive structure...';
+        this.extractErrorMsg = '';
+
+        if (this.extractInterval) clearInterval(this.extractInterval);
+        this.extractInterval = setInterval(() => {
+            if (this.extractProgress < 40) {
+                this.extractProgress += 5;
+                this.extractStep = isId ? 'Membongkar berkas dan direktori...' : 'Extracting files and directories...';
+            } else if (this.extractProgress < 75) {
+                this.extractProgress += 3;
+                this.extractStep = isId ? 'Menulis file ke direktori tujuan...' : 'Writing files to target directory...';
+            } else if (this.extractProgress < 90) {
+                this.extractProgress += 1;
+                this.extractStep = isId ? 'Menerapkan izin (755/644) & user situs...' : 'Applying site user permissions...';
+            }
+        }, 300);
+
         const formData = new FormData();
         formData.append('path', this.extractTarget);
         formData.append('dest', this.extractDest);
 
         fetch('/filemanager/extract', {
             method: 'POST',
-            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
             body: formData
         }).then(res => res.json()).then(data => {
+            if (this.extractInterval) clearInterval(this.extractInterval);
             if (data.success) {
-                window.location.reload();
+                this.extractProgress = 100;
+                this.extractStatus = 'success';
+                this.extractStep = isId ? 'Ekstraksi arsip selesai dengan sukses!' : 'Archive extracted successfully!';
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
             } else {
-                this.showToast(isId ? 'Gagal Mengekstrak' : 'Extraction Failed', data.error || (isId ? 'Terjadi kesalahan saat mengekstrak berkas.' : 'An error occurred while extracting archive.'), 'error');
+                this.extractStatus = 'error';
+                this.extractErrorMsg = data.error || (isId ? 'Terjadi kesalahan saat mengekstrak berkas.' : 'An error occurred while extracting archive.');
             }
-        }).catch(err => this.showToast(isId ? 'Gagal Mengekstrak' : 'Extraction Failed', err.message || (isId ? 'Koneksi terputus.' : 'Connection lost.'), 'error'));
+        }).catch(err => {
+            if (this.extractInterval) clearInterval(this.extractInterval);
+            this.extractStatus = 'error';
+            this.extractErrorMsg = err.message || (isId ? 'Koneksi terputus.' : 'Connection lost.');
+        });
     },
     resetCurrentPermissions() {
         const isId = window.__LANG === 'id';
@@ -627,159 +717,273 @@
                 </tbody>
             </table>
         </div>
-    </div>
-                </tbody>
-            </table>
-        </div>
-    </div>
+    <!-- Upload Progress Floating Animation & Notification Card (Teleported to Body) -->
+    <template x-teleport="body">
+        <div x-show="uploading" 
+             x-cloak
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0 translate-y-8 scale-95"
+             x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+             x-transition:leave="transition ease-in duration-200"
+             x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+             x-transition:leave-end="opacity-0 translate-y-8 scale-95"
+             class="fixed bottom-6 right-6 z-[9999] w-96 max-w-[calc(100vw-3rem)] bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-200/90 p-5 overflow-hidden ring-1 ring-slate-900/5"
+             style="display: none;">
+            
+            <!-- Header -->
+            <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center space-x-2.5 min-w-0">
+                    <template x-if="uploadStatus === 'uploading'">
+                        <div class="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+                            <svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                        </div>
+                    </template>
+                    <template x-if="uploadStatus === 'processing'">
+                        <div class="w-9 h-9 rounded-xl bg-amber-50 border border-amber-100 text-amber-600 flex items-center justify-center shrink-0 animate-pulse">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        </div>
+                    </template>
+                    <template x-if="uploadStatus === 'success'">
+                        <div class="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 animate-bounce">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
+                        </div>
+                    </template>
+                    <template x-if="uploadStatus === 'error'">
+                        <div class="w-9 h-9 rounded-xl bg-rose-50 border border-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </div>
+                    </template>
 
-    <!-- Upload Progress Floating Animation & Notification Card -->
-    <div x-show="uploading" 
-         x-cloak
-         x-transition:enter="transition ease-out duration-300"
-         x-transition:enter-start="opacity-0 translate-y-8 scale-95"
-         x-transition:enter-end="opacity-100 translate-y-0 scale-100"
-         x-transition:leave="transition ease-in duration-200"
-         x-transition:leave-start="opacity-100 translate-y-0 scale-100"
-         x-transition:leave-end="opacity-0 translate-y-8 scale-95"
-         class="fixed bottom-6 right-6 z-50 w-96 max-w-[calc(100vw-3rem)] bg-white rounded-2xl shadow-2xl border border-slate-200/90 p-5 overflow-hidden ring-1 ring-slate-900/5"
-         style="display: none;">
-        
-        <!-- Header -->
-        <div class="flex items-center justify-between mb-3">
-            <div class="flex items-center space-x-2.5">
-                <template x-if="uploadStatus === 'uploading'">
-                    <div class="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center animate-spin">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    <div class="min-w-0 flex-1">
+                        <h4 class="text-xs font-bold text-slate-800" x-show="uploadStatus === 'uploading'">{{ T "Uploading File..." }}</h4>
+                        <h4 class="text-xs font-bold text-amber-700" x-show="uploadStatus === 'processing'">{{ T "Processing..." }}</h4>
+                        <h4 class="text-xs font-bold text-emerald-700" x-show="uploadStatus === 'success'">{{ T "Upload Complete!" }}</h4>
+                        <h4 class="text-xs font-bold text-rose-700" x-show="uploadStatus === 'error'">{{ T "Upload Failed" }}</h4>
+                        <p class="text-[11px] text-slate-500 font-mono truncate" x-text="uploadFileName"></p>
                     </div>
-                </template>
-                <template x-if="uploadStatus === 'processing'">
-                    <div class="w-9 h-9 rounded-xl bg-amber-50 border border-amber-100 text-amber-600 flex items-center justify-center animate-pulse">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    </div>
-                </template>
-                <template x-if="uploadStatus === 'success'">
-                    <div class="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-600 flex items-center justify-center animate-bounce">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
-                    </div>
-                </template>
-                <template x-if="uploadStatus === 'error'">
-                    <div class="w-9 h-9 rounded-xl bg-rose-50 border border-rose-100 text-rose-600 flex items-center justify-center">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
-                    </div>
-                </template>
+                </div>
 
-                <div>
-                    <h4 class="text-xs font-bold text-slate-800" x-show="uploadStatus === 'uploading'">{{ T "Uploading File..." }}</h4>
-                    <h4 class="text-xs font-bold text-amber-700" x-show="uploadStatus === 'processing'">{{ T "Processing..." }}</h4>
-                    <h4 class="text-xs font-bold text-emerald-700" x-show="uploadStatus === 'success'">{{ T "Upload Complete!" }}</h4>
-                    <h4 class="text-xs font-bold text-rose-700" x-show="uploadStatus === 'error'">{{ T "Upload Failed" }}</h4>
-                    <p class="text-[11px] text-slate-500 font-mono truncate max-w-[200px]" x-text="uploadFileName"></p>
+                <div class="flex items-center space-x-1 shrink-0">
+                    <template x-if="uploadStatus === 'uploading'">
+                        <button @click="cancelUpload()" class="text-[11px] text-rose-600 hover:text-rose-700 font-semibold px-2 py-1 hover:bg-rose-50 rounded-lg transition-colors">
+                            {{ T "Cancel" }}
+                        </button>
+                    </template>
+                    <template x-if="uploadStatus === 'error'">
+                        <button @click="uploading = false" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                    </template>
                 </div>
             </div>
 
-            <div class="flex items-center space-x-1">
-                <template x-if="uploadStatus === 'uploading'">
-                    <button @click="cancelUpload()" class="text-[11px] text-rose-600 hover:text-rose-700 font-semibold px-2 py-1 hover:bg-rose-50 rounded-lg transition-colors">
-                        {{ T "Cancel" }}
-                    </button>
-                </template>
-                <template x-if="uploadStatus === 'error'">
-                    <button @click="uploading = false" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                    </button>
-                </template>
+            <!-- Animated Progress Bar -->
+            <div class="relative w-full h-3 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200/60 mb-2">
+                <div class="h-full rounded-full transition-all duration-150 ease-out animate-progress-stripes"
+                     :class="{
+                        'bg-gradient-to-r from-indigo-500 to-indigo-600': uploadStatus === 'uploading',
+                        'bg-gradient-to-r from-amber-400 to-amber-500': uploadStatus === 'processing',
+                        'bg-gradient-to-r from-emerald-500 to-emerald-600': uploadStatus === 'success',
+                        'bg-rose-500': uploadStatus === 'error'
+                     }"
+                     :style="'width: ' + uploadProgress + '%'">
+                </div>
             </div>
+
+            <!-- Realtime Statistics -->
+            <div class="flex items-center justify-between text-[11px] font-mono text-slate-500">
+                <span x-text="uploadTransferred + ' / ' + uploadFileSize"></span>
+                <div class="flex items-center space-x-1.5 font-sans font-semibold">
+                    <span class="text-indigo-600" x-text="uploadProgress + '%'"></span>
+                    <span class="text-slate-300">•</span>
+                    <span class="text-slate-500" x-text="uploadSpeed"></span>
+                </div>
+            </div>
+
+            <!-- Error Alert -->
+            <template x-if="uploadStatus === 'error'">
+                <div class="mt-2 text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-lg p-2 flex items-center space-x-1.5">
+                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <span x-text="uploadErrorMsg"></span>
+                </div>
+            </template>
         </div>
+    </template>
 
-        <!-- Animated Progress Bar -->
-        <div class="relative w-full h-3 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200/60 mb-2">
-            <div class="h-full rounded-full transition-all duration-150 ease-out animate-progress-stripes"
-                 :class="{
-                    'bg-gradient-to-r from-indigo-500 to-indigo-600': uploadStatus === 'uploading',
-                    'bg-gradient-to-r from-amber-400 to-amber-500': uploadStatus === 'processing',
-                    'bg-gradient-to-r from-emerald-500 to-emerald-600': uploadStatus === 'success',
-                    'bg-rose-500': uploadStatus === 'error'
-                 }"
-                 :style="'width: ' + uploadProgress + '%'">
-            </div>
-        </div>
-
-        <!-- Realtime Statistics -->
-        <div class="flex items-center justify-between text-[11px] font-mono text-slate-500">
-            <span x-text="uploadTransferred + ' / ' + uploadFileSize"></span>
-            <div class="flex items-center space-x-1.5 font-sans font-semibold">
-                <span class="text-indigo-600" x-text="uploadProgress + '%'"></span>
-                <span class="text-slate-300">•</span>
-                <span class="text-slate-500" x-text="uploadSpeed"></span>
-            </div>
-        </div>
-
-        <!-- Error Alert -->
-        <template x-if="uploadStatus === 'error'">
-            <div class="mt-2 text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-lg p-2 flex items-center space-x-1.5">
-                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                <span x-text="uploadErrorMsg"></span>
-            </div>
-        </template>
-    </div>
-
-    <!-- Extract Archive Modal -->
+    <!-- Extract Archive Modal (With Progress Animation) -->
     <template x-teleport="body">
-        <div x-show="extractModal" x-cloak class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" @click.self="extractModal = false" style="display: none;">
+        <div x-show="extractModal" x-cloak class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" @click.self="if (!extracting) extractModal = false" style="display: none;">
             <div class="bg-white rounded-2xl p-6 w-full max-w-md border border-slate-200 shadow-2xl max-h-[92vh] overflow-y-auto">
                 <div class="flex items-center space-x-3 mb-3">
-                    <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                    <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0"
+                         :class="{ 'animate-pulse': extractStatus === 'extracting' }">
+                        <template x-if="extractStatus === 'idle'">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                        </template>
+                        <template x-if="extractStatus === 'extracting'">
+                            <svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                        </template>
+                        <template x-if="extractStatus === 'success'">
+                            <svg class="w-5 h-5 text-emerald-600 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
+                        </template>
+                        <template x-if="extractStatus === 'error'">
+                            <svg class="w-5 h-5 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </template>
                     </div>
-                    <div>
-                        <h3 class="text-sm font-bold text-slate-900">{{ T "Extract Archive" }}</h3>
-                        <p class="text-xs text-slate-500 font-mono truncate max-w-xs" x-text="extractName"></p>
+                    <div class="min-w-0 flex-1">
+                        <h3 class="text-sm font-bold text-slate-900">
+                            <span x-show="extractStatus === 'idle'">{{ T "Extract Archive" }}</span>
+                            <span x-show="extractStatus === 'extracting'">{{ T "Extracting Archive..." }}</span>
+                            <span x-show="extractStatus === 'success'" class="text-emerald-700">{{ T "Extraction Complete!" }}</span>
+                            <span x-show="extractStatus === 'error'" class="text-rose-700">{{ T "Extraction Failed" }}</span>
+                        </h3>
+                        <p class="text-xs text-slate-500 font-mono truncate" x-text="extractName"></p>
                     </div>
                 </div>
-                <p class="text-[11px] text-slate-500 mb-3">{{ T "Supported archive formats:" }} <code class="bg-slate-100 px-1 py-0.5 rounded text-slate-700 font-mono">.tar.gz</code>, <code class="bg-slate-100 px-1 py-0.5 rounded text-slate-700 font-mono">.zip</code>, <code class="bg-slate-100 px-1 py-0.5 rounded text-slate-700 font-mono">.tgz</code>, <code class="bg-slate-100 px-1 py-0.5 rounded text-slate-700 font-mono">.tar</code>.</p>
-                <form @submit.prevent="executeExtract()">
-                    <div class="mb-4">
-                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">{{ T "Destination Directory" }}</label>
-                        <input type="text" x-model="extractDest" required class="w-full px-3.5 py-2 text-xs font-mono border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none">
+
+                <!-- Form View (Idle) -->
+                <div x-show="extractStatus === 'idle'">
+                    <p class="text-[11px] text-slate-500 mb-3">{{ T "Supported archive formats:" }} <code class="bg-slate-100 px-1 py-0.5 rounded text-slate-700 font-mono">.zip</code>, <code class="bg-slate-100 px-1 py-0.5 rounded text-slate-700 font-mono">.tar.gz</code>, <code class="bg-slate-100 px-1 py-0.5 rounded text-slate-700 font-mono">.tgz</code>, <code class="bg-slate-100 px-1 py-0.5 rounded text-slate-700 font-mono">.tar</code>.</p>
+                    <form @submit.prevent="executeExtract()">
+                        <div class="mb-4">
+                            <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">{{ T "Destination Directory" }}</label>
+                            <input type="text" x-model="extractDest" required class="w-full px-3.5 py-2 text-xs font-mono border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none">
+                        </div>
+                        <div class="flex justify-end space-x-2">
+                            <button type="button" @click="extractModal = false" class="px-3.5 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">{{ T "Cancel" }}</button>
+                            <button type="submit" class="px-4 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm transition-colors flex items-center space-x-1.5">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                                <span>{{ T "Extract Now" }}</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Progress View (Extracting, Success, Error) -->
+                <div x-show="extractStatus !== 'idle'" class="mt-4 space-y-3">
+                    <!-- Progress Bar -->
+                    <div class="relative w-full h-3 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200/60">
+                        <div class="h-full rounded-full transition-all duration-200 ease-out animate-progress-stripes"
+                             :class="{
+                                'bg-gradient-to-r from-emerald-500 to-teal-500': extractStatus === 'extracting',
+                                'bg-gradient-to-r from-emerald-500 to-green-600': extractStatus === 'success',
+                                'bg-rose-500': extractStatus === 'error'
+                             }"
+                             :style="'width: ' + extractProgress + '%'">
+                        </div>
                     </div>
-                    <div class="flex justify-end space-x-2">
-                        <button type="button" @click="extractModal = false" class="px-3.5 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-xl">{{ T "Cancel" }}</button>
-                        <button type="submit" class="px-4 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm transition-colors">{{ T "Extract Now" }}</button>
+
+                    <!-- Progress Percentage & Step Status -->
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="text-slate-600 font-medium truncate pr-2" x-text="extractStep"></span>
+                        <span class="font-mono font-bold text-emerald-600 shrink-0" x-text="extractProgress + '%'"></span>
                     </div>
-                </form>
+
+                    <!-- Error Alert -->
+                    <template x-if="extractStatus === 'error'">
+                        <div class="text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-xl p-3 flex items-start space-x-2">
+                            <svg class="w-4 h-4 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            <span class="break-words" x-text="extractErrorMsg"></span>
+                        </div>
+                    </template>
+
+                    <!-- Actions on Error -->
+                    <div x-show="extractStatus === 'error'" class="flex justify-end space-x-2 pt-2">
+                        <button type="button" @click="extractModal = false" class="px-3.5 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">{{ T "Close" }}</button>
+                        <button type="button" @click="executeExtract()" class="px-4 py-1.5 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm transition-colors">{{ T "Retry" }}</button>
+                    </div>
+                </div>
             </div>
         </div>
     </template>
 
-    <!-- Compress Modal -->
+    <!-- Compress Modal (With Progress Animation) -->
     <template x-teleport="body">
-        <div x-show="compressModal" x-cloak class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" @click.self="compressModal = false" style="display: none;">
+        <div x-show="compressModal" x-cloak class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" @click.self="if (!compressing) compressModal = false" style="display: none;">
             <div class="bg-white rounded-2xl p-6 w-full max-w-md border border-slate-200 shadow-2xl max-h-[92vh] overflow-y-auto">
                 <div class="flex items-center space-x-3 mb-3">
-                    <div class="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
+                    <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0"
+                         :class="{ 'animate-pulse': compressStatus === 'compressing' }">
+                        <template x-if="compressStatus === 'idle'">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
+                        </template>
+                        <template x-if="compressStatus === 'compressing'">
+                            <svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                        </template>
+                        <template x-if="compressStatus === 'success'">
+                            <svg class="w-5 h-5 text-emerald-600 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>
+                        </template>
+                        <template x-if="compressStatus === 'error'">
+                            <svg class="w-5 h-5 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </template>
                     </div>
-                    <div>
-                        <h3 class="text-sm font-bold text-slate-900">{{ T "Compress Files" }}</h3>
+                    <div class="min-w-0 flex-1">
+                        <h3 class="text-sm font-bold text-slate-900">
+                            <span x-show="compressStatus === 'idle'">{{ T "Compress Files" }}</span>
+                            <span x-show="compressStatus === 'compressing'">{{ T "Compressing Files..." }}</span>
+                            <span x-show="compressStatus === 'success'" class="text-emerald-700">{{ T "Compression Complete!" }}</span>
+                            <span x-show="compressStatus === 'error'" class="text-rose-700">{{ T "Compression Failed" }}</span>
+                        </h3>
                         <p class="text-xs text-slate-500"><span x-text="selectedFiles.length"></span> {{ T "items will be added to archive" }}</p>
                     </div>
                 </div>
-                <form @submit.prevent="executeCompress()">
-                    <div class="mb-4">
-                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">{{ T "Archive Name" }} (.zip / .tar.gz)</label>
-                        <input type="text" x-model="compressName" required placeholder="archive.zip" class="w-full px-3.5 py-2 text-xs font-mono border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
-                        <div class="flex items-center space-x-2 mt-2">
-                            <span class="text-[11px] text-slate-400">Format:</span>
-                            <button type="button" @click="compressName = compressName.replace(/\.(zip|tar\.gz|tgz|tar)$/i, '') + '.zip'" class="px-2 py-0.5 text-[11px] font-mono rounded bg-slate-100 hover:bg-slate-200 text-slate-700">.zip</button>
-                            <button type="button" @click="compressName = compressName.replace(/\.(zip|tar\.gz|tgz|tar)$/i, '') + '.tar.gz'" class="px-2 py-0.5 text-[11px] font-mono rounded bg-slate-100 hover:bg-slate-200 text-slate-700">.tar.gz</button>
+
+                <!-- Form View (Idle) -->
+                <div x-show="compressStatus === 'idle'">
+                    <form @submit.prevent="executeCompress()">
+                        <div class="mb-4">
+                            <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">{{ T "Archive Name" }} (.zip / .tar.gz)</label>
+                            <input type="text" x-model="compressName" required placeholder="archive.zip" class="w-full px-3.5 py-2 text-xs font-mono border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                            <div class="flex items-center space-x-2 mt-2">
+                                <span class="text-[11px] text-slate-400">Format:</span>
+                                <button type="button" @click="compressName = compressName.replace(/\.(zip|tar\.gz|tgz|tar)$/i, '') + '.zip'" class="px-2 py-0.5 text-[11px] font-mono rounded bg-slate-100 hover:bg-slate-200 text-slate-700">.zip</button>
+                                <button type="button" @click="compressName = compressName.replace(/\.(zip|tar\.gz|tgz|tar)$/i, '') + '.tar.gz'" class="px-2 py-0.5 text-[11px] font-mono rounded bg-slate-100 hover:bg-slate-200 text-slate-700">.tar.gz</button>
+                            </div>
+                        </div>
+                        <div class="flex justify-end space-x-2">
+                            <button type="button" @click="compressModal = false" class="px-3.5 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">{{ T "Cancel" }}</button>
+                            <button type="submit" class="px-4 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm transition-colors flex items-center space-x-1.5">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
+                                <span>{{ T "Compress Now" }}</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Progress View (Compressing, Success, Error) -->
+                <div x-show="compressStatus !== 'idle'" class="mt-4 space-y-3">
+                    <!-- Progress Bar -->
+                    <div class="relative w-full h-3 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200/60">
+                        <div class="h-full rounded-full transition-all duration-200 ease-out animate-progress-stripes"
+                             :class="{
+                                'bg-gradient-to-r from-indigo-500 to-purple-600': compressStatus === 'compressing',
+                                'bg-gradient-to-r from-emerald-500 to-green-600': compressStatus === 'success',
+                                'bg-rose-500': compressStatus === 'error'
+                             }"
+                             :style="'width: ' + compressProgress + '%'">
                         </div>
                     </div>
-                    <div class="flex justify-end space-x-2">
-                        <button type="button" @click="compressModal = false" class="px-3.5 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-xl">{{ T "Cancel" }}</button>
-                        <button type="submit" class="px-4 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm transition-colors">{{ T "Compress Now" }}</button>
+
+                    <!-- Progress Percentage & Step Status -->
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="text-slate-600 font-medium truncate pr-2" x-text="compressStep"></span>
+                        <span class="font-mono font-bold text-indigo-600 shrink-0" x-text="compressProgress + '%'"></span>
                     </div>
-                </form>
+
+                    <!-- Error Alert -->
+                    <template x-if="compressStatus === 'error'">
+                        <div class="text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-xl p-3 flex items-start space-x-2">
+                            <svg class="w-4 h-4 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            <span class="break-words" x-text="compressErrorMsg"></span>
+                        </div>
+                    </template>
+
+                    <!-- Actions on Error -->
+                    <div x-show="compressStatus === 'error'" class="flex justify-end space-x-2 pt-2">
+                        <button type="button" @click="compressModal = false" class="px-3.5 py-1.5 text-xs text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">{{ T "Close" }}</button>
+                        <button type="button" @click="executeCompress()" class="px-4 py-1.5 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm transition-colors">{{ T "Retry" }}</button>
+                    </div>
+                </div>
             </div>
         </div>
     </template>

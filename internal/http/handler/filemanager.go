@@ -261,8 +261,9 @@ func (h *FileManagerHandler) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Support up to 2GB upload
-	if err := r.ParseMultipartForm(2048 << 20); err != nil {
+	// Support up to 10GB file uploads with safe 32MB in-RAM buffer, streaming rest to disk
+	r.Body = http.MaxBytesReader(w, r.Body, 10<<30)
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
 		log.Printf("[FileManager] Upload ParseMultipartForm error: %v", err)
 		if isAjax {
 			w.Header().Set("Content-Type", "application/json")
@@ -285,6 +286,10 @@ func (h *FileManagerHandler) Upload(w http.ResponseWriter, r *http.Request) {
 			files = append(files, fList...)
 		} else if fList, ok := r.MultipartForm.File["files"]; ok {
 			files = append(files, fList...)
+		} else {
+			for _, headers := range r.MultipartForm.File {
+				files = append(files, headers...)
+			}
 		}
 	}
 
@@ -403,7 +408,7 @@ func (h *FileManagerHandler) Rename(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *FileManagerHandler) Extract(w http.ResponseWriter, r *http.Request) {
-	isAjax := r.Header.Get("X-Requested-With") == "XMLHttpRequest"
+	isAjax := r.Header.Get("X-Requested-With") == "XMLHttpRequest" || strings.Contains(r.Header.Get("Accept"), "application/json")
 	fm, activeSite, _, err := h.getFMForUser(r)
 	if err != nil {
 		if isAjax {
@@ -416,8 +421,11 @@ func (h *FileManagerHandler) Extract(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	path := r.FormValue("path")
-	dest := r.FormValue("dest")
+	_ = r.ParseMultipartForm(32 << 20)
+	_ = r.ParseForm()
+
+	path := strings.TrimSpace(r.FormValue("path"))
+	dest := strings.TrimSpace(r.FormValue("dest"))
 	if dest == "" {
 		dest = filepath.ToSlash(filepath.Dir(path))
 	}
@@ -443,7 +451,7 @@ func (h *FileManagerHandler) Extract(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *FileManagerHandler) Compress(w http.ResponseWriter, r *http.Request) {
-	isAjax := r.Header.Get("X-Requested-With") == "XMLHttpRequest"
+	isAjax := r.Header.Get("X-Requested-With") == "XMLHttpRequest" || strings.Contains(r.Header.Get("Accept"), "application/json")
 	fm, activeSite, _, err := h.getFMForUser(r)
 	if err != nil {
 		if isAjax {
@@ -456,7 +464,10 @@ func (h *FileManagerHandler) Compress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	destDir := r.FormValue("dest_dir")
+	_ = r.ParseMultipartForm(32 << 20)
+	_ = r.ParseForm()
+
+	destDir := strings.TrimSpace(r.FormValue("dest_dir"))
 	if destDir == "" {
 		destDir = "/"
 	}
@@ -471,18 +482,19 @@ func (h *FileManagerHandler) Compress(w http.ResponseWriter, r *http.Request) {
 	targetZip := filepath.Join(destDir, name)
 
 	var paths []string
-	if err := r.ParseForm(); err == nil {
-		paths = r.Form["paths"]
-		if len(paths) == 0 && r.FormValue("paths_str") != "" {
-			paths = strings.Split(r.FormValue("paths_str"), ",")
-		}
+	paths = r.Form["paths"]
+	if len(paths) == 0 && r.MultipartForm != nil {
+		paths = r.MultipartForm.Value["paths"]
+	}
+	if len(paths) == 0 && r.FormValue("paths_str") != "" {
+		paths = strings.Split(r.FormValue("paths_str"), ",")
 	}
 
 	if len(paths) == 0 {
 		if isAjax {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": "Tidak ada file yang dipilih"})
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": "Tidak ada file yang dipilih untuk dikompresi"})
 			return
 		}
 		http.Error(w, "Tidak ada file yang dipilih untuk dikompres", http.StatusBadRequest)
@@ -510,7 +522,7 @@ func (h *FileManagerHandler) Compress(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *FileManagerHandler) BulkDelete(w http.ResponseWriter, r *http.Request) {
-	isAjax := r.Header.Get("X-Requested-With") == "XMLHttpRequest"
+	isAjax := r.Header.Get("X-Requested-With") == "XMLHttpRequest" || strings.Contains(r.Header.Get("Accept"), "application/json")
 	fm, activeSite, _, err := h.getFMForUser(r)
 	if err != nil {
 		if isAjax {
@@ -523,17 +535,21 @@ func (h *FileManagerHandler) BulkDelete(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	_ = r.ParseMultipartForm(32 << 20)
+	_ = r.ParseForm()
+
 	currentPath := r.FormValue("current_path")
 	if currentPath == "" {
 		currentPath = "/"
 	}
 
 	var paths []string
-	if err := r.ParseForm(); err == nil {
-		paths = r.Form["paths"]
-		if len(paths) == 0 && r.FormValue("paths_str") != "" {
-			paths = strings.Split(r.FormValue("paths_str"), ",")
-		}
+	paths = r.Form["paths"]
+	if len(paths) == 0 && r.MultipartForm != nil {
+		paths = r.MultipartForm.Value["paths"]
+	}
+	if len(paths) == 0 && r.FormValue("paths_str") != "" {
+		paths = strings.Split(r.FormValue("paths_str"), ",")
 	}
 
 	count := 0

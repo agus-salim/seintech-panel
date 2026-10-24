@@ -313,6 +313,8 @@ func (fm *FileManager) ExtractZip(zipSubpath, destSubpath string) error {
 		mode := f.Mode()
 		if mode == 0 {
 			mode = 0644
+		} else {
+			mode |= 0600
 		}
 		outFile, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
 		if err != nil {
@@ -353,13 +355,13 @@ func (fm *FileManager) ExtractTarGz(tarGzSubpath, destSubpath string) error {
 	if tarPath, err := exec.LookPath("tar"); err == nil {
 		var cmd *exec.Cmd
 		if strings.HasSuffix(lowerSrc, ".tar.gz") || strings.HasSuffix(lowerSrc, ".tgz") {
-			cmd = exec.Command(tarPath, "-xzf", srcReal, "-C", destReal)
+			cmd = exec.Command(tarPath, "--no-same-owner", "-xzf", srcReal, "-C", destReal)
 		} else if strings.HasSuffix(lowerSrc, ".tar.bz2") || strings.HasSuffix(lowerSrc, ".tbz2") {
-			cmd = exec.Command(tarPath, "-xjf", srcReal, "-C", destReal)
+			cmd = exec.Command(tarPath, "--no-same-owner", "-xjf", srcReal, "-C", destReal)
 		} else if strings.HasSuffix(lowerSrc, ".tar.xz") || strings.HasSuffix(lowerSrc, ".txz") {
-			cmd = exec.Command(tarPath, "-xJf", srcReal, "-C", destReal)
+			cmd = exec.Command(tarPath, "--no-same-owner", "-xJf", srcReal, "-C", destReal)
 		} else {
-			cmd = exec.Command(tarPath, "-xf", srcReal, "-C", destReal)
+			cmd = exec.Command(tarPath, "--no-same-owner", "-xf", srcReal, "-C", destReal)
 		}
 
 		out, cmdErr := cmd.CombinedOutput()
@@ -423,6 +425,8 @@ func (fm *FileManager) ExtractTarGz(tarGzSubpath, destSubpath string) error {
 			mode := header.FileInfo().Mode()
 			if mode == 0 {
 				mode = 0644
+			} else {
+				mode |= 0600
 			}
 			outFile, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
 			if err != nil {

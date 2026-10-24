@@ -5,8 +5,8 @@
     deleteModal: false,
     targetUserId: '',
     targetUsername: '',
-    editDisk: 5120,
-    editRam: 1024,
+    editDisk: 0,
+    editRam: 0,
     editDomains: 1,
     editDBs: 1,
     editRole: 'user',
@@ -15,10 +15,10 @@
         this.targetUserId = id;
         this.targetUsername = username;
         this.editRole = role;
-        this.editDisk = disk || 5120;
-        this.editRam = ram || 1024;
-        this.editDomains = domains || (role === 'user' ? 1 : 10);
-        this.editDBs = dbs || (role === 'user' ? 1 : 10);
+        this.editDisk = (disk !== undefined && disk !== null) ? disk : 0;
+        this.editRam = (ram !== undefined && ram !== null) ? ram : 0;
+        this.editDomains = (domains !== undefined && domains !== null) ? domains : (role === 'user' ? 1 : 10);
+        this.editDBs = (dbs !== undefined && dbs !== null) ? dbs : (role === 'user' ? 1 : 10);
         this.editQuotaModal = true;
     },
     openDeleteUser(id, username) {
@@ -188,24 +188,26 @@
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <label class="block text-xs font-medium text-slate-600 mb-1">{{ T "Disk Quota (MB)" }}</label>
-                                <input type="number" name="max_disk_mb" :value="selectedRole === 'reseller' ? 20480 : 5120" min="100" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
-                                <span class="text-[10px] text-slate-400 mt-0.5 block">5120 MB = 5 GB, 20480 MB = 20 GB</span>
+                                <input type="number" name="max_disk_mb" :value="selectedRole === 'reseller' ? 20480 : 5120" min="0" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                                <span class="text-[10px] text-slate-400 mt-0.5 block">0 = Unlimited (5120 MB = 5 GB, 20480 MB = 20 GB)</span>
                             </div>
                             <div>
                                 <label class="block text-xs font-medium text-slate-600 mb-1">{{ T "Bandwidth Quota (MB)" }}</label>
-                                <input type="number" name="max_ram_mb" :value="selectedRole === 'reseller' ? 4096 : 1024" min="128" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
-                                <span class="text-[10px] text-slate-400 mt-0.5 block">1024 MB = 1 GB, 4096 MB = 4 GB</span>
+                                <input type="number" name="max_ram_mb" :value="selectedRole === 'reseller' ? 4096 : 1024" min="0" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                                <span class="text-[10px] text-slate-400 mt-0.5 block">0 = Unlimited (1024 MB = 1 GB, 4096 MB = 4 GB)</span>
                             </div>
                         </div>
 
                         <div x-show="selectedRole === 'reseller'" class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
                             <div>
                                 <label class="block text-xs font-medium text-slate-600 mb-1">{{ T "Max Domains" }}</label>
-                                <input type="number" name="max_domains" value="10" min="1" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                                <input type="number" name="max_domains" value="10" min="0" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                                <span class="text-[10px] text-slate-400 mt-0.5 block">0 = Unlimited</span>
                             </div>
                             <div>
                                 <label class="block text-xs font-medium text-slate-600 mb-1">{{ T "Max Databases" }}</label>
-                                <input type="number" name="max_databases" value="10" min="1" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                                <input type="number" name="max_databases" value="10" min="0" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                                <span class="text-[10px] text-slate-400 mt-0.5 block">0 = Unlimited</span>
                             </div>
                         </div>
                     </div>
@@ -239,12 +241,12 @@
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">{{ T "Disk Quota (MB)" }}</label>
-                            <input type="number" name="max_disk_mb" x-model="editDisk" min="100" required class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                            <input type="number" name="max_disk_mb" x-model="editDisk" min="0" required class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
                             <span class="text-[10px] text-slate-400 mt-0.5 block">0 = Unlimited</span>
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">{{ T "Bandwidth Quota (MB)" }}</label>
-                            <input type="number" name="max_ram_mb" x-model="editRam" min="128" required class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                            <input type="number" name="max_ram_mb" x-model="editRam" min="0" required class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
                             <span class="text-[10px] text-slate-400 mt-0.5 block">0 = Unlimited</span>
                         </div>
                     </div>
@@ -252,11 +254,13 @@
                     <div x-show="editRole === 'reseller'" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">{{ T "Max Domains" }}</label>
-                            <input type="number" name="max_domains" x-model="editDomains" min="1" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                            <input type="number" name="max_domains" x-model="editDomains" min="0" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                            <span class="text-[10px] text-slate-400 mt-0.5 block">0 = Unlimited</span>
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">{{ T "Max Databases" }}</label>
-                            <input type="number" name="max_databases" x-model="editDBs" min="1" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                            <input type="number" name="max_databases" x-model="editDBs" min="0" class="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none">
+                            <span class="text-[10px] text-slate-400 mt-0.5 block">0 = Unlimited</span>
                         </div>
                     </div>
 

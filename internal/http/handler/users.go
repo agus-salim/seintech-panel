@@ -143,11 +143,23 @@ func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
 	password := strings.TrimSpace(r.FormValue("password"))
 	role := model.Role(strings.TrimSpace(r.FormValue("role")))
 
-	// Storage & RAM quotas
 	maxDiskMB, _ := strconv.ParseInt(strings.TrimSpace(r.FormValue("max_disk_mb")), 10, 64)
 	maxRamMB, _ := strconv.ParseInt(strings.TrimSpace(r.FormValue("max_ram_mb")), 10, 64)
 	maxDomains, _ := strconv.Atoi(strings.TrimSpace(r.FormValue("max_domains")))
 	maxDatabases, _ := strconv.Atoi(strings.TrimSpace(r.FormValue("max_databases")))
+
+	if maxDiskMB < 0 {
+		maxDiskMB = 0
+	}
+	if maxRamMB < 0 {
+		maxRamMB = 0
+	}
+	if maxDomains < 0 {
+		maxDomains = 0
+	}
+	if maxDatabases < 0 {
+		maxDatabases = 0
+	}
 
 	if username == "" || password == "" {
 		http.Redirect(w, r, "/users?msg=Username+dan+password+wajib+diisi&type=error", http.StatusSeeOther)
@@ -288,6 +300,19 @@ func (h *UserHandler) UpdateQuota(w http.ResponseWriter, r *http.Request) {
 	maxRamMB, _ := strconv.ParseInt(strings.TrimSpace(r.FormValue("max_ram_mb")), 10, 64)
 	maxDomains, _ := strconv.Atoi(strings.TrimSpace(r.FormValue("max_domains")))
 	maxDatabases, _ := strconv.Atoi(strings.TrimSpace(r.FormValue("max_databases")))
+
+	if maxDiskMB < 0 {
+		maxDiskMB = 0
+	}
+	if maxRamMB < 0 {
+		maxRamMB = 0
+	}
+	if maxDomains < 0 {
+		maxDomains = 0
+	}
+	if maxDatabases < 0 {
+		maxDatabases = 0
+	}
 
 	// For End-Users, maxDomains and maxDatabases remain 1 by policy
 	if targetUser.Role == model.RoleUser {

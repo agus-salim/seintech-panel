@@ -85,7 +85,7 @@ func (sm *ServiceManager) RunInstallJob(jobID string, serviceName string) {
 	js := GetJobStore()
 	js.Update(jobID, JobRunning, fmt.Sprintf("Installing %s via APT... this may take a few minutes.", serviceName))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
 
 	err := sm.InstallService(ctx, serviceName)

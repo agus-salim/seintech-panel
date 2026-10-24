@@ -329,7 +329,10 @@ func (p *PHPManager) InstallExtension(ctx context.Context, version, extName stri
 		return nil
 	}
 
-	cmd := exec.CommandContext(ctx, "apt-get", "install", "-y", pkg)
+	cmd := exec.CommandContext(ctx, "apt-get",
+		"-o", "DPkg::Lock::Timeout=120",
+		"-o", "APT::Get::Lock-Timeout=120",
+		"install", "-y", pkg)
 	cmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -355,7 +358,10 @@ func (p *PHPManager) DeleteExtension(ctx context.Context, version, extName strin
 		return nil
 	}
 
-	cmd := exec.CommandContext(ctx, "apt-get", "remove", "-y", pkg)
+	cmd := exec.CommandContext(ctx, "apt-get",
+		"-o", "DPkg::Lock::Timeout=120",
+		"-o", "APT::Get::Lock-Timeout=120",
+		"remove", "-y", pkg)
 	cmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
 	output, err := cmd.CombinedOutput()
 	if err != nil {

@@ -59,6 +59,14 @@ if command -v apt-get >/dev/null 2>&1; then
     echo "[2/6] Configuring APT repositories for PHP"
     export DEBIAN_FRONTEND=noninteractive
 
+    # Prevent unattended-upgrades and background apt-daily timers from locking dpkg
+    systemctl stop unattended-upgrades.service apt-daily.service apt-daily-upgrade.service 2>/dev/null || true
+    systemctl disable unattended-upgrades.service apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true
+    pkill -15 -f "unattended-upgrade|apt.systemd.daily" 2>/dev/null || true
+    sleep 1
+    rm -f /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/lib/apt/lists/lock /var/cache/apt/archives/lock 2>/dev/null || true
+    dpkg --configure -a --force-confold --force-confdef 2>/dev/null || true
+
     OS_ID="debian"
     CODENAME=""
     if [ -f /etc/os-release ]; then
@@ -91,8 +99,8 @@ if command -v apt-get >/dev/null 2>&1; then
     fi
 
     echo "  -> Detected OS: $OS_ID ($CODENAME)"
-    apt-get update -y -qq
-    apt-get install -y -qq ca-certificates curl gnupg lsb-release wget software-properties-common 2>/dev/null || true
+    apt-get -o DPkg::Lock::Timeout=120 -o APT::Get::Lock-Timeout=120 update -y -qq
+    apt-get -o DPkg::Lock::Timeout=120 -o APT::Get::Lock-Timeout=120 install -y -qq ca-certificates curl gnupg lsb-release wget software-properties-common 2>/dev/null || true
 
     mkdir -p /usr/share/keyrings /etc/apt/trusted.gpg.d /etc/apt/sources.list.d
 
@@ -114,8 +122,8 @@ if command -v apt-get >/dev/null 2>&1; then
     rm -f /etc/apt/sources.list.d/lst_debian_repo.list /etc/apt/sources.list.d/caddy-stable.list 2>/dev/null || true
     rm -f /etc/apt/trusted.gpg.d/lst_debian_repo.gpg /etc/apt/trusted.gpg.d/lst_repo.gpg /usr/share/keyrings/caddy-stable-archive-keyring.gpg 2>/dev/null || true
 
-    apt-get update -y -qq || true
-    apt-get install -y -qq php-mysql php-pgsql php-sqlite3 php-mbstring 2>/dev/null || true
+    apt-get -o DPkg::Lock::Timeout=120 -o APT::Get::Lock-Timeout=120 update -y -qq || true
+    apt-get -o DPkg::Lock::Timeout=120 -o APT::Get::Lock-Timeout=120 install -y -qq php-mysql php-pgsql php-sqlite3 php-mbstring 2>/dev/null || true
 fi
 
 # 3. Install Binary (Stop existing service first if running to avoid Text file busy error)

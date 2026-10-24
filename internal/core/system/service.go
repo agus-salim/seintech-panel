@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -381,9 +382,12 @@ func (sm *ServiceManager) InstallService(ctx context.Context, serviceName string
 		return fmt.Errorf("unknown service: %s", serviceName)
 	}
 
-	// 5-minute timeout for package installation
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	// 10-minute timeout for package installation
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
+
+	// Ensure APT/DPKG lock is free before starting
+	sm.EnsureAptUnlocked(ctx)
 
 	// Special setup for PHP versions on Debian: ensure Sury repository is available
 	if targetDef.Category == "php" {
@@ -398,27 +402,47 @@ func (sm *ServiceManager) InstallService(ctx context.Context, serviceName string
 	sm.PreseedDebconf(ctx)
 
 	// Recover from any interrupted dpkg / debconf prompt
-	recoverCmd := exec.CommandContext(ctx, "dpkg", "--configure", "-a")
+	recoverCmd := exec.CommandContext(ctx, "dpkg", "--configure", "-a", "--force-confold", "--force-confdef")
 	recoverCmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
 	_ = recoverCmd.Run()
 
-	// apt-get update
-	updateCmd := exec.CommandContext(ctx, "apt-get", "update", "-y")
+	// apt-get update with lock timeout
+	updateCmd := exec.CommandContext(ctx, "apt-get",
+		"-o", "DPkg::Lock::Timeout=120",
+		"-o", "APT::Get::Lock-Timeout=120",
+		"update", "-y")
 	updateCmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
 	_ = updateCmd.Run()
 
-	// apt-get install -y <packages> with force-confold so pre-configured files aren't overridden
-	args := append([]string{"install", "-y", "-o", "Dpkg::Options::=--force-confold", "-o", "Dpkg::Options::=--force-confdef"}, targetDef.AptPackages...)
+	// apt-get install -y <packages> with force-confold and lock timeout
+	args := append([]string{
+		"install", "-y",
+		"-o", "DPkg::Lock::Timeout=120",
+		"-o", "APT::Get::Lock-Timeout=120",
+		"-o", "Dpkg::Options::=--force-confold",
+		"-o", "Dpkg::Options::=--force-confdef",
+	}, targetDef.AptPackages...)
 	installCmd := exec.CommandContext(ctx, "apt-get", args...)
 	installCmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
 	out, err := installCmd.CombinedOutput()
+
+	// Automatic retry on lock contention or dpkg error
+	if err != nil && (strings.Contains(string(out), "lock") || strings.Contains(string(out), "dpkg") || strings.Contains(string(out), "exit status 100")) {
+		log.Printf("[ServiceManager] Detected APT lock or dpkg contention for %s: %s. Re-unlocking and retrying in 3s...", serviceName, string(out))
+		time.Sleep(3 * time.Second)
+		sm.EnsureAptUnlocked(ctx)
+		retryCmd := exec.CommandContext(ctx, "apt-get", args...)
+		retryCmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
+		out, err = retryCmd.CombinedOutput()
+	}
+
 	if err != nil && serviceName == "adminer" {
 		// Fallback for adminer if APT package is unavailable:
 		// Download standalone official adminer.php directly
 		_ = os.MkdirAll("/usr/share/adminer", 0755)
 		fbScript := `
 			export DEBIAN_FRONTEND=noninteractive
-			apt-get install -y curl wget php-mysql php-pgsql php-sqlite3 php-mbstring || true
+			apt-get -o DPkg::Lock::Timeout=120 -o APT::Get::Lock-Timeout=120 install -y curl wget php-mysql php-pgsql php-sqlite3 php-mbstring || true
 			mkdir -p /usr/share/adminer
 			curl -fsSL https://github.com/vrana/adminer/releases/download/v4.8.1/adminer-4.8.1.php -o /usr/share/adminer/adminer.php || \
 			wget -qO /usr/share/adminer/adminer.php https://github.com/vrana/adminer/releases/download/v4.8.1/adminer-4.8.1.php || \
@@ -471,11 +495,14 @@ func (sm *ServiceManager) UninstallService(ctx context.Context, serviceName stri
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 
+	// Ensure APT/DPKG lock is free
+	sm.EnsureAptUnlocked(ctx)
+
 	// Preseed debconf to avoid any interactive prompt during removal (e.g. dbconfig purge prompts)
 	sm.PreseedDebconf(ctx)
 
 	// Recover any locked/interrupted dpkg states
-	recoverCmd := exec.CommandContext(ctx, "dpkg", "--configure", "-a")
+	recoverCmd := exec.CommandContext(ctx, "dpkg", "--configure", "-a", "--force-confold", "--force-confdef")
 	recoverCmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
 	_ = recoverCmd.Run()
 
@@ -485,21 +512,32 @@ func (sm *ServiceManager) UninstallService(ctx context.Context, serviceName stri
 		_, _ = sm.ExecuteSystemctl(ctx, "disable", targetDef.Name)
 	}
 
-	// 1. Try batch purge
-	args := append([]string{"purge", "-y", "--allow-change-held-packages"}, targetDef.AptPackages...)
+	// 1. Try batch purge with lock timeout
+	args := append([]string{
+		"purge", "-y",
+		"-o", "DPkg::Lock::Timeout=120",
+		"-o", "APT::Get::Lock-Timeout=120",
+		"--allow-change-held-packages",
+	}, targetDef.AptPackages...)
 	purgeCmd := exec.CommandContext(ctx, "apt-get", args...)
 	purgeCmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
 	_ = purgeCmd.Run()
 
 	// 2. Fallback per-package purge in case one package in the list was not found
 	for _, pkg := range targetDef.AptPackages {
-		pCmd := exec.CommandContext(ctx, "apt-get", "purge", "-y", pkg)
+		pCmd := exec.CommandContext(ctx, "apt-get",
+			"-o", "DPkg::Lock::Timeout=120",
+			"-o", "APT::Get::Lock-Timeout=120",
+			"purge", "-y", pkg)
 		pCmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
 		_ = pCmd.Run()
 	}
 
 	// 3. Autoremove unused dependencies
-	autoCmd := exec.CommandContext(ctx, "apt-get", "autoremove", "-y", "--purge")
+	autoCmd := exec.CommandContext(ctx, "apt-get",
+		"-o", "DPkg::Lock::Timeout=120",
+		"-o", "APT::Get::Lock-Timeout=120",
+		"autoremove", "-y", "--purge")
 	autoCmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
 	_ = autoCmd.Run()
 
@@ -541,6 +579,57 @@ func (sm *ServiceManager) UninstallService(ctx context.Context, serviceName stri
 	}
 
 	return nil
+}
+
+// EnsureAptUnlocked guarantees that the dpkg and apt package management subsystem is free
+// of background locks (such as unattended-upgrades, apt-daily, or dpkg-frontend) before operations run.
+func (sm *ServiceManager) EnsureAptUnlocked(ctx context.Context) {
+	if _, err := exec.LookPath("apt-get"); err != nil {
+		return
+	}
+
+	// 1. Temporarily stop background unattended-upgrades and daily timers that compete for locks
+	_ = exec.CommandContext(ctx, "systemctl", "stop", "unattended-upgrades.service", "apt-daily.service", "apt-daily-upgrade.service").Run()
+
+	// 2. Poll for locks to clear cleanly or terminate stuck background updaters
+	unlockScript := `
+		export DEBIAN_FRONTEND=noninteractive
+		# Wait up to 25 seconds for unattended-upgrades to finish if currently running
+		for i in $(seq 1 25); do
+			LOCKED=0
+			if fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/lib/apt/lists/lock /var/cache/apt/archives/lock >/dev/null 2>&1; then
+				LOCKED=1
+			elif pgrep -f "unattended-upgrade|apt\.systemd\.daily" >/dev/null 2>&1; then
+				LOCKED=1
+			fi
+
+			if [ "$LOCKED" -eq 0 ]; then
+				break
+			fi
+			sleep 1
+		done
+
+		# If still locked after 25s, terminate unattended-upgrades gracefully
+		if pgrep -f "unattended-upgrade|apt\.systemd\.daily" >/dev/null 2>&1; then
+			pkill -15 -f "unattended-upgrade|apt\.systemd\.daily" 2>/dev/null || true
+			sleep 2
+			pkill -9 -f "unattended-upgrade|apt\.systemd\.daily" 2>/dev/null || true
+		fi
+
+		# If locks are still held by stray processes, kill them
+		fuser -k -9 /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/lib/apt/lists/lock /var/cache/apt/archives/lock 2>/dev/null || true
+		sleep 1
+
+		# Remove stale lock files only if no active process is using them
+		rm -f /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/lib/apt/lists/lock /var/cache/apt/archives/lock 2>/dev/null || true
+
+		# Recover from any interrupted dpkg configuration
+		dpkg --configure -a --force-confold --force-confdef 2>/dev/null || true
+	`
+
+	cmd := exec.CommandContext(ctx, "bash", "-c", unlockScript)
+	cmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
+	_ = cmd.Run()
 }
 
 // PreseedDebconf sets debconf selections non-interactively to prevent any interactive dialogs.
@@ -1780,6 +1869,8 @@ func (sm *ServiceManager) ensureSuryPHPRepo(ctx context.Context) {
 		return
 	}
 
+	sm.EnsureAptUnlocked(ctx)
+
 	// Auto-detect Debian vs Ubuntu and distribution codename (trixie, bookworm, bullseye, noble, jammy, focal)
 	script := `
 		export DEBIAN_FRONTEND=noninteractive
@@ -1815,8 +1906,8 @@ func (sm *ServiceManager) ensureSuryPHPRepo(ctx context.Context) {
 			fi
 		fi
 
-		apt-get update -y
-		apt-get install -y ca-certificates curl gnupg lsb-release wget software-properties-common || true
+		apt-get -o DPkg::Lock::Timeout=120 -o APT::Get::Lock-Timeout=120 update -y
+		apt-get -o DPkg::Lock::Timeout=120 -o APT::Get::Lock-Timeout=120 install -y ca-certificates curl gnupg lsb-release wget software-properties-common || true
 
 		mkdir -p /usr/share/keyrings /etc/apt/trusted.gpg.d /etc/apt/sources.list.d
 
@@ -1832,7 +1923,7 @@ func (sm *ServiceManager) ensureSuryPHPRepo(ctx context.Context) {
 			cp /usr/share/keyrings/deb.sury.org-php.gpg /etc/apt/trusted.gpg.d/php.gpg 2>/dev/null || true
 			echo "deb [signed-by=/usr/share/keyrings/deb.sury.org-php.gpg] https://packages.sury.org/php/ $CODENAME main" > /etc/apt/sources.list.d/php.list
 		fi
-		apt-get update -y
+		apt-get -o DPkg::Lock::Timeout=120 -o APT::Get::Lock-Timeout=120 update -y
 	`
 
 	cmd := exec.CommandContext(ctx, "bash", "-c", script)
